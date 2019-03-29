@@ -3,7 +3,6 @@ version: '2'
 services:
   db:
     image: mysql:5.7
-    restart: always
     environment:
       MYSQL_ROOT_PASSWORD: omeka
       MYSQL_DATABASE: omeka
@@ -12,7 +11,6 @@ services:
 
   db_admin:
     image: phpmyadmin/phpmyadmin
-    restart: always
     links:
      - db:db
     ports:
@@ -28,5 +26,3 @@ services:
     volumes:
       - ./modules/:/var/www/html/modules/
       - ./themes/custom/:/var/www/html/themes/custom/
-    restart: always
-
