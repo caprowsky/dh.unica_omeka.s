@@ -3,26 +3,32 @@ version: '2'
 services:
   db:
     image: mysql:5.7
+    container_name: "omekas_db"
     environment:
       MYSQL_ROOT_PASSWORD: omeka
       MYSQL_DATABASE: omeka
       MYSQL_USER: omeka
       MYSQL_PASSWORD: omeka
 
-  db_admin:
-    image: phpmyadmin/phpmyadmin
-    links:
-     - db:db
-    ports:
-      - "8080:80"
+#  db_admin:
+#    image: phpmyadmin/phpmyadmin
+#    links:
+#     - db:db
+#    ports:
+#      - "8080:80"
 
-  omeka-s:
+  php:
     depends_on:
       - db
     build: ./
     image: klokantech/omeka-s
+    container_name: "omekas_php"
     ports:
-      - "80:80"
+      - "8070:80"
     volumes:
-      - ./modules/:/var/www/html/modules/
-      - ./themes/custom/:/var/www/html/themes/custom/
+      - ./:/var/www/html/archivio
+#    labels:
+#      - 'traefik.backend=omekas_php'
+#      - "traefik.port=80"
+#      - "traefik.frontend.rule=Host:pinco.dh.grafolab.org"
+#      - "traefik.docker.network=dhunicaomekas_default"
