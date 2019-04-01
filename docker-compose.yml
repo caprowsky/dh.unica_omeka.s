@@ -4,6 +4,7 @@ services:
   db:
     image: mysql:5.7
     container_name: "omekas_db"
+    restart: always
     environment:
       MYSQL_ROOT_PASSWORD: omeka
       MYSQL_DATABASE: omeka
@@ -22,6 +23,7 @@ services:
       - db
     build: ./
     image: klokantech/omeka-s
+    restart: always
     container_name: "omekas_php"
     ports:
       - "7000:80"
