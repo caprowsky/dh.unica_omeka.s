@@ -24,7 +24,7 @@ services:
     image: klokantech/omeka-s
     container_name: "omekas_php"
     ports:
-      - "8070:80"
+      - "7000:80"
     volumes:
       - ./:/var/www/html/archivio
 #    labels:
