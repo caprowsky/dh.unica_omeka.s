@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file, in reverse chronological order by release.
 
+## 2.8.3 - 2019-02-06
+
+### Added
+
+- Nothing.
+
+### Changed
+
+- Nothing.
+
+### Deprecated
+
+- Nothing.
+
+### Removed
+
+- Nothing.
+
+### Fixed
+
+- [#46](https://github.com/zendframework/zend-file/pull/46) fixes a unit test assertion for `Zend\File\Transfer\Adapter\Http`.
+
 ## 2.8.2 - 2018-10-15
 
 ### Added

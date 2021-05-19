@@ -2,11 +2,18 @@
 namespace Omeka\File;
 
 use finfo;
+use Omeka\Api\Request;
+use Omeka\Entity\Media;
 use Omeka\File\Store\StoreInterface;
+use Omeka\Stdlib\ErrorStore;
+use Zend\EventManager\Event;
+use Zend\EventManager\EventManagerAwareTrait;
 use Zend\Math\Rand;
 
 class TempFile
 {
+    use EventManagerAwareTrait;
+
     /**
      * Map of nonstandard-to-standard media types.
      */
@@ -66,6 +73,11 @@ class TempFile
     protected $thumbnailManager;
 
     /**
+     * @var Validator
+     */
+    protected $validator;
+
+    /**
      * @var string Directory where to save this temporary file
      */
     protected $tempDir;
@@ -105,14 +117,17 @@ class TempFile
      * @param array $mediaTypeMap
      * @param StoreInterface $store
      * @param ThumbnailManager $thumbnailManager
+     * @param Validator $validator
      */
     public function __construct($tempDir, array $mediaTypeMap,
-        StoreInterface $store, ThumbnailManager $thumbnailManager
+        StoreInterface $store, ThumbnailManager $thumbnailManager,
+        Validator $validator
     ) {
         $this->tempDir = $tempDir;
         $this->mediaTypeMap = $mediaTypeMap;
         $this->store = $store;
         $this->thumbnailManager = $thumbnailManager;
+        $this->validator = $validator;
 
         // Always create a new, uniquely named temporary file.
         $this->setTempPath(tempnam($tempDir, 'omeka'));
@@ -366,5 +381,68 @@ class TempFile
             return unlink($this->tempPath);
         }
         return true;
+    }
+
+    /**
+     * Ingest a media file.
+     *
+     * Ingesters should use this method at the end of ingest() to validate the
+     * file (if applicable), to set the storage ID to the media, and any of the
+     * following, depending on flags:
+     *   - store the original file
+     *   - create and store thumbnail files
+     *   - set file metadata to the media
+     *   - delete the temporary file
+     *
+     * @param Media $media
+     * @param Request $request
+     * @param ErrorStore $errorStore
+     * @param bool $storeOriginal Store original file
+     * @param bool $storeThumbnails Store thumbnail images?
+     * @param bool $deleteTempFile Delete the temp file after ingest?
+     * @param bool $hydrateFileMetadataOnStoreOriginalFalse
+     */
+    public function mediaIngestFile(Media $media, Request $request,
+        ErrorStore $errorStore, $storeOriginal = true, $storeThumbnails = true,
+        $deleteTempFile = true, $hydrateFileMetadataOnStoreOriginalFalse = false
+    ) {
+        if (($storeOriginal || $hydrateFileMetadataOnStoreOriginalFalse)
+            && !$this->validator->validate($this, $errorStore)
+        ) {
+            // The file does not validate.
+            return;
+        }
+        $eventParams = [
+            'tempFile' => $this,
+            'request' => $request,
+            'errorStore' => $errorStore,
+            'storeOriginal' => $storeOriginal,
+            'storeThumbnails' => $storeThumbnails,
+            'deleteTempFile' => $deleteTempFile,
+        ];
+        $event = new Event('media.ingest_file.pre', $media, $eventParams);
+        $this->getEventManager()->triggerEvent($event);
+
+        $media->setStorageId($this->getStorageId());
+        if ($storeOriginal || $hydrateFileMetadataOnStoreOriginalFalse) {
+            $media->setExtension($this->getExtension());
+            $media->setMediaType($this->getMediaType());
+            $media->setSha256($this->getSha256());
+            $media->setSize($this->getSize());
+        }
+        if ($storeOriginal) {
+            $this->storeOriginal();
+            $media->setHasOriginal(true);
+        }
+        if ($storeThumbnails) {
+            $hasThumbnails = $this->storeThumbnails();
+            $media->setHasThumbnails($hasThumbnails);
+        }
+        if ($deleteTempFile) {
+            $this->delete();
+        }
+
+        $event = new Event('media.ingest_file.post', $media, $eventParams);
+        $this->getEventManager()->triggerEvent($event);
     }
 }

@@ -2,6 +2,51 @@
 
 All notable changes to this project will be documented in this file, in reverse chronological order by release.
 
+## 3.3.0 - 2019-02-26
+
+### Added
+
+- [#53](https://github.com/zendframework/zend-router/pull/53) adds support for PHP 7.3.
+
+### Changed
+
+- Nothing.
+
+### Deprecated
+
+- Nothing.
+
+### Removed
+
+- [#53](https://github.com/zendframework/zend-router/pull/53) removes support for zend-stdlib v2 releases.
+
+### Fixed
+
+- Nothing.
+
+## 3.2.1 - 2019-01-09
+
+### Added
+
+- Nothing.
+
+### Changed
+
+- Nothing.
+
+### Deprecated
+
+- Nothing.
+
+### Removed
+
+- Nothing.
+
+### Fixed
+
+- [#50](https://github.com/zendframework/zend-router/pull/54) Corrected PHPDoc
+  for `RouterInterface#factory()` return type 
+
 ## 3.2.0 - 2018-08-01
 
 ### Added

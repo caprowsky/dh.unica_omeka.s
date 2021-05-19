@@ -1,10 +1,14 @@
 <?php
 namespace Omeka\File;
 
+use Zend\EventManager\EventManagerAwareInterface;
+use Zend\EventManager\EventManagerAwareTrait;
 use Zend\ServiceManager\ServiceLocatorInterface;
 
-class TempFileFactory
+class TempFileFactory implements EventManagerAwareInterface
 {
+    use EventManagerAwareTrait;
+
     /**
      * @var string
      */
@@ -26,6 +30,11 @@ class TempFileFactory
     protected $thumbnailManager;
 
     /**
+     * @var \Omeka\File\Validator
+     */
+    protected $validator;
+
+    /**
      * @param ServiceLocatorInterface $services
      */
     public function __construct(ServiceLocatorInterface $services)
@@ -35,6 +44,7 @@ class TempFileFactory
         $this->mediaTypeMap = $services->get('Omeka\File\MediaTypeMap');
         $this->store = $services->get('Omeka\File\Store');
         $this->thumbnailManager = $services->get('Omeka\File\ThumbnailManager');
+        $this->validator = $services->get('Omeka\File\Validator');
     }
 
     /**
@@ -44,6 +54,10 @@ class TempFileFactory
      */
     public function build()
     {
-        return new TempFile($this->tempDir, $this->mediaTypeMap, $this->store, $this->thumbnailManager);
+        $tempFile = new TempFile($this->tempDir, $this->mediaTypeMap,
+            $this->store, $this->thumbnailManager, $this->validator
+        );
+        $tempFile->setEventManager($this->getEventManager());
+        return $tempFile;
     }
 }
