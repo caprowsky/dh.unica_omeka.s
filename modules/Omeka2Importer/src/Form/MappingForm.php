@@ -66,6 +66,9 @@ class MappingForm extends Form
                 'label' => 'Per page', // @translate
                 'info' => 'Optional. Only retrieve this many records for each request.', // @translate
             ],
+            'attributes' => [
+                'id' => 'per-page',
+            ],
         ]);
 
         $this->add([
@@ -75,7 +78,9 @@ class MappingForm extends Form
                 'label' => 'Update a previous import', // @translate
                 'info' => 'If checked, items will be reimported and all data replaced, including Item Set membership as set on this page.', // @translate
             ],
-
+            'attributes' => [
+                'id' => 'update',
+            ],
         ]);
 
         $this->add([
@@ -84,6 +89,24 @@ class MappingForm extends Form
             'options' => [
                 'label' => 'Import Collections', // @translate
                 'info' => 'Import Omeka 2 collections as item sets. Items will be added to the new item sets.', // @translate
+            ],
+            'attributes' => [
+                'id' => 'import-collections',
+            ],
+        ]);
+
+        $this->add([
+            'name' => 'tagPropertyId',
+            'type' => 'Omeka\Form\Element\PropertySelect',
+            'options' => [
+                'label' => 'Import tag as', // @translate
+                'info' => 'Import tag into this property', // @translate
+                'empty_option' => '',
+            ],
+            'attributes' => [
+                'id' => 'tag-property',
+                'class' => 'chosen-select',
+                'data-placeholder' => 'Select a property', // @translate
             ],
         ]);
 
@@ -95,6 +118,10 @@ class MappingForm extends Form
 
         $inputFilter->add([
             'name' => 'key',
+            'required' => false,
+        ]);
+        $inputFilter->add([
+            'name' => 'tagPropertyId',
             'required' => false,
         ]);
     }

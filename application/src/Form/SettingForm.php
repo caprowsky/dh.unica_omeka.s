@@ -238,6 +238,31 @@ class SettingForm extends Form
             ],
         ]);
 
+        $generalFieldset->add([
+            'name' => 'default_to_private',
+            'type' => 'Checkbox',
+            'options' => [
+              'label' => 'Default content visibility to Private', // @translate
+              'info' => 'If checked, all items, item sets and sites newly created will have their visibility set to private by default.', // @translate
+            ],
+            'attributes' => [
+                'value' => $this->settings->get('default_to_private'),
+                'id' => 'default_to_private',
+            ],
+        ]);
+
+        $generalFieldset->add([
+            'name' => 'index_fulltext_search',
+            'type' => 'Checkbox',
+            'options' => [
+              'label' => 'Index full-text search', // @translate
+            ],
+            'attributes' => [
+                'value' => '',
+                'id' => 'index_fulltext_search',
+            ],
+        ]);
+
         // Security fieldset
 
         $this->add([

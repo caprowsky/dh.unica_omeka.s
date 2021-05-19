@@ -80,4 +80,9 @@ abstract class AbstractResource extends AbstractDataType
     {
         return $value->valueResource()->valueRepresentation();
     }
+
+    public function getFulltextText(PhpRenderer $view, ValueRepresentation $value)
+    {
+        return $value->valueResource()->title();
+    }
 }

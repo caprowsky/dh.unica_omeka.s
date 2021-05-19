@@ -4,10 +4,9 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit2a1b68fea96fc2e205ea6b18caa06fb1
+class ComposerStaticInit5c8b5727d5d4d4552d44b80488d3a816
 {
     public static $files = array (
-        '5255c38a0faeba867671b61dfda6d864' => __DIR__ . '/..' . '/paragonie/random_compat/lib/random.php',
         '0e6d7bf4a5811bfa5cf40c5ccd6fae6a' => __DIR__ . '/..' . '/symfony/polyfill-mbstring/bootstrap.php',
         '10a6847eba8a430a134fad89f4a30a26' => __DIR__ . '/..' . '/zendframework/zend-cache/autoload/patternPluginManagerPolyfill.php',
         '34901568a1e26d13dd475cb2c85e0284' => __DIR__ . '/..' . '/zendframework/zend-form/autoload/formElementManagerPolyfill.php',
@@ -15,6 +14,10 @@ class ComposerStaticInit2a1b68fea96fc2e205ea6b18caa06fb1
     );
 
     public static $prefixLengthsPsr4 = array (
+        'l' => 
+        array (
+            'lsolesen\\pel\\' => 13,
+        ),
         'Z' => 
         array (
             'Zend\\XmlRpc\\' => 12,
@@ -105,7 +108,10 @@ class ComposerStaticInit2a1b68fea96fc2e205ea6b18caa06fb1
         ),
         'D' => 
         array (
+            'Doctrine\\ORM\\' => 13,
             'Doctrine\\Instantiator\\' => 22,
+            'Doctrine\\DBAL\\' => 14,
+            'Doctrine\\Common\\Inflector\\' => 26,
             'Doctrine\\Common\\Cache\\' => 22,
             'Doctrine\\Common\\Annotations\\' => 28,
             'Doctrine\\Common\\' => 16,
@@ -118,6 +124,10 @@ class ComposerStaticInit2a1b68fea96fc2e205ea6b18caa06fb1
     );
 
     public static $prefixDirsPsr4 = array (
+        'lsolesen\\pel\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/lsolesen/pel/src',
+        ),
         'Zend\\XmlRpc\\' => 
         array (
             0 => __DIR__ . '/..' . '/zendframework/zend-xmlrpc/src',
@@ -386,9 +396,21 @@ class ComposerStaticInit2a1b68fea96fc2e205ea6b18caa06fb1
         array (
             0 => __DIR__ . '/..' . '/container-interop/container-interop/src/Interop/Container',
         ),
+        'Doctrine\\ORM\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/doctrine/orm/lib/Doctrine/ORM',
+        ),
         'Doctrine\\Instantiator\\' => 
         array (
             0 => __DIR__ . '/..' . '/doctrine/instantiator/src/Doctrine/Instantiator',
+        ),
+        'Doctrine\\DBAL\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/doctrine/dbal/lib/Doctrine/DBAL',
+        ),
+        'Doctrine\\Common\\Inflector\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/doctrine/inflector/lib/Doctrine/Common/Inflector',
         ),
         'Doctrine\\Common\\Cache\\' => 
         array (
@@ -400,7 +422,10 @@ class ComposerStaticInit2a1b68fea96fc2e205ea6b18caa06fb1
         ),
         'Doctrine\\Common\\' => 
         array (
-            0 => __DIR__ . '/..' . '/doctrine/common/lib/Doctrine/Common',
+            0 => __DIR__ . '/..' . '/doctrine/event-manager/lib/Doctrine/Common',
+            1 => __DIR__ . '/..' . '/doctrine/reflection/lib/Doctrine/Common',
+            2 => __DIR__ . '/..' . '/doctrine/persistence/lib/Doctrine/Common',
+            3 => __DIR__ . '/..' . '/doctrine/common/lib/Doctrine/Common',
         ),
         'DoctrineExtensions\\' => 
         array (
@@ -436,21 +461,9 @@ class ComposerStaticInit2a1b68fea96fc2e205ea6b18caa06fb1
         ),
         'D' => 
         array (
-            'Doctrine\\ORM\\' => 
-            array (
-                0 => __DIR__ . '/..' . '/doctrine/orm/lib',
-            ),
-            'Doctrine\\DBAL\\' => 
-            array (
-                0 => __DIR__ . '/..' . '/doctrine/dbal/lib',
-            ),
             'Doctrine\\Common\\Lexer\\' => 
             array (
                 0 => __DIR__ . '/..' . '/doctrine/lexer/lib',
-            ),
-            'Doctrine\\Common\\Inflector\\' => 
-            array (
-                0 => __DIR__ . '/..' . '/doctrine/inflector/lib',
             ),
             'Doctrine\\Common\\Collections\\' => 
             array (
@@ -466,10 +479,10 @@ class ComposerStaticInit2a1b68fea96fc2e205ea6b18caa06fb1
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit2a1b68fea96fc2e205ea6b18caa06fb1::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit2a1b68fea96fc2e205ea6b18caa06fb1::$prefixDirsPsr4;
-            $loader->prefixesPsr0 = ComposerStaticInit2a1b68fea96fc2e205ea6b18caa06fb1::$prefixesPsr0;
-            $loader->classMap = ComposerStaticInit2a1b68fea96fc2e205ea6b18caa06fb1::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit5c8b5727d5d4d4552d44b80488d3a816::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit5c8b5727d5d4d4552d44b80488d3a816::$prefixDirsPsr4;
+            $loader->prefixesPsr0 = ComposerStaticInit5c8b5727d5d4d4552d44b80488d3a816::$prefixesPsr0;
+            $loader->classMap = ComposerStaticInit5c8b5727d5d4d4552d44b80488d3a816::$classMap;
 
         }, null, ClassLoader::class);
     }

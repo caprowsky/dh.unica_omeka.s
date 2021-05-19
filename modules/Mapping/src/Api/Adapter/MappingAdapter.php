@@ -42,7 +42,7 @@ class MappingAdapter extends AbstractEntityAdapter
     public function validateEntity(EntityInterface $entity, ErrorStore $errorStore)
     {
         if (!$entity->getItem()) {
-            $errorStore->addError('o:item', 'A marker must have an item.'); // @translate
+            $errorStore->addError('o:item', 'A mapping zone must have an item.'); // @translate
         }
         $bounds = $entity->getBounds();
         if (null !== $bounds
@@ -64,7 +64,7 @@ class MappingAdapter extends AbstractEntityAdapter
             if ($items) {
                 $itemAlias = $this->createAlias();
                 $qb->innerJoin(
-                    $this->getEntityClass() . '.item', $itemAlias,
+                    'omeka_root.item', $itemAlias,
                     'WITH', $qb->expr()->in("$itemAlias.id", $this->createNamedParameter($qb, $items))
                 );
             }

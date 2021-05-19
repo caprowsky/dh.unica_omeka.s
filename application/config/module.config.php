@@ -160,7 +160,6 @@ return [
         'pre_tasks' => [
             Installation\Task\CheckEnvironmentTask::class,
             Installation\Task\CheckDirPermissionsTask::class,
-            Installation\Task\CheckDbConfigurationTask::class,
         ],
         'tasks' => [
             Installation\Task\DestroySessionTask::class,
@@ -276,6 +275,8 @@ return [
             'Omeka\Media\Ingester\Manager' => Service\Media\Ingester\ManagerFactory::class,
             'Omeka\Media\Renderer\Manager' => Service\Media\Renderer\ManagerFactory::class,
             'Omeka\Media\FileRenderer\Manager' => Service\Media\FileRenderer\ManagerFactory::class,
+            'Omeka\FulltextSearch' => Service\FulltextSearchFactory::class,
+            'Omeka\Environment' => Service\EnvironmentFactory::class,
         ],
         'invokables' => [
             'ModuleRouteListener' => \Zend\Mvc\ModuleRouteListener::class,
@@ -626,5 +627,7 @@ return [
         'Restore property', // @translate
         'There are no available pages.', // @translate
         'Please enter a valid language tag', // @translate
+        'Title', // @translate
+        'Description', // @translate
     ],
 ];

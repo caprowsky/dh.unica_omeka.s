@@ -22,11 +22,15 @@ class Import extends AbstractJob
 
     protected $typeMap;
 
+    protected $templateMap;
+
     protected $elementMap;
 
     protected $htmlElementMap;
 
     protected $dctermsTitleId;
+
+    protected $tagPropertyId;
 
     protected $logger;
 
@@ -40,6 +44,11 @@ class Import extends AbstractJob
             $this->typeMap = $this->getArg('type-class', []);
         } else {
             $this->typeMap = [];
+        }
+        if (is_array($this->getArg('type-template'))) {
+            $this->templateMap = $this->getArg('type-template', []);
+        } else {
+            $this->templateMap = [];
         }
 
         if (is_array($this->getArg('element-property'))) {
@@ -64,6 +73,7 @@ class Import extends AbstractJob
             $dctermsTitle = $response->getContent()[0];
             $this->dctermsTitleId = $dctermsTitle->id();
         }
+        $this->tagPropertyId = $this->getArg('tagPropertyId');
 
         $comment = $this->getArg('comment');
         $Omeka2ImportJson = [
@@ -285,6 +295,7 @@ class Import extends AbstractJob
         $resourceJson = [];
         $resourceJson['remote_id'] = $importData['id'];
         $resourceJson['o:item_set'] = [];
+        $resourceJson['o:is_public'] = $importData['public'];
 
         if (isset($importData['collection'])) {
             $omekaCollectionId = $importData['collection']['id'];
@@ -304,14 +315,19 @@ class Import extends AbstractJob
         }
 
         $resourceClassId = null;
+        $resourceTemplateId = null;
         if (isset($importData['item_type'])) {
             $itemTypeName = $importData['item_type']['name'];
             $itemTypeId = $importData['item_type']['id'];
             if (array_key_exists($itemTypeId, $this->typeMap)) {
                 $resourceClassId = $this->typeMap[$itemTypeId];
             }
+            if (array_key_exists($itemTypeId, $this->templateMap)) {
+                $resourceTemplateId = $this->templateMap[$itemTypeId];
+            }
         }
         $resourceJson['o:resource_class'] = ['o:id' => $resourceClassId];
+        $resourceJson['o:resource_template'] = ['o:id' => $resourceTemplateId];
         $resourceJson = array_merge($resourceJson, $this->buildPropertyJson($importData));
         $mediaJson = $this->buildMediaJson($importData);
         $mediaJson = $this->buildHtmlMediaJson($importData, $mediaJson);
@@ -332,15 +348,12 @@ class Import extends AbstractJob
         //on to o:media at a higher level
         $itemId = $importData['id'];
         foreach ($importData['element_texts'] as $elTextData) {
-            if (array_key_exists($elTextData['element']['id'], $this->htmlElementMap)) {
+            if ($elTextData['html'] && array_key_exists($elTextData['element']['id'], $this->htmlElementMap)) {
                 $htmlJson = [
                         'o:ingester' => 'html',
+                        'o:source' => $elTextData['element']['name'],
                         'data' => [
                             'html' => $elTextData['text'],
-                            'dcterms:title' => [
-                                'property_id' => $this->dctermsTitleId,
-                                '@value' => $elTextData['element']['name'],
-                            ],
                         ],
                 ];
                 $mediaJson['o:media'][] = $htmlJson;
@@ -360,7 +373,7 @@ class Import extends AbstractJob
         foreach ($filesData as $fileData) {
             $fileJson = [
                 'o:ingester' => 'url',
-                'o:source' => $fileData['file_urls']['original'],
+                'o:source' => $fileData['original_filename'],
                 'ingest_url' => $fileData['file_urls']['original'],
             ];
             $fileJson = array_merge($fileJson, $this->buildPropertyJson($fileData));
@@ -374,6 +387,12 @@ class Import extends AbstractJob
     {
         $propertyJson = [];
         foreach ($importData['element_texts'] as $elTextData) {
+            if (!isset($importData['item']) && $elTextData['html'] && array_key_exists($elTextData['element']['id'], $this->htmlElementMap)) {
+                // Skip if this is an item, the text was marked as HTML, and the
+                // property is in the HTML element map. The element text will be
+                // saved as HTML media instead.
+                continue;
+            }
             $value = strip_tags($elTextData['text']);
             $elementSetId = $elTextData['element_set']['id'];
             $elementId = $elTextData['element']['id'];
@@ -388,6 +407,16 @@ class Import extends AbstractJob
                             'type' => 'literal',
                             ];
                 }
+            }
+        }
+
+        if ($this->tagPropertyId) {
+            foreach ($importData['tags'] as $tagData) {
+                $propertyJson[$this->tagPropertyId][] = [
+                    '@value' => $tagData['name'],
+                    'property_id' => $this->tagPropertyId,
+                    'type' => 'literal',
+                ];
             }
         }
 

@@ -3,6 +3,28 @@
 All notable changes to this project will be documented in this file, in reverse
 chronological order by release.
 
+## 3.3.1 - 2019-05-14
+
+### Added
+
+- [#60](https://github.com/zendframework/zend-crypt/pull/60) adds support for PHP 7.3.
+
+### Changed
+
+- Nothing.
+
+### Deprecated
+
+- Nothing.
+
+### Removed
+
+- Nothing.
+
+### Fixed
+
+- Nothing.
+
 ## 3.3.0 - 2018-04-24
 
 ### Added

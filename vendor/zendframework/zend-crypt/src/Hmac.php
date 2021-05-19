@@ -90,7 +90,8 @@ class Hmac
             return true;
         }
 
-        if (in_array(strtolower($algorithm), function_exists('hash_hmac_algos') ? hash_hmac_algos() : hash_algos(), true)) {
+        $algos = static::getSupportedAlgorithms();
+        if (in_array(strtolower($algorithm), $algos, true)) {
             static::$lastAlgorithmSupported = $algorithm;
             return true;
         }

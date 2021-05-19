@@ -64,4 +64,9 @@ class Uri extends AbstractDataType
         }
         return $jsonLd;
     }
+
+    public function getFulltextText(PhpRenderer $view, ValueRepresentation $value)
+    {
+        return sprintf('%s %s', $value->uri(), $value->value());
+    }
 }
