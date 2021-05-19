@@ -10,6 +10,8 @@ services:
       MYSQL_DATABASE: omeka
       MYSQL_USER: omeka
       MYSQL_PASSWORD: omeka
+    volumes:
+      - ./mariadb-init:/docker-entrypoint-initdb.d # Place init .sql file(s) here.
 
 #  db_admin:
 #    image: phpmyadmin/phpmyadmin
