@@ -77,7 +77,7 @@ return [
     // Zend\Validator\DateStep
     "Invalid type given. String, integer, array or DateTime expected" => "Ungültige Eingabe. Zeichenkette, Ganzzahl, Array oder Datums- und Zeitangabe erwartet",
     "The input does not appear to be a valid date" => "Die Eingabe scheint kein gültiges Datum zu sein",
-    "The input does not fit the date format '%format%'" => "Die Eingabe pass nicht zum Datumsformat '%format%'",
+    "The input does not fit the date format '%format%'" => "Die Eingabe passt nicht zum Datumsformat '%format%'",
     "The input is not a valid step" => "Die Eingabe ist kein gültiger Abschnitt",
 
     // Zend\Validator\Db\AbstractDb
@@ -205,7 +205,7 @@ return [
 
     // Zend\Validator\GreaterThan
     "The input is not greater than '%min%'" => "Die Eingabe ist nicht größer als '%min%'",
-    "The input is not greater or equal than '%min%'" => "Die Eingabe ist nicht größer oder gleich '%min%'",
+    "The input is not greater than or equal to '%min%'" => "Die Eingabe ist nicht größer oder gleich '%min%'",
 
     // Zend\Validator\Hex
     "Invalid type given. String expected" => "Ungültige Eingabe. Zeichenkette erwartet",

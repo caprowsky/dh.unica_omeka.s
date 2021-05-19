@@ -194,7 +194,7 @@ class Headers implements Countable, Iterator
             $headerName = $headerFieldNameOrLine;
             $headerKey  = static::createKey($headerFieldNameOrLine);
             if (is_array($fieldValue)) {
-                $fieldValue = implode(', ', $fieldValue);
+                $fieldValue = implode('; ', $fieldValue);
             }
             $line = $headerFieldNameOrLine . ': ' . $fieldValue;
         }
@@ -420,21 +420,19 @@ class Headers implements Countable, Iterator
     {
         $headers = [];
         /* @var $header Header\HeaderInterface */
-        foreach ($this->headers as $header) {
+        foreach ($this->headers as $index => $header) {
+            if (is_array($header)) {
+                $header = $this->lazyLoadHeader($index);
+            }
+
             if ($header instanceof Header\MultipleHeaderInterface) {
                 $name = $header->getFieldName();
                 if (! isset($headers[$name])) {
                     $headers[$name] = [];
                 }
                 $headers[$name][] = $header->getFieldValue();
-            } elseif ($header instanceof Header\HeaderInterface) {
-                $headers[$header->getFieldName()] = $header->getFieldValue();
             } else {
-                $matches = null;
-                preg_match('/^(?P<name>[^()><@,;:\"\\/\[\]?=}{ \t]+):\s*(?P<value>.*)$/', $header['line'], $matches);
-                if ($matches) {
-                    $headers[$matches['name']] = $matches['value'];
-                }
+                $headers[$header->getFieldName()] = $header->getFieldValue();
             }
         }
         return $headers;
@@ -455,7 +453,7 @@ class Headers implements Countable, Iterator
 
     /**
      * @param $index
-     * @param bool $isGeneric
+     * @param bool $isGeneric If true, there is no need to parse $index and call the ClassLoader.
      * @return mixed|void
      */
     protected function lazyLoadHeader($index, $isGeneric = false)
@@ -472,6 +470,12 @@ class Headers implements Countable, Iterator
         try {
             $headers = $class::fromString($current['line']);
         } catch (Exception\InvalidArgumentException $exception) {
+            // Generic Header should throw an exception if it fails
+            if ($isGeneric) {
+                throw $exception;
+            }
+
+            // Retry one more time with GenericHeader
             return $this->lazyLoadHeader($index, true);
         }
         if (is_array($headers)) {

@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file, in reverse chronological order by release.
 
+## 2.6.1 - 2019-10-16
+
+### Added
+
+- [#19](https://github.com/zendframework/zend-memory/pull/19) adds support for PHP 7.3.
+
+### Changed
+
+- Nothing.
+
+### Deprecated
+
+- Nothing.
+
+### Removed
+
+- Nothing.
+
+### Fixed
+
+- Nothing.
+
 ## 2.6.0 - 2018-04-30
 
 ### Added

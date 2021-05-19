@@ -1,10 +1,8 @@
 <?php
 /**
- * Zend Framework (http://framework.zend.com/)
- *
- * @link      http://github.com/zendframework/zf2 for the canonical source repository
- * @copyright Copyright (c) 2005-2015 Zend Technologies USA Inc. (http://www.zend.com)
- * @license   http://framework.zend.com/license/new-bsd New BSD License
+ * @see       https://github.com/zendframework/zend-session for the canonical source repository
+ * @copyright Copyright (c) 2005-2019 Zend Technologies USA Inc. (https://www.zend.com)
+ * @license   https://github.com/zendframework/zend-session/blob/master/LICENSE.md New BSD License
  */
 
 namespace Zend\Session\Config;
@@ -362,7 +360,7 @@ class SessionConfig extends StandardConfig
              * "0" and "1" refer to MD5-128 and SHA1-160, respectively, and are
              * valid in addition to whatever is reported by hash_algos()
              */
-            $this->validHashFunctions = ['0', '1'] + hash_algos();
+            $this->validHashFunctions = array_merge(['0', '1'], hash_algos());
         }
         return $this->validHashFunctions;
     }
@@ -407,7 +405,7 @@ class SessionConfig extends StandardConfig
 
         $content = array_shift($matches);
 
-        $handlers = strstr($content, '</td>')
+        $handlers = false !== strpos($content, '</td>')
             ? $this->parseSaveHandlersFromHtml($content)
             : $this->parseSaveHandlersFromPlainText($content);
 
@@ -447,40 +445,37 @@ class SessionConfig extends StandardConfig
      */
     private function performSaveHandlerUpdate($phpSaveHandler)
     {
-        $knownHandlers = $this->locateRegisteredSaveHandlers();
+        if (is_string($phpSaveHandler)) {
+            $knownHandlers = $this->locateRegisteredSaveHandlers();
 
-        if (in_array($phpSaveHandler, $knownHandlers, true)) {
-            $phpSaveHandler = strtolower($phpSaveHandler);
-            set_error_handler([$this, 'handleError']);
-            session_module_name($phpSaveHandler);
-            restore_error_handler();
-            if ($this->phpErrorCode >= E_WARNING) {
+            if (in_array($phpSaveHandler, $knownHandlers, true)) {
+                $phpSaveHandler = strtolower($phpSaveHandler);
+                set_error_handler([$this, 'handleError']);
+                session_module_name($phpSaveHandler);
+                restore_error_handler();
+                if ($this->phpErrorCode >= E_WARNING) {
+                    throw new Exception\InvalidArgumentException(sprintf(
+                        'Error setting session save handler module "%s": %s',
+                        $phpSaveHandler,
+                        $this->phpErrorMessage
+                    ));
+                }
+
+                return $phpSaveHandler;
+            }
+
+            if (! class_exists($phpSaveHandler)
+                || ! is_a($phpSaveHandler, SessionHandlerInterface::class, true)
+            ) {
                 throw new Exception\InvalidArgumentException(sprintf(
-                    'Error setting session save handler module "%s": %s',
+                    'Invalid save handler specified ("%s"); must be one of [%s]'
+                    . ' or a class implementing %s',
                     $phpSaveHandler,
-                    $this->phpErrorMessage
+                    implode(', ', $knownHandlers),
+                    SessionHandlerInterface::class
                 ));
             }
 
-            return $phpSaveHandler;
-        }
-
-        if (is_string($phpSaveHandler)
-            && (! class_exists($phpSaveHandler)
-                || ! (in_array(SessionHandlerInterface::class, class_implements($phpSaveHandler)))
-            )
-        ) {
-            throw new Exception\InvalidArgumentException(sprintf(
-                'Invalid save handler specified ("%s"); must be one of [%s]'
-                . ' or a class implementing %s',
-                $phpSaveHandler,
-                implode(', ', $knownHandlers),
-                SessionHandlerInterface::class,
-                SessionHandlerInterface::class
-            ));
-        }
-
-        if (is_string($phpSaveHandler)) {
             $phpSaveHandler = new $phpSaveHandler();
         }
 

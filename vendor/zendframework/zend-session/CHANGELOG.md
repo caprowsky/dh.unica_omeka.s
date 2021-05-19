@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file, in reverse chronological order by release.
 
-## 2.8.6 - TBD
+## 2.9.1 - 2019-10-28
 
 ### Added
 
@@ -22,7 +22,93 @@ All notable changes to this project will be documented in this file, in reverse 
 
 ### Fixed
 
+- [#123](https://github.com/zendframework/zend-session/pull/123) fixes a bug preventing two first hash functions from `hash_algos()`
+  (usually `md2` and `md4`) from being used in `SessionConfig::setHashFunction`.
+
+## 2.9.0 - 2019-09-20
+
+### Added
+
+- [#115](https://github.com/zendframework/zend-session/pull/115) adds support for PHP 7.3.
+
+### Changed
+
 - Nothing.
+
+### Deprecated
+
+- Nothing.
+
+### Removed
+
+- [#115](https://github.com/zendframework/zend-session/pull/115) removes support for zend-stdlib v2 releases.
+
+### Fixed
+
+- Nothing.
+
+## 2.8.7 - 2019-09-19
+
+### Added
+
+- Nothing.
+
+### Changed
+
+- Nothing.
+
+### Deprecated
+
+- Nothing.
+
+### Removed
+
+- Nothing.
+
+### Fixed
+
+- [#122](https://github.com/zendframework/zend-session/pull/122) fixes
+  type check for configuration of session storage. Allows input to be
+  an instance of ArrayAccess or an array.
+
+## 2.8.6 - 2019-08-11
+
+### Added
+
+- Nothing.
+
+### Changed
+
+- Nothing.
+
+### Deprecated
+
+- Nothing.
+
+### Removed
+
+- Nothing.
+
+### Fixed
+
+- [#120](https://github.com/zendframework/zend-session/pull/120) fixes issue
+  "Commands out of sync; you can't run this command now" with DbTableGateway
+  save handler while using Mysqli adapter.
+
+- [#106](https://github.com/zendframework/zend-session/pull/106) fixes issue
+  with Garbage collection of MongoDB save handler where maxlifetime
+  is provided in seconds.
+
+- [#114](https://github.com/zendframework/zend-session/pull/114) fixes
+  Validator\Id compatibility with PHP 7.1. INI setting `session.sid_bits_per_character`
+  can be now used with PHP 7.1+ instead of `session.hash_bits_per_character`
+  (used with PHP versions prior to 7.1).
+
+  In some very specific situations this can lead to an issue with previously generated sessions.
+  See issue [#121](https://github.com/zendframework/zend-session/issues/121).
+
+- [#118](https://github.com/zendframework/zend-session/pull/118) avoid unnecessary phpinfo() call
+  when register own save handler which is an object.
 
 ## 2.8.5 - 2018-02-22
 
@@ -44,9 +130,8 @@ All notable changes to this project will be documented in this file, in reverse 
 
 ### Fixed
 
-
 - [#108](https://github.com/zendframework/zend-session/pull/108) fixes a dependency
-  conflict in `composer.json` which prevented `phpunit/phpunit` 6.5 or newer from 
+  conflict in `composer.json` which prevented `phpunit/phpunit` 6.5 or newer from
   being installed together with `zendframework/zend-session`.
 
 ## 2.8.4 - 2018-01-31

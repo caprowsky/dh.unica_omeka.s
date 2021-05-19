@@ -4,7 +4,7 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit5c8b5727d5d4d4552d44b80488d3a816
+class ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e
 {
     public static $files = array (
         '0e6d7bf4a5811bfa5cf40c5ccd6fae6a' => __DIR__ . '/..' . '/symfony/polyfill-mbstring/bootstrap.php',
@@ -106,11 +106,16 @@ class ComposerStaticInit5c8b5727d5d4d4552d44b80488d3a816
         array (
             'Interop\\Container\\' => 18,
         ),
+        'E' => 
+        array (
+            'EasyRdf\\' => 8,
+        ),
         'D' => 
         array (
             'Doctrine\\ORM\\' => 13,
             'Doctrine\\Instantiator\\' => 22,
             'Doctrine\\DBAL\\' => 14,
+            'Doctrine\\Common\\Lexer\\' => 22,
             'Doctrine\\Common\\Inflector\\' => 26,
             'Doctrine\\Common\\Cache\\' => 22,
             'Doctrine\\Common\\Annotations\\' => 28,
@@ -396,6 +401,10 @@ class ComposerStaticInit5c8b5727d5d4d4552d44b80488d3a816
         array (
             0 => __DIR__ . '/..' . '/container-interop/container-interop/src/Interop/Container',
         ),
+        'EasyRdf\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/easyrdf/easyrdf/lib',
+        ),
         'Doctrine\\ORM\\' => 
         array (
             0 => __DIR__ . '/..' . '/doctrine/orm/lib/Doctrine/ORM',
@@ -407,6 +416,10 @@ class ComposerStaticInit5c8b5727d5d4d4552d44b80488d3a816
         'Doctrine\\DBAL\\' => 
         array (
             0 => __DIR__ . '/..' . '/doctrine/dbal/lib/Doctrine/DBAL',
+        ),
+        'Doctrine\\Common\\Lexer\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/doctrine/lexer/lib/Doctrine/Common/Lexer',
         ),
         'Doctrine\\Common\\Inflector\\' => 
         array (
@@ -422,14 +435,14 @@ class ComposerStaticInit5c8b5727d5d4d4552d44b80488d3a816
         ),
         'Doctrine\\Common\\' => 
         array (
-            0 => __DIR__ . '/..' . '/doctrine/event-manager/lib/Doctrine/Common',
-            1 => __DIR__ . '/..' . '/doctrine/reflection/lib/Doctrine/Common',
+            0 => __DIR__ . '/..' . '/doctrine/reflection/lib/Doctrine/Common',
+            1 => __DIR__ . '/..' . '/doctrine/event-manager/lib/Doctrine/Common',
             2 => __DIR__ . '/..' . '/doctrine/persistence/lib/Doctrine/Common',
             3 => __DIR__ . '/..' . '/doctrine/common/lib/Doctrine/Common',
         ),
         'DoctrineExtensions\\' => 
         array (
-            0 => __DIR__ . '/..' . '/beberlei/DoctrineExtensions/src',
+            0 => __DIR__ . '/..' . '/beberlei/doctrineextensions/src',
         ),
         'Composer\\Semver\\' => 
         array (
@@ -452,19 +465,8 @@ class ComposerStaticInit5c8b5727d5d4d4552d44b80488d3a816
                 0 => __DIR__ . '/..' . '/ezyang/htmlpurifier/library',
             ),
         ),
-        'E' => 
-        array (
-            'EasyRdf_' => 
-            array (
-                0 => __DIR__ . '/..' . '/easyrdf/easyrdf/lib',
-            ),
-        ),
         'D' => 
         array (
-            'Doctrine\\Common\\Lexer\\' => 
-            array (
-                0 => __DIR__ . '/..' . '/doctrine/lexer/lib',
-            ),
             'Doctrine\\Common\\Collections\\' => 
             array (
                 0 => __DIR__ . '/..' . '/doctrine/collections/lib',
@@ -479,10 +481,10 @@ class ComposerStaticInit5c8b5727d5d4d4552d44b80488d3a816
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit5c8b5727d5d4d4552d44b80488d3a816::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit5c8b5727d5d4d4552d44b80488d3a816::$prefixDirsPsr4;
-            $loader->prefixesPsr0 = ComposerStaticInit5c8b5727d5d4d4552d44b80488d3a816::$prefixesPsr0;
-            $loader->classMap = ComposerStaticInit5c8b5727d5d4d4552d44b80488d3a816::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e::$prefixDirsPsr4;
+            $loader->prefixesPsr0 = ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e::$prefixesPsr0;
+            $loader->classMap = ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e::$classMap;
 
         }, null, ClassLoader::class);
     }

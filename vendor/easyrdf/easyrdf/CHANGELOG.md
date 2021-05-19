@@ -1,10 +1,34 @@
-EasyRdf 0.9.1
-=============
+EasyRdf 0.10.x
+==============
+
+Major new features
+------------------
+
+* PHP 5.2 is not supported anymore. New composer.json mentions 5.3.0 as minimal compatible version. In practice, number is a bit higher because of dependencies.
+* Usage without composer is not supported anymore
+* Library is loaded via PSR-4 autoloader now
+
+Enhancements
+------------
+
+* `$graph->isA()` can take full IRIs as second parameter (only qname was accepted earlier, see issue #215)
+* `Accept` HTTP-header depends on SPARQL-query type (see issues #231, #226)
+* It is possible to set alternate default Resource class via `Graph::setDefaultResourceClass()` (see issue #243)
+
+API changes
+-----------
+
+* Classes are renamed like this: `EasyRdf_Parser_Turtle` → `EasyRdf\Parser\Turtle`. With a single exception: `EasyRdf_Namespace` → `EasyRdf\RdfNamespace` (because `namespace` is a keyword in PHP)
+* EasyRdf expects HTTP-client objects compatible with ZendFramework 2.x instead of 1.x now. (zend-http is added to require-dev so tests for it are always run)
+* `Resource` implements `ArrayAccess` interface now (see #242)
 
 Bug Fixes
 ---------
 
+* Unicode-strings are properly encoded in n-triples documents (see #219)
+* `RdfPhp` parser validates its input (see #227)
 * Timeout is applied to response-times, not only connection-times (see #202)
+* `$graph->get()` is reliable after `$graph->delete()` now (see #239, #241)
 
 EasyRdf 0.9.0
 =============

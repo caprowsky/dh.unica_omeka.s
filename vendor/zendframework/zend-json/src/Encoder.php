@@ -1,8 +1,8 @@
 <?php
 /**
- * @see       https://github.com/zendframwork/zend-json for the canonical source repository
+ * @see       https://github.com/zendframework/zend-json for the canonical source repository
  * @copyright Copyright (c) 2005-2018 Zend Technologies USA Inc. (http://www.zend.com)
- * @license   https://github.com/zendframwork/zend-json/blob/master/LICENSE.md New BSD License
+ * @license   https://github.com/zendframework/zend-json/blob/master/LICENSE.md New BSD License
  */
 
 namespace Zend\Json;
@@ -585,14 +585,14 @@ class Encoder
             case 2:
                 // Return a UTF-16 character from a 2-byte UTF-8 char;
                 // see: http://www.cl.cam.ac.uk/~mgk25/unicode.html#utf-8
-                return chr(0x07 & (ord($utf8{0}) >> 2)) . chr((0xC0 & (ord($utf8{0}) << 6)) | (0x3F & ord($utf8{1})));
+                return chr(0x07 & (ord($utf8[0]) >> 2)) . chr((0xC0 & (ord($utf8[0]) << 6)) | (0x3F & ord($utf8[1])));
 
             case 3:
                 // Return a UTF-16 character from a 3-byte UTF-8 char;
                 // see: http://www.cl.cam.ac.uk/~mgk25/unicode.html#utf-8
-                return chr((0xF0 & (ord($utf8{0}) << 4))
-                    | (0x0F & (ord($utf8{1}) >> 2))) . chr((0xC0 & (ord($utf8{1}) << 6))
-                    | (0x7F & ord($utf8{2})));
+                return chr((0xF0 & (ord($utf8[0]) << 4))
+                    | (0x0F & (ord($utf8[1]) >> 2))) . chr((0xC0 & (ord($utf8[1]) << 6))
+                    | (0x7F & ord($utf8[2])));
         }
 
         // ignoring UTF-32 for now, sorry

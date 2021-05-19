@@ -20,7 +20,7 @@
         "zendframework/zend-http": "^2.5.4",
         "zendframework/zend-math": "^2.7 || ^3.0",
         "zendframework/zend-server": "^2.7",
-        "zendframework/zend-stdlib": "^2.7 || ^3.0",
+        "zendframework/zend-stdlib": "^3.2.1",
         "zendframework/zendxml": "^1.0.2"
     },
     "require-dev": {
@@ -49,8 +49,8 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-master": "2.7.x-dev",
-            "dev-develop": "2.8.x-dev"
+            "dev-master": "2.8.x-dev",
+            "dev-develop": "2.9.x-dev"
         }
     },
     "scripts": {

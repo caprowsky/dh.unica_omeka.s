@@ -1,6 +1,7 @@
 <?php
 namespace Omeka\View\Helper;
 
+use Omeka\Api\Exception as ApiException;
 use Omeka\Api\Representation\SiteRepresentation;
 use Omeka\Entity\User;
 use Zend\View\Helper\AbstractHelper;
@@ -110,14 +111,18 @@ class UserBar extends AbstractHelper
                     'text' => $translate($mapPluralLabels[$controller]),
                     'url' => $url('admin/site/slug/action', ['site-slug' => $site->slug(), 'action' => 'page']),
                 ];
-                $page = $view->api()->read('site_pages', ['site' => $site->id(), 'slug' => $routeParams['page-slug']])->getContent();
-                if ($page->userIsAllowed('edit')) {
-                    $links[] = [
-                        'resource' => $controller,
-                        'action' => 'edit',
-                        'text' => $translate('Edit'),
-                        'url' => $page->adminUrl('edit'),
-                    ];
+                try {
+                    $page = $view->api()->read('site_pages', ['site' => $site->id(), 'slug' => $routeParams['page-slug']])->getContent();
+                    if ($page->userIsAllowed('edit')) {
+                        $links[] = [
+                            'resource' => $controller,
+                            'action' => 'edit',
+                            'text' => $translate('Edit'),
+                            'url' => $page->adminUrl('edit'),
+                        ];
+                    }
+                } catch (ApiException\NotFoundException $e) {
+                    // do nothing
                 }
             }
         } else {
@@ -143,19 +148,18 @@ class UserBar extends AbstractHelper
                 $mapResourceNames = ['item' => 'items', 'item-set' => 'item_sets', 'media' => 'media'];
                 $resourceName = $mapResourceNames[$controller];
                 $resource = $view->api()->read($resourceName, $id)->getContent();
+                $links[] = [
+                    'resource' => $controller,
+                    'action' => 'show',
+                    'text' => $translate('View'),
+                    'url' => $resource->adminUrl(),
+                ];
                 if ($resource->userIsAllowed('edit')) {
                     $links[] = [
                         'resource' => $controller,
                         'action' => 'edit',
                         'text' => $translate('Edit'),
                         'url' => $resource->adminUrl('edit'),
-                    ];
-                } else {
-                    $links[] = [
-                        'resource' => $controller,
-                        'action' => 'show',
-                        'text' => $translate('View'),
-                        'url' => $resource->adminUrl(),
                     ];
                 }
             }

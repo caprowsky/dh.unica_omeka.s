@@ -165,7 +165,7 @@ abstract class AbstractResourceEntityAdapter extends AbstractEntityAdapter imple
                 );
                 if (!$propExists) {
                     $errorStore->addError('o:resource_template_property', new Message(
-                        'The "%s" resource template requires a "%s" value', // @translate
+                        'The "%1$s" resource template requires a "%2$s" value', // @translate
                         $resourceTemplate->getLabel(),
                         $requiredProp->getAlternateLabel()
                             ? $requiredProp->getAlternateLabel()
@@ -478,7 +478,7 @@ abstract class AbstractResourceEntityAdapter extends AbstractEntityAdapter imple
         $texts = [];
         foreach ($resource->getValues()->matching($criteria) as $value) {
             $valueRepresentation = new ValueRepresentation($value, $services);
-            $texts[] = $dataTypes->get($value->getType())->getFulltextText($view, $valueRepresentation);
+            $texts[] = $dataTypes->getForExtract($value)->getFulltextText($view, $valueRepresentation);
         }
         return implode("\n", $texts);
     }

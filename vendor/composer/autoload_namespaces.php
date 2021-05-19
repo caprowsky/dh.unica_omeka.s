@@ -8,7 +8,5 @@ $baseDir = dirname($vendorDir);
 return array(
     'ML\\IRI' => array($vendorDir . '/ml/iri'),
     'HTMLPurifier' => array($vendorDir . '/ezyang/htmlpurifier/library'),
-    'EasyRdf_' => array($vendorDir . '/easyrdf/easyrdf/lib'),
-    'Doctrine\\Common\\Lexer\\' => array($vendorDir . '/doctrine/lexer/lib'),
     'Doctrine\\Common\\Collections\\' => array($vendorDir . '/doctrine/collections/lib'),
 );
