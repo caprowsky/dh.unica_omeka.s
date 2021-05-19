@@ -1,9 +1,10 @@
 <?php
 namespace Scripto\Form;
 
-use Zend\Form\Form;
 use Omeka\Form\Element\ItemSetSelect;
 use Omeka\Form\Element\PropertySelect;
+use Scripto\Form\Element\MediaTypeSelect;
+use Laminas\Form\Form;
 
 class ProjectForm extends Form
 {
@@ -51,6 +52,24 @@ class ProjectForm extends Form
                 'class' => 'chosen-select',
                 'data-placeholder' => 'Select a property', // @translate
                 'id' => 'o-property',
+            ],
+        ]);
+
+        $this->add([
+            'name' => 'o-module-scripto:media_types',
+            'type' => MediaTypeSelect::class,
+            'options' => [
+                'label' => 'Media types', // @translate
+                'info' => 'Select media types to include in the project. If empty, all media will be included.', // @translate
+                'empty_option' => '[Media without media type]', // @translate
+                'disable_inarray_validator' => true,
+            ],
+            'attributes' => [
+                'id' => 'o-module-scripto-media_types',
+                'multiple' => true,
+                'required' => false,
+                'class' => 'chosen-select',
+                'data-placeholder' => 'Select media types', // @translate
             ],
         ]);
 
@@ -143,7 +162,7 @@ class ProjectForm extends Form
             'type' => 'select',
             'options' => [
                 'label' => 'Item type', // @translate
-                'info' => 'Select the type of item convered by this project. This is used to clarify the interface, if needed.', // @translate
+                'info' => 'Select the type of item covered by this project. This is used to clarify the interface, if needed.', // @translate
                 'empty_option' => 'Generic item', // @translate
                 'value_options' => [
                     'audio' => 'Audio', // @translate
@@ -181,7 +200,7 @@ class ProjectForm extends Form
             'type' => 'select',
             'options' => [
                 'label' => 'Content type', // @translate
-                'info' => 'Select the type of content convered by this project. This is used to clarify the interface, if needed.', // @translate
+                'info' => 'Select the type of content covered by this project. This is used to clarify the interface, if needed.', // @translate
                 'empty_option' => 'Generic content', // @translate
                 'value_options' => [
                     'description' => 'Description', // @translate
@@ -192,6 +211,13 @@ class ProjectForm extends Form
         ]);
 
         $inputFilter = $this->getInputFilter();
+        $inputFilter->add([
+            'name' => 'o-module-scripto:media_types',
+            'required' => false,
+            'filters' => [
+                ['name' => 'toNull'],
+            ],
+        ]);
         $inputFilter->add([
             'name' => 'o-module-scripto:description',
             'required' => false,

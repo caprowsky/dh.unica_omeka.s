@@ -4,7 +4,6 @@ namespace Scripto\Entity;
 use DateTime;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Event\LifecycleEventArgs;
-use Doctrine\ORM\Event\PreUpdateEventArgs;
 use Omeka\Entity\AbstractEntity;
 use Omeka\Entity\ItemSet;
 use Omeka\Entity\Property;
@@ -49,6 +48,15 @@ class ScriptoProject extends AbstractEntity
      * )
      */
     protected $itemSet;
+
+    /**
+     * @var array
+     * @Column(
+     *     type="json_array",
+     *     nullable=true
+     * )
+     */
+    protected $mediaTypes;
 
     /**
      * @ManyToOne(
@@ -180,6 +188,16 @@ class ScriptoProject extends AbstractEntity
     public function getItemSet()
     {
         return $this->itemSet;
+    }
+
+    public function setMediaTypes(array $mediaTypes = null)
+    {
+        $this->mediaTypes = $mediaTypes;
+    }
+
+    public function getMediaTypes()
+    {
+        return $this->mediaTypes;
     }
 
     public function setProperty(Property $property = null)

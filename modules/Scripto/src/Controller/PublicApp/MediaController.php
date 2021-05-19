@@ -2,8 +2,8 @@
 namespace Scripto\Controller\PublicApp;
 
 use Scripto\Form\MediaPublicAppForm;
-use Zend\View\Model\ViewModel;
-use Zend\Mvc\Controller\AbstractActionController;
+use Laminas\View\Model\ViewModel;
+use Laminas\Mvc\Controller\AbstractActionController;
 
 class MediaController extends AbstractActionController
 {
@@ -188,5 +188,4 @@ class MediaController extends AbstractActionController
         $this->layout()->setVariable('sMedia', $sMedia);
         return $view;
     }
-
 }

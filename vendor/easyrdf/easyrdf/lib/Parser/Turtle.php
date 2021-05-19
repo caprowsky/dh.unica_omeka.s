@@ -6,7 +6,7 @@ namespace EasyRdf\Parser;
  *
  * LICENSE
  *
- * Copyright (c) 2009-2013 Nicholas J Humfrey.
+ * Copyright (c) 2009-2020 Nicholas J Humfrey.
  * Copyright (c) 1997-2013 Aduna (http://www.aduna-software.com/)
  * All rights reserved.
  *
@@ -34,9 +34,9 @@ namespace EasyRdf\Parser;
  * POSSIBILITY OF SUCH DAMAGE.
  *
  * @package    EasyRdf
- * @copyright  Copyright (c) 2009-2013 Nicholas J Humfrey
+ * @copyright  Copyright (c) 2009-2020 Nicholas J Humfrey
  *             Copyright (c) 1997-2006 Aduna (http://www.aduna-software.com/)
- * @license    http://www.opensource.org/licenses/bsd-license.php
+ * @license    https://www.opensource.org/licenses/bsd-license.php
  */
 use EasyRdf\Graph;
 use EasyRdf\ParsedUri;
@@ -47,14 +47,14 @@ use EasyRdf\RdfNamespace;
  *
  * It is a translation from Java to PHP of the Sesame Turtle Parser:
  * http://bit.ly/TurtleParser
- * 
- * Lasted updated against version: 
+ *
+ * Lasted updated against version:
  * ecda6a15a200a2fc6a062e2e43081257c3ccd4e6   (Mon Jul 29 12:05:58 2013)
- * 
+ *
  * @package    EasyRdf
- * @copyright  Copyright (c) 2009-2013 Nicholas J Humfrey
+ * @copyright  Copyright (c) 2009-2020 Nicholas J Humfrey
  *             Copyright (c) 1997-2013 Aduna (http://www.aduna-software.com/)
- * @license    http://www.opensource.org/licenses/bsd-license.php
+ * @license    https://www.opensource.org/licenses/bsd-license.php
  */
 class Turtle extends Ntriples
 {
@@ -63,7 +63,7 @@ class Turtle extends Ntriples
     protected $subject;
     protected $predicate;
     protected $object;
-    
+
     protected $line;
     protected $column;
 
@@ -103,7 +103,7 @@ class Turtle extends Ntriples
         $this->subject = null;
         $this->predicate = null;
         $this->object = null;
-        
+
         $this->line = 1;
         $this->column = 1;
 
@@ -800,7 +800,6 @@ class Turtle extends Ntriples
         if ($c == '.' || $c == 'e' || $c == 'E') {
             // read optional fractional digits
             if ($c == '.') {
-
                 if (self::isWhitespace($this->peek())) {
                     // We're parsing an integer that did not have a space before the
                     // period to end the statement

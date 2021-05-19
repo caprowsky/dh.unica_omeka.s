@@ -6,7 +6,7 @@ use Scripto\Form\ScriptoLoginForm;
 use Scripto\Form\ScriptoLogoutForm;
 use Scripto\Mediawiki\ApiClient;
 use Scripto\Mediawiki\Exception\ClientloginException;
-use Zend\Mvc\Controller\Plugin\AbstractPlugin;
+use Laminas\Mvc\Controller\Plugin\AbstractPlugin;
 
 /**
  * Controller plugin used for Scripto-specific functionality.
@@ -63,7 +63,7 @@ class Scripto extends AbstractPlugin
         if (!$itemId && !$mediaId) {
             return $project;
         }
-        
+
         $sItem = $controller->api()->searchOne('scripto_items', [
             'scripto_project_id' => $project->id(),
             'item_id' => $itemId,

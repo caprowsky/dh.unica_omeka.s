@@ -180,6 +180,23 @@ select {
 
 /* @group ----- Navigation ----- */
 
+#skipnav {
+  position: fixed;
+  top: $spacing-l;
+  left: 50%;
+  border: 1px solid $gray;
+  transform: translateX(-50%);
+  z-index: -5;
+  padding: $spacing-s;
+  background-color: #fff;
+  opacity: 0;
+  
+  &:focus {
+    z-index: 1000;
+    opacity: 1;
+  }
+}
+
 header h1 {
   margin: 0;
 }
@@ -477,6 +494,7 @@ button.o-icon-search {
 footer {
     @include container;
     padding: 0 gutter() $spacing-l;
+    clear: both;
 }
 
 /* @end */
@@ -704,6 +722,77 @@ body.resource #content > h2:first-of-type + h3 {
         left: 0;
         line-height: 1.5 * $base-line-height;
     }
+}
+
+/* @end */
+
+/* @group ----- Search ----- */
+
+.results {
+  margin-bottom: 2 * $spacing-l;
+  clear: both;
+}
+
+.results ul {
+  list-style: none;
+  padding-left: 0;  
+}
+
+.results .result-title {
+  font-weight: bold;
+}
+
+.results > ul {
+  margin: (-1 * $spacing-m) 0 0 0;
+}
+
+.results .result-site,
+.results ul ul {
+  display: block;
+  padding-left: $spacing-m;
+}
+
+.results > ul > li {
+  margin-bottom: $spacing-l;
+}
+
+.pagination + .results {
+  margin: $spacing-l 0 0;
+  clear: both;
+}
+
+.sitewide-search-form {
+  display: none;
+}
+
+.sitewide-search-form ~ .results + .pagination {
+  margin-top: 0;
+}
+
+.sitewide-search-form ~ .advanced-search {
+  display: block;
+}
+
+.sitewide-search-form ~ h2 {
+  width: 50%;
+  float: left;
+}
+
+.sitewide-search-form ~ .pagination {
+  margin: (1.25 * $spacing-l) 0 $spacing-l;
+  text-align: right;
+  width: 50%;
+  float: right;
+}
+
+.sitewide-search-form ~ p {
+  clear: both;
+}
+
+.index.search .results ul li {
+  margin-bottom: $spacing-s;
+  padding-bottom: $spacing-s;
+  border-bottom: 1px solid $gray;
 }
 
 /* @end */

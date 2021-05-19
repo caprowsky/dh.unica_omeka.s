@@ -8,8 +8,8 @@ use Omeka\Form\UserBatchUpdateForm;
 use Omeka\Form\UserForm;
 use Omeka\Mvc\Exception;
 use Omeka\Stdlib\Message;
-use Zend\Mvc\Controller\AbstractActionController;
-use Zend\View\Model\ViewModel;
+use Laminas\Mvc\Controller\AbstractActionController;
+use Laminas\View\Model\ViewModel;
 
 class UserController extends AbstractActionController
 {
@@ -385,6 +385,7 @@ class UserController extends AbstractActionController
                     $this->api($form)->batchUpdate('users', $resourceIds, $properties, [
                         'continueOnError' => true,
                         'collectionAction' => $collectionAction,
+                        'detachEntities' => false,
                     ]);
                 }
 

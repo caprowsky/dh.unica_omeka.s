@@ -6,8 +6,8 @@ use Omeka\Api\Representation\ValueRepresentation;
 use Omeka\Api\Adapter\AbstractEntityAdapter;
 use Omeka\DataType\AbstractDataType;
 use Omeka\Entity\Value;
-use Zend\Form\Element\Select;
-use Zend\View\Renderer\PhpRenderer;
+use Laminas\Form\Element\Select;
+use Laminas\View\Renderer\PhpRenderer;
 
 class CustomVocab extends AbstractDataType
 {
@@ -64,10 +64,10 @@ class CustomVocab extends AbstractDataType
                 ->setEmptyOption($view->translate('Select item below'));
         } else {
             // Normalize vocab terms for use in a select element.
-            $terms = array_map('trim', explode(PHP_EOL, $this->vocab->terms()));
+            $terms = array_map('trim', preg_split("/\r\n|\n|\r/", $this->vocab->terms()));
             $valueOptions = array_combine($terms, $terms);
             $select->setAttribute('data-value-key', '@value')
-                ->setEmptyOption($view->translate('Select term below'));;
+                ->setEmptyOption($view->translate('Select term below'));
         }
         $select->setValueOptions($valueOptions)
             ->setAttribute('class', 'terms to-require');

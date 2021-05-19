@@ -2,6 +2,7 @@
 namespace Scripto\Job;
 
 use DateTime;
+use Doctrine\Common\Collections\Criteria;
 use Omeka\Entity\Item;
 use Omeka\Entity\Media;
 use Omeka\Job\Exception;
@@ -29,7 +30,7 @@ class SyncProject extends ScriptoJob
     public function syncProject(ScriptoProject $project)
     {
         if (!$project->getItemSet()) {
-            throw new Exception\RuntimeException('Cannot sync a project without an item set.');
+            throw new Exception\RuntimeException('Cannot sync a project without an item set.'); // @translate
         }
 
         $this->syncProjectItems($project);
@@ -70,7 +71,6 @@ class SyncProject extends ScriptoJob
         $toDelete = array_diff($sItems, $oItems);
         $toCreate = array_diff($oItems, $sItems);
 
-        $sItemData = [];
         foreach ($toCreate as $itemId) {
             $sItem = new ScriptoItem;
             $sItem->setScriptoProject($project);
@@ -101,6 +101,7 @@ class SyncProject extends ScriptoJob
      */
     public function syncProjectMedia(ScriptoProject $project)
     {
+        /** @var \Doctrine\ORM\EntityManager $em */
         $em = $this->getServiceLocator()->get('Omeka\EntityManager');
 
         // Iterate all Scripto items in the Scripto project.
@@ -136,14 +137,24 @@ class SyncProject extends ScriptoJob
             // a media will cascade delete all corresponding Scripto media.
             // Nevertheless, a bulk deletion will be necessary if the item/media
             // abstraction ever changes.
-            $query = $em->createQuery('
-                DELETE FROM Scripto\Entity\ScriptoMedia sm
-                WHERE sm.scriptoItem = :scripto_item_id
-                AND sm.id NOT IN (:scripto_media_ids)
-            ')->setParameters([
-                'scripto_item_id' => $sItemId,
-                'scripto_media_ids' => $sMediaIdsToRetain,
-            ]);
+            if ($sMediaIdsToRetain) {
+                $query = $em->createQuery('
+                    DELETE FROM Scripto\Entity\ScriptoMedia sm
+                    WHERE sm.scriptoItem = :scripto_item_id
+                    AND sm.id NOT IN (:scripto_media_ids)
+                ')->setParameters([
+                    'scripto_item_id' => $sItemId,
+                    'scripto_media_ids' => $sMediaIdsToRetain,
+                ]);
+            } else {
+                $query = $em->createQuery('
+                    DELETE FROM Scripto\Entity\ScriptoMedia sm
+                    WHERE sm.scriptoItem = :scripto_item_id
+                ')->setParameters([
+                    'scripto_item_id' => $sItemId,
+                ]);
+            }
+
             $query->execute();
 
             // Must flush the entity manager after deleting so newly persisted
@@ -186,17 +197,30 @@ class SyncProject extends ScriptoJob
     }
 
     /**
-     * Get all media assigned to the passed item, in original order.
+     * Get media assigned to an item, in original order.
      *
      * This method provides an abstraction for implementations that need to
-     * change which media are mapped to an item.
+     * change which media are mapped to an item. These implementations should
+     * honor the project's media type filter, if possible.
      *
      * @param Item $item
      * @param ScriptoProject $project
-     * @return array
+     * @return \Doctrine\Common\Collections\ArrayCollection|array
      */
     public function getAllItemMedia(Item $item, ScriptoProject $project)
     {
-        return $item->getMedia();
+        $medias = $item->getMedia();
+        $mediaTypes = $project->getMediaTypes();
+        if ($mediaTypes) {
+            // Filter media types.
+            $orX = [Criteria::expr()->in('mediaType', $mediaTypes)];
+            if (in_array('', $mediaTypes)) {
+                $orX[] = Criteria::expr()->isNull('mediaType');
+                $orX[] = Criteria::expr()->eq('mediaType', '');
+            }
+            $criteria = Criteria::create()->where(Criteria::expr()->orX(...$orX));
+            $medias = $medias->matching($criteria);
+        }
+        return $medias;
     }
 }

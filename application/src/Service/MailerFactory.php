@@ -2,8 +2,8 @@
 namespace Omeka\Service;
 
 use Omeka\Stdlib\Mailer;
-use Zend\Mail\Transport\Factory as TransportFactory;
-use Zend\ServiceManager\Factory\FactoryInterface;
+use Laminas\Mail\Transport\Factory as TransportFactory;
+use Laminas\ServiceManager\Factory\FactoryInterface;
 use Interop\Container\ContainerInterface;
 
 class MailerFactory implements FactoryInterface
@@ -26,7 +26,7 @@ class MailerFactory implements FactoryInterface
         if (isset($config['mail']['default_message_options'])) {
             $defaultOptions = $config['mail']['default_message_options'];
         }
-        if (!isset($defaultOptions['administrator_email'])) {
+        if (!isset($defaultOptions['from'])) {
             $settings = $serviceLocator->get('Omeka\Settings');
             $defaultOptions['from'] = $settings->get('administrator_email');
         }

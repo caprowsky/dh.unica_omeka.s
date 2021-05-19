@@ -10,7 +10,7 @@ use Omeka\Api\Response;
 use Omeka\Entity\User;
 use Omeka\Entity\EntityInterface;
 use Omeka\Stdlib\ErrorStore;
-use Zend\EventManager\Event;
+use Laminas\EventManager\Event;
 
 /**
  * Abstract entity API adapter.
@@ -94,6 +94,41 @@ abstract class AbstractEntityAdapter extends AbstractAdapter implements EntityAd
      */
     public function buildQuery(QueryBuilder $qb, array $query)
     {
+    }
+
+    /**
+     * Build a conditional search query from an API request.
+     *
+     * Modify the passed query builder object according to the passed $query
+     * data. The sort_by, sort_order, page, limit, and offset parameters are
+     * included separately.
+     *
+     * This method is called before buildQuery by the abstract adapter, to
+     * provide common parameters for all entities.
+     *
+     * @param QueryBuilder $qb
+     * @param array $query
+     */
+    public function buildBaseQuery(QueryBuilder $qb, array $query)
+    {
+        if (isset($query['id'])) {
+            $ids = $query['id'];
+            if (!is_array($ids)) {
+                $ids = [$ids];
+            }
+            // Exclude null and empty-string ids. Previous resource-only version used
+            // is_numeric, but we want this to be able to work for possible string IDs
+            // also
+            $ids = array_filter($ids, function ($id) {
+                return !($id === null || $id === '');
+            });
+            if ($ids) {
+                $qb->andWhere($qb->expr()->in(
+                    'omeka_root.id',
+                    $this->createNamedParameter($qb, $ids)
+                ));
+            }
+        }
     }
 
     /**
@@ -208,6 +243,7 @@ abstract class AbstractEntityAdapter extends AbstractAdapter implements EntityAd
             ->createQueryBuilder()
             ->select('omeka_root')
             ->from($entityClass, 'omeka_root');
+        $this->buildBaseQuery($qb, $query);
         $this->buildQuery($qb, $query);
         $qb->groupBy("omeka_root.id");
 
@@ -235,15 +271,21 @@ abstract class AbstractEntityAdapter extends AbstractAdapter implements EntityAd
 
         $scalarField = $request->getOption('returnScalar');
         if ($scalarField) {
-            $fieldNames = $this->getEntityManager()->getClassMetadata($entityClass)->getFieldNames();
+            $classMetadata = $this->getEntityManager()->getClassMetadata($entityClass);
+            $fieldNames = $classMetadata->getFieldNames();
             if (!in_array($scalarField, $fieldNames)) {
-                throw new Exception\BadRequestException(sprintf(
-                    $this->getTranslator()->translate('The "%1$s" field is not available in the %2$s entity class.'),
-                    $scalarField, $entityClass
-                ));
+                $associationNames = $classMetadata->getAssociationNames();
+                if (!in_array($scalarField, $associationNames)) {
+                    throw new Exception\BadRequestException(sprintf(
+                        $this->getTranslator()->translate('The "%1$s" field is not available in the %2$s entity class.'),
+                        $scalarField, $entityClass
+                    ));
+                }
+                $qb->select(['omeka_root.id', "IDENTITY(omeka_root.$scalarField) AS $scalarField"]);
+            } else {
+                $qb->select(['omeka_root.id', 'omeka_root.' . $scalarField]);
             }
-            $qb->select('omeka_root.' . $scalarField);
-            $content = array_column($qb->getQuery()->getScalarResult(), $scalarField);
+            $content = array_column($qb->getQuery()->getScalarResult(), $scalarField, 'id');
             $response = new Response($content);
             $response->setTotalResults(count($content));
             return $response;
@@ -307,7 +349,11 @@ abstract class AbstractEntityAdapter extends AbstractAdapter implements EntityAd
         $apiManager = $this->getServiceLocator()->get('Omeka\ApiManager');
         $logger = $this->getServiceLocator()->get('Omeka\Logger');
 
-        $originalIdentityMap = $this->getEntityManager()->getUnitOfWork()->getIdentityMap();
+        $detachEntities = $request->getOption('detachEntities', true);
+
+        if ($detachEntities) {
+            $originalIdentityMap = $this->getEntityManager()->getUnitOfWork()->getIdentityMap();
+        }
 
         $subresponses = [];
         $subrequestOptions = [
@@ -326,7 +372,9 @@ abstract class AbstractEntityAdapter extends AbstractAdapter implements EntityAd
                     continue;
                 }
                 // Detatch previously persisted entities before re-throwing.
-                $this->detachAllNewEntities($originalIdentityMap);
+                if ($detachEntities) {
+                    $this->detachAllNewEntities($originalIdentityMap);
+                }
                 throw $e;
             }
             $subresponses[$key] = $subresponse;
@@ -343,7 +391,9 @@ abstract class AbstractEntityAdapter extends AbstractAdapter implements EntityAd
             $entities[$key] = $entity;
         }
 
-        $this->detachAllNewEntities($originalIdentityMap);
+        if ($detachEntities) {
+            $this->detachAllNewEntities($originalIdentityMap);
+        }
 
         $request->setOption('responseContent', 'reference');
         return new Response($entities);
@@ -378,7 +428,11 @@ abstract class AbstractEntityAdapter extends AbstractAdapter implements EntityAd
         $apiManager = $this->getServiceLocator()->get('Omeka\ApiManager');
         $logger = $this->getServiceLocator()->get('Omeka\Logger');
 
-        $originalIdentityMap = $this->getEntityManager()->getUnitOfWork()->getIdentityMap();
+        $detachEntities = $request->getOption('detachEntities', true);
+
+        if ($detachEntities) {
+            $originalIdentityMap = $this->getEntityManager()->getUnitOfWork()->getIdentityMap();
+        }
 
         $subresponses = [];
         $subrequestOptions = [
@@ -399,11 +453,14 @@ abstract class AbstractEntityAdapter extends AbstractAdapter implements EntityAd
                     continue;
                 }
                 // Detatch managed entities before re-throwing.
-                $this->detachAllNewEntities($originalIdentityMap);
+                if ($detachEntities) {
+                    $this->detachAllNewEntities($originalIdentityMap);
+                }
                 throw $e;
             }
             $subresponses[$key] = $subresponse;
         }
+
         $this->getEntityManager()->flush();
 
         $entities = [];
@@ -415,7 +472,9 @@ abstract class AbstractEntityAdapter extends AbstractAdapter implements EntityAd
             $entity = $subresponse->getContent();
             $entities[$key] = $entity;
         }
-        $this->detachAllNewEntities($originalIdentityMap);
+        if ($detachEntities) {
+            $this->detachAllNewEntities($originalIdentityMap);
+        }
 
         $request->setOption('responseContent', 'reference');
         return new Response($entities);

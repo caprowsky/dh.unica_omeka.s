@@ -8,7 +8,7 @@ use Omeka\Entity\SitePageBlock;
 use Omeka\Site\BlockLayout\AbstractBlockLayout;
 use Omeka\Stdlib\ErrorStore;
 use Omeka\Api\Exception\NotFoundException;
-use Zend\View\Renderer\PhpRenderer;
+use Laminas\View\Renderer\PhpRenderer;
 
 class Scripto extends AbstractBlockLayout
 {
@@ -18,7 +18,8 @@ class Scripto extends AbstractBlockLayout
     }
 
     public function onHydrate(SitePageBlock $block, ErrorStore $errorStore)
-    {}
+    {
+    }
 
     public function form(PhpRenderer $view, SiteRepresentation $site,
         SitePageRepresentation $page = null, SitePageBlockRepresentation $block = null)

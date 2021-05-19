@@ -2,9 +2,9 @@
 namespace Scripto\Form;
 
 use Scripto\Mediawiki\ApiClient;
-use Zend\Form\Form;
-use Zend\Http\Client as HttpClient;
-use Zend\Validator\Callback;
+use Laminas\Form\Form;
+use Laminas\Http\Client as HttpClient;
+use Laminas\Validator\Callback;
 
 class ModuleConfigForm extends Form
 {
@@ -54,9 +54,9 @@ class ModuleConfigForm extends Form
                             Callback::INVALID_VALUE => sprintf(
                                 'Invalid MediaWiki API. The URL must resolve to a MediaWiki API endpoint and the MediaWiki version must be %s or greater.', // @translate
                                 ApiClient::MINIMUM_VERSION
-                            )
+                            ),
                         ],
-                        'callback' => [$this, 'apiIsValid']
+                        'callback' => [$this, 'apiIsValid'],
                     ],
                 ],
             ],
@@ -74,16 +74,15 @@ class ModuleConfigForm extends Form
     {
         try {
             $client = new ApiClient($this->httpClient, $apiUrl, $this->timeZone);
+            if (!is_array($client->querySiteInfo())) {
+                // Not a MediaWiki API endpoint
+                return false;
+            }
+            if (version_compare($client->getVersion(), ApiClient::MINIMUM_VERSION, '<')) {
+                // The MediaWiki version is invalid
+                return false;
+            }
         } catch (\Exception $e) {
-            // Not a resolvable URL
-            return false;
-        }
-        if (!is_array($client->querySiteInfo())) {
-            // Not a MediaWiki API endpoint
-            return false;
-        }
-        if (version_compare($client->getVersion(), ApiClient::MINIMUM_VERSION, '<')) {
-            // The MediaWiki version is invalid
             return false;
         }
         return true;

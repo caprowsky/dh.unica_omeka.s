@@ -24,13 +24,6 @@ abstract class AbstractResourceEntityAdapter extends AbstractEntityAdapter imple
             ]]]);
         }
 
-        if (isset($query['id']) && is_numeric($query['id'])) {
-            $qb->andWhere($qb->expr()->eq(
-                'omeka_root.id',
-                $this->createNamedParameter($qb, $query['id'])
-            ));
-        }
-
         if (isset($query['owner_id']) && is_numeric($query['owner_id'])) {
             $userAlias = $this->createAlias();
             $qb->innerJoin(
@@ -391,7 +384,7 @@ abstract class AbstractResourceEntityAdapter extends AbstractEntityAdapter imple
      */
     public function getSubjectValueTotalCount(Resource $resource, $property = null)
     {
-        $dql = 'SELECT COUNT(v.id) FROM Omeka\Entity\Value v WHERE v.valueResource = :resource';
+        $dql = 'SELECT COUNT(r.id) FROM Omeka\Entity\Value v JOIN v.resource r WHERE v.valueResource = :resource';
         $params = ['resource' => $resource];
         if ($property) {
             $dql .= ' AND v.property = :property';

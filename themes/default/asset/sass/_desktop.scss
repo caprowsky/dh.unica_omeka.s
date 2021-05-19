@@ -285,6 +285,20 @@ body.item-set .metadata ~ nav.pagination:first-of-type {
     margin-bottom: 0;
 }
 
+/* @group ----- Search ----- */
+
+.results > ul {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.results > ul > li {
+  width: calc(50% - #{$spacing-l});
+  
+  &:nth-child(2n) {
+    margin-left: $spacing-l;
+  }
+}
 
 /* @end */
 

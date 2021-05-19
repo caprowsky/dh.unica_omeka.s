@@ -5,8 +5,8 @@ use Omeka\Stdlib\Message;
 use Scripto\Form\ProjectImportForm;
 use Scripto\Form\ProjectUnimportForm;
 use Scripto\Form\ProjectSyncForm;
-use Zend\Mvc\Controller\AbstractActionController;
-use Zend\View\Model\ViewModel;
+use Laminas\Mvc\Controller\AbstractActionController;
+use Laminas\View\Model\ViewModel;
 
 class ItemController extends AbstractActionController
 {
@@ -17,7 +17,7 @@ class ItemController extends AbstractActionController
             return $this->redirect()->toRoute('admin/scripto');
         }
 
-        $this->setBrowseDefaults('synced');
+        $this->setBrowseDefaults('id');
         $query = array_merge(
             ['scripto_project_id' => $this->params('project-id')],
             $this->params()->fromQuery()

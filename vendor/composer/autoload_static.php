@@ -4,12 +4,13 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e
+class ComposerStaticInit05cd0601ba2de43fd0b5d40b1992e757
 {
     public static $files = array (
+        '7e9bd612cc444b3eed788ebbe46263a0' => __DIR__ . '/..' . '/laminas/laminas-zendframework-bridge/src/autoload.php',
         '0e6d7bf4a5811bfa5cf40c5ccd6fae6a' => __DIR__ . '/..' . '/symfony/polyfill-mbstring/bootstrap.php',
-        '10a6847eba8a430a134fad89f4a30a26' => __DIR__ . '/..' . '/zendframework/zend-cache/autoload/patternPluginManagerPolyfill.php',
-        '34901568a1e26d13dd475cb2c85e0284' => __DIR__ . '/..' . '/zendframework/zend-form/autoload/formElementManagerPolyfill.php',
+        '78d47739fff607f33066e6259f091845' => __DIR__ . '/..' . '/laminas/laminas-cache/autoload/patternPluginManagerPolyfill.php',
+        '6f1be17691391caba4a7cfee00157acb' => __DIR__ . '/..' . '/laminas/laminas-form/autoload/formElementManagerPolyfill.php',
         '2cffec82183ee1cea088009cef9a6fc3' => __DIR__ . '/..' . '/ezyang/htmlpurifier/library/HTMLPurifier.composer.php',
     );
 
@@ -17,64 +18,6 @@ class ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e
         'l' => 
         array (
             'lsolesen\\pel\\' => 13,
-        ),
-        'Z' => 
-        array (
-            'Zend\\XmlRpc\\' => 12,
-            'Zend\\View\\' => 10,
-            'Zend\\Validator\\' => 15,
-            'Zend\\Uri\\' => 9,
-            'Zend\\Text\\' => 10,
-            'Zend\\Tag\\' => 9,
-            'Zend\\Stdlib\\' => 12,
-            'Zend\\Soap\\' => 10,
-            'Zend\\Session\\' => 13,
-            'Zend\\ServiceManager\\' => 20,
-            'Zend\\Server\\' => 12,
-            'Zend\\Serializer\\' => 16,
-            'Zend\\Router\\' => 12,
-            'Zend\\ProgressBar\\' => 17,
-            'Zend\\Permissions\\Rbac\\' => 22,
-            'Zend\\Permissions\\Acl\\' => 21,
-            'Zend\\Paginator\\' => 15,
-            'Zend\\Navigation\\' => 16,
-            'Zend\\Mvc\\Plugin\\Prg\\' => 20,
-            'Zend\\Mvc\\Plugin\\Identity\\' => 25,
-            'Zend\\Mvc\\Plugin\\FlashMessenger\\' => 31,
-            'Zend\\Mvc\\Plugin\\FilePrg\\' => 24,
-            'Zend\\Mvc\\I18n\\' => 14,
-            'Zend\\Mvc\\' => 9,
-            'Zend\\ModuleManager\\' => 19,
-            'Zend\\Mime\\' => 10,
-            'Zend\\Memory\\' => 12,
-            'Zend\\Math\\' => 10,
-            'Zend\\Mail\\' => 10,
-            'Zend\\Log\\' => 9,
-            'Zend\\Loader\\' => 12,
-            'Zend\\Json\\' => 10,
-            'Zend\\InputFilter\\' => 17,
-            'Zend\\I18n\\' => 10,
-            'Zend\\Hydrator\\' => 14,
-            'Zend\\Http\\' => 10,
-            'Zend\\Form\\' => 10,
-            'Zend\\Filter\\' => 12,
-            'Zend\\File\\' => 10,
-            'Zend\\Feed\\' => 10,
-            'Zend\\EventManager\\' => 18,
-            'Zend\\Escaper\\' => 13,
-            'Zend\\Dom\\' => 9,
-            'Zend\\Di\\' => 8,
-            'Zend\\Debug\\' => 11,
-            'Zend\\Db\\' => 8,
-            'Zend\\Crypt\\' => 11,
-            'Zend\\Console\\' => 13,
-            'Zend\\Config\\' => 12,
-            'Zend\\Code\\' => 10,
-            'Zend\\Captcha\\' => 13,
-            'Zend\\Cache\\' => 11,
-            'Zend\\Barcode\\' => 13,
-            'Zend\\Authentication\\' => 20,
-            'ZendXml\\' => 8,
         ),
         'T' => 
         array (
@@ -92,6 +35,7 @@ class ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e
             'Psr\\Log\\' => 8,
             'Psr\\Container\\' => 14,
             'Psr\\Cache\\' => 10,
+            'PackageVersions\\' => 16,
         ),
         'O' => 
         array (
@@ -101,6 +45,63 @@ class ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e
         'M' => 
         array (
             'ML\\JsonLD\\' => 10,
+        ),
+        'L' => 
+        array (
+            'Laminas\\ZendFrameworkBridge\\' => 28,
+            'Laminas\\Xml\\' => 12,
+            'Laminas\\XmlRpc\\' => 15,
+            'Laminas\\View\\' => 13,
+            'Laminas\\Validator\\' => 18,
+            'Laminas\\Uri\\' => 12,
+            'Laminas\\Text\\' => 13,
+            'Laminas\\Tag\\' => 12,
+            'Laminas\\Stdlib\\' => 15,
+            'Laminas\\Session\\' => 16,
+            'Laminas\\ServiceManager\\' => 23,
+            'Laminas\\Server\\' => 15,
+            'Laminas\\Serializer\\' => 19,
+            'Laminas\\Router\\' => 15,
+            'Laminas\\ProgressBar\\' => 20,
+            'Laminas\\Permissions\\Rbac\\' => 25,
+            'Laminas\\Permissions\\Acl\\' => 24,
+            'Laminas\\Paginator\\' => 18,
+            'Laminas\\Navigation\\' => 19,
+            'Laminas\\Mvc\\Plugin\\Prg\\' => 23,
+            'Laminas\\Mvc\\Plugin\\Identity\\' => 28,
+            'Laminas\\Mvc\\Plugin\\FlashMessenger\\' => 34,
+            'Laminas\\Mvc\\Plugin\\FilePrg\\' => 27,
+            'Laminas\\Mvc\\I18n\\' => 17,
+            'Laminas\\Mvc\\' => 12,
+            'Laminas\\ModuleManager\\' => 22,
+            'Laminas\\Mime\\' => 13,
+            'Laminas\\Memory\\' => 15,
+            'Laminas\\Math\\' => 13,
+            'Laminas\\Mail\\' => 13,
+            'Laminas\\Log\\' => 12,
+            'Laminas\\Loader\\' => 15,
+            'Laminas\\Json\\' => 13,
+            'Laminas\\InputFilter\\' => 20,
+            'Laminas\\I18n\\' => 13,
+            'Laminas\\Hydrator\\' => 17,
+            'Laminas\\Http\\' => 13,
+            'Laminas\\Form\\' => 13,
+            'Laminas\\Filter\\' => 15,
+            'Laminas\\File\\' => 13,
+            'Laminas\\Feed\\' => 13,
+            'Laminas\\EventManager\\' => 21,
+            'Laminas\\Escaper\\' => 16,
+            'Laminas\\Dom\\' => 12,
+            'Laminas\\Di\\' => 11,
+            'Laminas\\Db\\' => 11,
+            'Laminas\\Crypt\\' => 14,
+            'Laminas\\Console\\' => 16,
+            'Laminas\\Config\\' => 15,
+            'Laminas\\Code\\' => 13,
+            'Laminas\\Captcha\\' => 16,
+            'Laminas\\Cache\\' => 14,
+            'Laminas\\Barcode\\' => 16,
+            'Laminas\\Authentication\\' => 23,
         ),
         'I' => 
         array (
@@ -112,6 +113,7 @@ class ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e
         ),
         'D' => 
         array (
+            'Doctrine\\Persistence\\' => 21,
             'Doctrine\\ORM\\' => 13,
             'Doctrine\\Instantiator\\' => 22,
             'Doctrine\\DBAL\\' => 14,
@@ -132,226 +134,6 @@ class ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e
         'lsolesen\\pel\\' => 
         array (
             0 => __DIR__ . '/..' . '/lsolesen/pel/src',
-        ),
-        'Zend\\XmlRpc\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-xmlrpc/src',
-        ),
-        'Zend\\View\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-view/src',
-        ),
-        'Zend\\Validator\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-validator/src',
-        ),
-        'Zend\\Uri\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-uri/src',
-        ),
-        'Zend\\Text\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-text/src',
-        ),
-        'Zend\\Tag\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-tag/src',
-        ),
-        'Zend\\Stdlib\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-stdlib/src',
-        ),
-        'Zend\\Soap\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-soap/src',
-        ),
-        'Zend\\Session\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-session/src',
-        ),
-        'Zend\\ServiceManager\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-servicemanager/src',
-        ),
-        'Zend\\Server\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-server/src',
-        ),
-        'Zend\\Serializer\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-serializer/src',
-        ),
-        'Zend\\Router\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-router/src',
-        ),
-        'Zend\\ProgressBar\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-progressbar/src',
-        ),
-        'Zend\\Permissions\\Rbac\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-permissions-rbac/src',
-        ),
-        'Zend\\Permissions\\Acl\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-permissions-acl/src',
-        ),
-        'Zend\\Paginator\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-paginator/src',
-        ),
-        'Zend\\Navigation\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-navigation/src',
-        ),
-        'Zend\\Mvc\\Plugin\\Prg\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-mvc-plugin-prg/src',
-        ),
-        'Zend\\Mvc\\Plugin\\Identity\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-mvc-plugin-identity/src',
-        ),
-        'Zend\\Mvc\\Plugin\\FlashMessenger\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-mvc-plugin-flashmessenger/src',
-        ),
-        'Zend\\Mvc\\Plugin\\FilePrg\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-mvc-plugin-fileprg/src',
-        ),
-        'Zend\\Mvc\\I18n\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-mvc-i18n/src',
-        ),
-        'Zend\\Mvc\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-mvc/src',
-        ),
-        'Zend\\ModuleManager\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-modulemanager/src',
-        ),
-        'Zend\\Mime\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-mime/src',
-        ),
-        'Zend\\Memory\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-memory/src',
-        ),
-        'Zend\\Math\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-math/src',
-        ),
-        'Zend\\Mail\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-mail/src',
-        ),
-        'Zend\\Log\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-log/src',
-        ),
-        'Zend\\Loader\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-loader/src',
-        ),
-        'Zend\\Json\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-json/src',
-        ),
-        'Zend\\InputFilter\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-inputfilter/src',
-        ),
-        'Zend\\I18n\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-i18n/src',
-        ),
-        'Zend\\Hydrator\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-hydrator/src',
-        ),
-        'Zend\\Http\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-http/src',
-        ),
-        'Zend\\Form\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-form/src',
-        ),
-        'Zend\\Filter\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-filter/src',
-        ),
-        'Zend\\File\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-file/src',
-        ),
-        'Zend\\Feed\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-feed/src',
-        ),
-        'Zend\\EventManager\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-eventmanager/src',
-        ),
-        'Zend\\Escaper\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-escaper/src',
-        ),
-        'Zend\\Dom\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-dom/src',
-        ),
-        'Zend\\Di\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-di/src',
-        ),
-        'Zend\\Debug\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-debug/src',
-        ),
-        'Zend\\Db\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-db/src',
-        ),
-        'Zend\\Crypt\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-crypt/src',
-        ),
-        'Zend\\Console\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-console/src',
-        ),
-        'Zend\\Config\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-config/src',
-        ),
-        'Zend\\Code\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-code/src',
-        ),
-        'Zend\\Captcha\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-captcha/src',
-        ),
-        'Zend\\Cache\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-cache/src',
-        ),
-        'Zend\\Barcode\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-barcode/src',
-        ),
-        'Zend\\Authentication\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zend-authentication/src',
-        ),
-        'ZendXml\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/zendframework/zendxml/src',
         ),
         'TrueBV\\' => 
         array (
@@ -385,6 +167,10 @@ class ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e
         array (
             0 => __DIR__ . '/..' . '/psr/cache/src',
         ),
+        'PackageVersions\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/ocramius/package-versions/src/PackageVersions',
+        ),
         'Omeka\\Composer\\' => 
         array (
             0 => __DIR__ . '/..' . '/omeka/composer-addon-installer/src',
@@ -397,6 +183,222 @@ class ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e
         array (
             0 => __DIR__ . '/..' . '/ml/json-ld',
         ),
+        'Laminas\\ZendFrameworkBridge\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-zendframework-bridge/src',
+        ),
+        'Laminas\\Xml\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-xml/src',
+        ),
+        'Laminas\\XmlRpc\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-xmlrpc/src',
+        ),
+        'Laminas\\View\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-view/src',
+        ),
+        'Laminas\\Validator\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-validator/src',
+        ),
+        'Laminas\\Uri\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-uri/src',
+        ),
+        'Laminas\\Text\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-text/src',
+        ),
+        'Laminas\\Tag\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-tag/src',
+        ),
+        'Laminas\\Stdlib\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-stdlib/src',
+        ),
+        'Laminas\\Session\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-session/src',
+        ),
+        'Laminas\\ServiceManager\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-servicemanager/src',
+        ),
+        'Laminas\\Server\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-server/src',
+        ),
+        'Laminas\\Serializer\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-serializer/src',
+        ),
+        'Laminas\\Router\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-router/src',
+        ),
+        'Laminas\\ProgressBar\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-progressbar/src',
+        ),
+        'Laminas\\Permissions\\Rbac\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-permissions-rbac/src',
+        ),
+        'Laminas\\Permissions\\Acl\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-permissions-acl/src',
+        ),
+        'Laminas\\Paginator\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-paginator/src',
+        ),
+        'Laminas\\Navigation\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-navigation/src',
+        ),
+        'Laminas\\Mvc\\Plugin\\Prg\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-mvc-plugin-prg/src',
+        ),
+        'Laminas\\Mvc\\Plugin\\Identity\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-mvc-plugin-identity/src',
+        ),
+        'Laminas\\Mvc\\Plugin\\FlashMessenger\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-mvc-plugin-flashmessenger/src',
+        ),
+        'Laminas\\Mvc\\Plugin\\FilePrg\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-mvc-plugin-fileprg/src',
+        ),
+        'Laminas\\Mvc\\I18n\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-mvc-i18n/src',
+        ),
+        'Laminas\\Mvc\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-mvc/src',
+        ),
+        'Laminas\\ModuleManager\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-modulemanager/src',
+        ),
+        'Laminas\\Mime\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-mime/src',
+        ),
+        'Laminas\\Memory\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-memory/src',
+        ),
+        'Laminas\\Math\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-math/src',
+        ),
+        'Laminas\\Mail\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-mail/src',
+        ),
+        'Laminas\\Log\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-log/src',
+        ),
+        'Laminas\\Loader\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-loader/src',
+        ),
+        'Laminas\\Json\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-json/src',
+        ),
+        'Laminas\\InputFilter\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-inputfilter/src',
+        ),
+        'Laminas\\I18n\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-i18n/src',
+        ),
+        'Laminas\\Hydrator\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-hydrator/src',
+        ),
+        'Laminas\\Http\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-http/src',
+        ),
+        'Laminas\\Form\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-form/src',
+        ),
+        'Laminas\\Filter\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-filter/src',
+        ),
+        'Laminas\\File\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-file/src',
+        ),
+        'Laminas\\Feed\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-feed/src',
+        ),
+        'Laminas\\EventManager\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-eventmanager/src',
+        ),
+        'Laminas\\Escaper\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-escaper/src',
+        ),
+        'Laminas\\Dom\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-dom/src',
+        ),
+        'Laminas\\Di\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-di/src',
+        ),
+        'Laminas\\Db\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-db/src',
+        ),
+        'Laminas\\Crypt\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-crypt/src',
+        ),
+        'Laminas\\Console\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-console/src',
+        ),
+        'Laminas\\Config\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-config/src',
+        ),
+        'Laminas\\Code\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-code/src',
+        ),
+        'Laminas\\Captcha\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-captcha/src',
+        ),
+        'Laminas\\Cache\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-cache/src',
+        ),
+        'Laminas\\Barcode\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-barcode/src',
+        ),
+        'Laminas\\Authentication\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/laminas/laminas-authentication/src',
+        ),
         'Interop\\Container\\' => 
         array (
             0 => __DIR__ . '/..' . '/container-interop/container-interop/src/Interop/Container',
@@ -404,6 +406,10 @@ class ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e
         'EasyRdf\\' => 
         array (
             0 => __DIR__ . '/..' . '/easyrdf/easyrdf/lib',
+        ),
+        'Doctrine\\Persistence\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/doctrine/persistence/lib/Doctrine/Persistence',
         ),
         'Doctrine\\ORM\\' => 
         array (
@@ -475,16 +481,16 @@ class ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e
     );
 
     public static $classMap = array (
-        'Zend\\I18n\\Translator\\Resources' => __DIR__ . '/..' . '/zendframework/zend-i18n-resources/src/Resources.php',
+        'Laminas\\I18n\\Translator\\Resources' => __DIR__ . '/..' . '/laminas/laminas-i18n-resources/src/Resources.php',
     );
 
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e::$prefixDirsPsr4;
-            $loader->prefixesPsr0 = ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e::$prefixesPsr0;
-            $loader->classMap = ComposerStaticInit6192d50cf6e5b33fc9b84d3a4ac0773e::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit05cd0601ba2de43fd0b5d40b1992e757::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit05cd0601ba2de43fd0b5d40b1992e757::$prefixDirsPsr4;
+            $loader->prefixesPsr0 = ComposerStaticInit05cd0601ba2de43fd0b5d40b1992e757::$prefixesPsr0;
+            $loader->classMap = ComposerStaticInit05cd0601ba2de43fd0b5d40b1992e757::$classMap;
 
         }, null, ClassLoader::class);
     }

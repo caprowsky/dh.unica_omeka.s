@@ -5,8 +5,8 @@ use Omeka\Form\ConfirmForm;
 use Omeka\Form\ResourceForm;
 use Omeka\Form\ResourceBatchUpdateForm;
 use Omeka\Stdlib\Message;
-use Zend\Mvc\Controller\AbstractActionController;
-use Zend\View\Model\ViewModel;
+use Laminas\Mvc\Controller\AbstractActionController;
+use Laminas\View\Model\ViewModel;
 
 class ItemSetController extends AbstractActionController
 {
@@ -258,6 +258,7 @@ class ItemSetController extends AbstractActionController
                     $this->api($form)->batchUpdate('item_sets', $resourceIds, $properties, [
                         'continueOnError' => true,
                         'collectionAction' => $collectionAction,
+                        'detachEntites' => false,
                     ]);
                 }
 

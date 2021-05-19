@@ -5,11 +5,11 @@ use Omeka\Api\Request;
 use Omeka\Entity\Media;
 use Omeka\File\Downloader;
 use Omeka\Stdlib\ErrorStore;
-use Zend\Dom\Query;
-use Zend\Form\Element\Url as UrlElement;
-use Zend\Http\Client as HttpClient;
-use Zend\Uri\Http as HttpUri;
-use Zend\View\Renderer\PhpRenderer;
+use Laminas\Dom\Query;
+use Laminas\Form\Element\Url as UrlElement;
+use Laminas\Http\Client as HttpClient;
+use Laminas\Uri\Http as HttpUri;
+use Laminas\View\Renderer\PhpRenderer;
 
 class OEmbed implements IngesterInterface
 {
@@ -77,7 +77,7 @@ class OEmbed implements IngesterInterface
 
         $document = $response->getBody();
         $dom = new Query($document);
-        $oEmbedLinks = $dom->queryXpath('//link[@rel="alternate" or @rel="alternative"][@type="application/json+oembed"]');
+        $oEmbedLinks = $dom->queryXpath('//link[@rel="alternate" or @rel="alternative"][@type="application/json+oembed" or @type="text/json+oembed"]');
         if (!count($oEmbedLinks)) {
             $errorStore->addError('o:source', 'No OEmbed links were found at the given URI');
             return;

@@ -3,8 +3,8 @@ namespace Omeka;
 
 use Omeka\Api\Adapter\FulltextSearchableInterface;
 use Omeka\Module\AbstractModule;
-use Zend\EventManager\Event as ZendEvent;
-use Zend\EventManager\SharedEventManagerInterface;
+use Laminas\EventManager\Event as ZendEvent;
+use Laminas\EventManager\SharedEventManagerInterface;
 
 /**
  * The Omeka module.
@@ -14,7 +14,7 @@ class Module extends AbstractModule
     /**
      * This Omeka version.
      */
-    const VERSION = '2.1.1';
+    const VERSION = '3.0.2';
 
     /**
      * The vocabulary IRI used to define Omeka application data.
@@ -38,7 +38,13 @@ class Module extends AbstractModule
     public function attachListeners(SharedEventManagerInterface $sharedEventManager)
     {
         $sharedEventManager->attach(
-            'Zend\View\Helper\Navigation\AbstractHelper',
+            'Omeka\Api\Adapter\UserAdapter',
+            'api.execute.post',
+            [$this, 'batchUpdatePostUser']
+        );
+
+        $sharedEventManager->attach(
+            'Laminas\View\Helper\Navigation\AbstractHelper',
             'isAllowed',
             [$this, 'navigationPageIsAllowed']
         );
@@ -107,6 +113,12 @@ class Module extends AbstractModule
             '*',
             'api.update.post',
             [$this, 'saveFulltext']
+        );
+
+        $sharedEventManager->attach(
+            'Omeka\Api\Adapter\SitePageAdapter',
+            'api.delete.pre',
+            [$this, 'deleteFulltextPre']
         );
 
         $sharedEventManager->attach(
@@ -513,16 +525,40 @@ class Module extends AbstractModule
     }
 
     /**
+     * Prepare to delete the fulltext of a site page.
+     *
+     * The site_pages resource uses a compound ID that cannot be read from the
+     * database. Here we set the actual entity ID to a request option so
+     * self::deleteFulltext() can handle it correctly.
+     *
+     * @param ZendEvent $event
+     */
+    public function deleteFulltextPre(ZendEvent $event)
+    {
+        $request = $event->getParam('request');
+        $em = $this->getServiceLocator()->get('Omeka\EntityManager');
+        $sitePage = $em->getRepository('Omeka\Entity\SitePage')->findOneBy($request->getId());
+        $request->setOption('deleted_entity_id', $sitePage->getId());
+    }
+
+    /**
      * Delete the fulltext of an API resource.
+     *
+     * Typically this will delete on the resource ID that's set on the request
+     * object. Resources that do not have conventional IDs should set the actual
+     * ID to the "deleted_entity_id" request option prior to the api.delete.post
+     * event. If the option exists, this function will use it to delete the
+     * fulltext.
      *
      * @param ZendEvent $event
      */
     public function deleteFulltext(ZendEvent $event)
     {
         $fulltext = $this->getServiceLocator()->get('Omeka\FulltextSearch');
+        $request = $event->getParam('request');
         $fulltext->delete(
             // Note that the resource may not have an ID after being deleted.
-            $event->getParam('request')->getId(),
+            $request->getOption('deleted_entity_id') ?? $request->getId(),
             $event->getTarget()
         );
     }
@@ -547,7 +583,6 @@ class Module extends AbstractModule
         $qb = $event->getParam('queryBuilder');
 
         $searchAlias = $adapter->createAlias();
-        $matchAlias = $adapter->createAlias();
 
         $match = sprintf(
             'MATCH(%s.title, %s.text) AGAINST (%s)',
@@ -562,14 +597,13 @@ class Module extends AbstractModule
             $adapter->createNamedParameter($qb, $adapter->getResourceName())
         );
 
-        $qb->addSelect(sprintf('%s AS %s', $match, $matchAlias))
-            ->innerJoin('Omeka\Entity\FulltextSearch', $searchAlias, 'WITH', $joinConditions)
+        $qb->innerJoin('Omeka\Entity\FulltextSearch', $searchAlias, 'WITH', $joinConditions)
             // Filter out resources with no similarity.
             ->andWhere(sprintf('%s > 0', $match))
             // Order by the relevance. Note the use of orderBy() and not
             // addOrderBy(). This should ensure that ordering by relevance
             // is the first thing being ordered.
-            ->orderBy($matchAlias, 'DESC');
+            ->orderBy($match, 'DESC');
 
         // Set visibility constraints.
         $acl = $this->getServiceLocator()->get('Omeka\Acl');

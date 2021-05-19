@@ -1,8 +1,8 @@
 <?php
 namespace Scripto\Controller\PublicApp;
 
-use Zend\View\Model\ViewModel;
-use Zend\Mvc\Controller\AbstractActionController;
+use Laminas\View\Model\ViewModel;
+use Laminas\Mvc\Controller\AbstractActionController;
 
 class ItemController extends AbstractActionController
 {
@@ -13,9 +13,9 @@ class ItemController extends AbstractActionController
             return $this->redirect()->toRoute('scripto');
         }
 
-        $this->setBrowseDefaults(null);
+        $this->setBrowseDefaults('id');
         $query = $this->params()->fromQuery();
-        $query['scripto_project_id'] =  $this->params('project-id');
+        $query['scripto_project_id'] = $this->params('project-id');
         if ($project->filterApproved()
             && !isset($query['is_approved'])
             && !isset($query['is_not_approved'])

@@ -6,7 +6,7 @@ namespace EasyRdf\Serialiser;
  *
  * LICENSE
  *
- * Copyright (c) 2009-2013 Nicholas J Humfrey.  All rights reserved.
+ * Copyright (c) 2009-2020 Nicholas J Humfrey.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -32,8 +32,8 @@ namespace EasyRdf\Serialiser;
  * POSSIBILITY OF SUCH DAMAGE.
  *
  * @package    EasyRdf
- * @copyright  Copyright (c) 2009-2013 Nicholas J Humfrey
- * @license    http://www.opensource.org/licenses/bsd-license.php
+ * @copyright  Copyright (c) 2009-2020 Nicholas J Humfrey
+ * @license    https://www.opensource.org/licenses/bsd-license.php
  */
 use EasyRdf\Exception;
 use EasyRdf\Graph;
@@ -43,16 +43,15 @@ use EasyRdf\Graph;
  * with no external dependencies.
  *
  * @package    EasyRdf
- * @copyright  Copyright (c) 2009-2013 Nicholas J Humfrey
- * @license    http://www.opensource.org/licenses/bsd-license.php
+ * @copyright  Copyright (c) 2009-2020 Nicholas J Humfrey
+ * @license    https://www.opensource.org/licenses/bsd-license.php
  */
 class Json extends RdfPhp
 {
     /**
      * Serialise an EasyRdf\Graph into a to RDF/JSON document.
      *
-     * http://n2.talis.com/wiki/RDF_JSON_Specification
-     * docs/appendix-a-rdf-formats-json.md
+     * https://www.easyrdf.org/docs/rdf-formats-json
      *
      * @param Graph  $graph  An EasyRdf\Graph object.
      * @param string $format The name of the format to convert to.

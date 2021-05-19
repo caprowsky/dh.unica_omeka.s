@@ -4,8 +4,8 @@ namespace Omeka2Importer\Controller;
 
 use Omeka2Importer\Form\ImportForm;
 use Omeka2Importer\Form\MappingForm;
-use Zend\Mvc\Controller\AbstractActionController;
-use Zend\View\Model\ViewModel;
+use Laminas\Mvc\Controller\AbstractActionController;
+use Laminas\View\Model\ViewModel;
 
 class IndexController extends AbstractActionController
 {
@@ -29,7 +29,7 @@ class IndexController extends AbstractActionController
                 $job = $this->jobDispatcher()->dispatch('Omeka2Importer\Job\Import', $data);
                 //the Omeka2Import record is created in the job, so it doesn't
                 //happen until the job is done
-                $this->messenger()->addSuccess('Importing in Job ID '.$job->getId()); // @translate
+                $this->messenger()->addSuccess('Importing in Job ID ' . $job->getId()); // @translate
                 $view->setVariable('job', $job);
             } else {
                 $this->messenger()->addError('There was an error during validation'); // @translate
@@ -80,7 +80,7 @@ class IndexController extends AbstractActionController
                 $job = $this->jobDispatcher()->dispatch('Omeka2Importer\Job\Import', $data);
                 //the Omeka2Import record is created in the job, so it doesn't
                 //happen until the job is done
-                $this->messenger()->addSuccess('Importing in Job ID '.$job->getId()); // @translate
+                $this->messenger()->addSuccess('Importing in Job ID ' . $job->getId()); // @translate
                 return $this->redirect()->toRoute('admin/omeka2importer/past-imports', ['action' => 'browse'], true);
                 $view->setVariable('job', $job);
             } else {

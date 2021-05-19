@@ -4,7 +4,7 @@ namespace Omeka\DataType;
 use Omeka\Api\Adapter\AbstractEntityAdapter;
 use Omeka\Api\Representation\ValueRepresentation;
 use Omeka\Entity\Value;
-use Zend\View\Renderer\PhpRenderer;
+use Laminas\View\Renderer\PhpRenderer;
 
 class Uri extends AbstractDataType
 {
@@ -25,13 +25,16 @@ class Uri extends AbstractDataType
 
     public function isValid(array $valueObject)
     {
-        if (isset($valueObject['@id'])
-            && is_string($valueObject['@id'])
-            && '' !== trim($valueObject['@id'])
+        if (!isset($valueObject['@id'])
+            || !is_string($valueObject['@id'])
         ) {
-            return true;
+            return false;
         }
-        return false;
+
+        $trimmed = trim($valueObject['@id']);
+        $scheme = parse_url($trimmed, \PHP_URL_SCHEME);
+
+        return !('' === $trimmed || $scheme === 'javascript');
     }
 
     public function hydrate(array $valueObject, Value $value, AbstractEntityAdapter $adapter)

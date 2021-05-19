@@ -3,10 +3,9 @@ namespace Scripto\Mediawiki;
 
 use DateTime;
 use DateTimeZone;
-use Scripto\Mediawiki\Exception;
-use Zend\Http\Client as HttpClient;
-use Zend\Http\Request;
-use Zend\Session\Container;
+use Laminas\Http\Client as HttpClient;
+use Laminas\Http\Request;
+use Laminas\Session\Container;
 
 /**
  * MediaWiki API client
@@ -374,7 +373,7 @@ class ApiClient
             // The ordering of the response does not necessarily correspond to
             // the ordering of the input. Here we match the original ordering.
             $normalized = [];
-            if (isset($query['query']['normalized']) ) {
+            if (isset($query['query']['normalized'])) {
                 foreach ($query['query']['normalized'] as $value) {
                     $normalized[$value['from']] = $value['to'];
                 }
