@@ -3,7 +3,6 @@
 namespace DoctrineExtensions\Types;
 
 use Doctrine\DBAL\Platforms\AbstractPlatform;
-use Doctrine\DBAL\Types\Type;
 
 class PolygonType extends Type
 {
