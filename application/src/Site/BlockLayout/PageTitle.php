@@ -16,11 +16,13 @@ class PageTitle extends AbstractBlockLayout
     public function form(PhpRenderer $view, SiteRepresentation $site,
         SitePageRepresentation $page = null, SitePageBlockRepresentation $block = null
     ) {
-        return $page->title();
+        return $view->escapeHtml($page->title());
     }
 
     public function render(PhpRenderer $view, SitePageBlockRepresentation $block)
     {
-        return sprintf('<h2>%s</h2>', $block->page()->title());
+        return $view->partial('common/block-layout/page-title', [
+            'pageTitle' => $block->page()->title(),
+        ]);
     }
 }

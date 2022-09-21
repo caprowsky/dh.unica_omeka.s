@@ -1,0 +1,56 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \BulkImport\Api\Representation\ImportRepresentation $import
+ * @var \BulkImport\Api\Representation\ImportRepresentation $resource
+ */
+
+$translate = $this->plugin('translate');
+$escape = $this->plugin('escapeHtml');
+
+$this->htmlElement('body')->appendAttribute('class', 'bulk-imports show');
+$this->headLink()->appendStylesheet($this->assetUrl('css/bulk-import.css', 'BulkImport'));
+?>
+
+<?= $this->pageTitle(sprintf($translate('Import #%d'), $resource->id()), 1, $translate('Bulk import')) ?>
+
+<nav class="section-nav">
+    <?= $this->navigation('Laminas\Navigation\BulkImport')->menu() ?>
+</nav>
+
+<div id="content">
+    <h3><?= $translate('Status') ?></h3>
+    <ul>
+        <li><?= sprintf($translate('Importer: %s'), $import->importer()->label()) ?></li>
+        <li><?= sprintf($translate('Comment: %s'), $import->comment()) ?></li>
+        <li><?= sprintf($translate('Status: %s'), $import->statusLabel()) ?></li>
+        <?php if ($v = $import->started()): ?>
+        <li><?= sprintf($translate('Started: %s'), $v->format('Y-m-d H:i:s')) ?></li>
+        <?php endif; ?>
+        <?php if ($v = $import->ended()): ?>
+        <li><?= sprintf($translate('Ended: %s'), $v->format('Y-m-d H:i:s')) ?></li>
+        <?php endif; ?>
+    </ul>
+    <?php if ($import->isInProgress()): ?>
+    <p>
+        <?= $this->hyperlink($translate('Attempt to stop job'),
+            $this->url('admin/bulk/id', ['controller' => 'import', 'action' => 'stop', 'id' => $import->id()], true)) ?>
+    <p>
+    <?php endif; ?>
+    <h3><?= $escape($translate('Parameters')) ?></h3>
+    <h4><?= $escape($translate('Reader')) ?></h4>
+    <div class="value">
+        <pre><?php
+            // For security, remove the temp name.
+            $params = $import->readerParams();
+            unset($params['filename']);
+            echo $escape(json_encode($params, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        ?></pre>
+    </div>
+    <h4><?= $escape($translate('Processor')) ?></h4>
+    <div class="value">
+        <pre><?php
+            echo $escape(json_encode($import->processorParams(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        ?></pre>
+    </div>
+</div>

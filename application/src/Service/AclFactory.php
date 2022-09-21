@@ -278,6 +278,7 @@ class AclFactory implements FactoryInterface
                 'Omeka\Api\Adapter\ResourceTemplateAdapter',
                 'Omeka\Api\Adapter\AssetAdapter',
                 'Omeka\Api\Adapter\ApiResourceAdapter',
+                'Omeka\Api\Adapter\DataTypeAdapter',
             ],
             [
                 'search',
@@ -341,7 +342,7 @@ class AclFactory implements FactoryInterface
         $acl->allow(
             'researcher',
             'Omeka\Controller\Admin\Asset',
-            'sidebar-select'
+            ['sidebar-select', 'browse', 'show-details']
         );
         $acl->allow(
             'researcher',
@@ -399,7 +400,7 @@ class AclFactory implements FactoryInterface
         );
         $acl->allow(
             'author',
-            'Omeka\Controller\Admin\ResourceTemplate',
+           'Omeka\Controller\Admin\ResourceTemplate',
             ['add-new-property-row', 'import']
         );
         $acl->allow(
@@ -413,7 +414,7 @@ class AclFactory implements FactoryInterface
         $acl->allow(
             'author',
             'Omeka\Controller\Admin\Asset',
-            'sidebar-select'
+            ['sidebar-select', 'browse', 'show-details']
         );
         $acl->allow(
             'author',
@@ -459,6 +460,7 @@ class AclFactory implements FactoryInterface
                 'Omeka\Entity\Media',
                 'Omeka\Entity\ResourceTemplate',
                 'Omeka\Entity\Asset',
+                'Omeka\Entity\ValueAnnotation',
             ],
             [
                 'create',
@@ -478,6 +480,11 @@ class AclFactory implements FactoryInterface
                 'delete',
             ],
             new OwnsEntityAssertion
+        );
+        $acl->allow(
+            'author',
+            'Omeka\Entity\ValueAnnotation',
+            ['update', 'delete']
         );
         $acl->allow(
             'author',
@@ -539,7 +546,7 @@ class AclFactory implements FactoryInterface
         $acl->allow(
             'reviewer',
             'Omeka\Controller\Admin\Asset',
-            'sidebar-select'
+            ['sidebar-select', 'browse', 'show-details']
         );
         $acl->allow(
             'reviewer',
@@ -582,6 +589,7 @@ class AclFactory implements FactoryInterface
                 'Omeka\Entity\ItemSet',
                 'Omeka\Entity\Media',
                 'Omeka\Entity\Asset',
+                'Omeka\Entity\ValueAnnotation',
             ],
             [
                 'create',
@@ -717,6 +725,7 @@ class AclFactory implements FactoryInterface
                 'Omeka\Entity\Media',
                 'Omeka\Entity\ResourceTemplate',
                 'Omeka\Entity\Asset',
+                'Omeka\Entity\ValueAnnotation',
             ],
             [
                 'create',
@@ -759,7 +768,8 @@ class AclFactory implements FactoryInterface
         );
         $acl->allow(
             'editor',
-            'Omeka\Api\Adapter\UserAdapter'
+            'Omeka\Api\Adapter\UserAdapter',
+            ['read', 'update', 'search']
         );
         $acl->allow(
             'editor',
@@ -789,17 +799,13 @@ class AclFactory implements FactoryInterface
         );
         $acl->deny(
             'site_admin',
-            'Omeka\Controller\Admin\Vocabulary',
-            ['import']
-        );
-        $acl->deny(
-            'site_admin',
             'Omeka\Controller\Admin\Setting'
         );
         $acl->deny(
             'site_admin',
-            'Omeka\Api\Adapter\VocabularyAdapter',
-            ['create', 'update', 'delete']
+            'Omeka\Entity\Vocabulary',
+            ['update', 'delete'],
+            new AssertionNegation(new OwnsEntityAssertion)
         );
 
         $acl->deny(

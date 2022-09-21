@@ -1,0 +1,75 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2019-10-28 00:00+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: Module.php:54
+msgid "The ViewerJS library should be installed."
+msgstr ""
+
+#: Module.php:55
+msgid "See module’s installation documentation."
+msgstr ""
+
+#: src/Generic/AbstractModule.php:498
+#, php-format
+msgid "This module requires the module \"%s\"."
+msgstr ""
+
+#: src/Generic/AbstractModule.php:518
+#, php-format
+msgid "This module requires modules \"%s\"."
+msgstr ""
+
+#: src/Generic/AbstractModule.php:586
+#, php-format
+msgid ""
+"The module \"%s\" was automatically deactivated because the dependencies are "
+"unavailable."
+msgstr ""
+
+#: src/Form/ViewerJsFieldset.php:16
+msgid "Block title"
+msgstr ""
+
+#: src/Form/ViewerJsFieldset.php:17
+msgid "Heading for the block, if any."
+msgstr ""
+
+#: src/Form/ViewerJsFieldset.php:29
+msgid ""
+"The url to display. Note: media attached to items are automatically rendered "
+"via common blocks, in particular \"Media\"."
+msgstr ""
+
+#: src/Form/SettingsFieldset.php:9 src/Site/BlockLayout/ViewerJs.php:20
+msgid "Viewer JS"
+msgstr ""
+
+#: src/Form/SettingsFieldset.php:18
+msgid "Property used for external file"
+msgstr ""
+
+#: src/Form/SettingsFieldset.php:19
+msgid ""
+"The property supplying the file via URL, for example \"dcterms:hasFormat\" "
+"or \"dcterms:isFormatOf\"."
+msgstr ""
+
+#: src/Form/SettingsFieldset.php:26
+msgid "Select a property…"
+msgstr ""

@@ -17,7 +17,7 @@ class Maildir extends AbstractStorage
      * used message class, change it in an extended class to extend the returned message class
      * @var string
      */
-    protected $messageClass = '\Laminas\Mail\Storage\Message\File';
+    protected $messageClass = Message\File::class;
 
     /**
      * data of found message files in maildir dir
@@ -133,7 +133,7 @@ class Maildir extends AbstractStorage
     public function getMessage($id)
     {
         // TODO that's ugly, would be better to let the message class decide
-        if ($this->messageClass === Message\File::class
+        if (\trim($this->messageClass, '\\') === Message\File::class
             || is_subclass_of($this->messageClass, Message\File::class)
         ) {
             return new $this->messageClass([
@@ -336,6 +336,9 @@ class Maildir extends AbstractStorage
             }
             $this->files[] = $data;
         }
+        \usort($this->files, function ($a, $b) {
+            return \strcmp($a['filename'], $b['filename']);
+        });
     }
 
     /**

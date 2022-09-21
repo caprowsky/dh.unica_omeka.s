@@ -1,0 +1,38 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Annotate\Api\Representation\AnnotationRepresentation[] $annotations
+ * @var int $totalAnnotations
+ */
+
+if ($annotations):
+
+$translate = $this->plugin('translate');
+$assetUrl = $this->plugin('assetUrl');
+
+$this->headLink()
+    ->appendStylesheet($assetUrl('vendor/webui-popover/jquery.webui-popover.min.css', 'Annotate'))
+    ->appendStylesheet($assetUrl('css/annotate-admin.css', 'Annotate'));
+$this->headScript()
+    ->appendFile($assetUrl('vendor/webui-popover/jquery.webui-popover.min.js', 'Annotate'), 'text/javascript', ['defer' => 'defer'])
+    ->appendFile($assetUrl('js/annotate-admin.js', 'Annotate'), 'text/javascript', ['defer' => 'defer']);
+?>
+
+<div class="meta-group annotations">
+    <h4><?= sprintf($translate('Annotations (%d)'), $totalAnnotations) ?></h4>
+    <?php foreach ($annotations as $annotation): ?>
+    <div class="value annotation"><?= $annotation->linkPretty() ?>
+        <?php if (!$annotation->isPublic()): ?>
+        <span class="o-icon-private" aria-label="Private"></span>
+        <?php endif; ?>
+        <?php // TODO Add a display of the annotation in popover. ?>
+        <?php if ($annotation->userIsAllowed('update')): ?>
+        <span class="single-action">
+        <?= $annotation->link('', 'edit', ['class' => 'o-icon-edit']) ?>
+        </span>
+        <?php endif; ?>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+<?php endif; ?>

@@ -13,7 +13,18 @@ RUN apt-get -qq update && apt-get -qq -y --no-install-recommends install \
     libjpeg-dev \
     libmemcached-dev \
     zlib1g-dev \
-    imagemagick
+    imagemagick \
+    libmcrypt-dev \
+    && pecl install mcrypt-1.0.4 \
+    && docker-php-ext-enable mcrypt
+
+
+RUN apt-get install -y \
+        libzip-dev \
+        zip \
+  && docker-php-ext-configure zip --with-libzip \
+  && docker-php-ext-install zip
+
 
 # install the PHP extensions we need
 RUN docker-php-ext-install -j$(nproc) iconv mcrypt \

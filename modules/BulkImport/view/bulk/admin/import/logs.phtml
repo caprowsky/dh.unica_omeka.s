@@ -1,0 +1,130 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \BulkImport\Api\Representation\ImportRepresentation $import
+ * @var \BulkImport\Api\Representation\ImportRepresentation $resource
+ * @var \Log\Api\Representation\LogRepresentation[] $logs
+ * @var int $severity
+ */
+
+$translate = $this->plugin('translate');
+$escape = $this->plugin('escapeHtml');
+$hyperlink = $this->plugin('hyperlink');
+
+$this->htmlElement('body')->appendAttribute('class', 'bulk-imports logs browse');
+
+$script = <<<'JS'
+$(document).ready(function() {
+    $('select[name=severity]').on('change', function() {
+        $(this).closest('form').submit();
+    });
+});
+JS;
+
+$this->headLink()
+    ->appendStylesheet($this->assetUrl('css/bulk-import.css', 'BulkImport'))
+    ->appendStylesheet($this->assetUrl('vendor/webui-popover/jquery.webui-popover.min.css', 'Log'))
+    ->appendStylesheet($this->assetUrl('css/log.css', 'Log'));
+$this->headScript()
+    ->appendScript($script)
+    ->appendFile($this->assetUrl('vendor/webui-popover/jquery.webui-popover.min.js', 'Log'), 'text/javascript', ['defer' => 'defer'])
+    ->appendFile($this->assetUrl('js/log.js', 'Log'), 'text/javascript', ['defer' => 'defer']);
+$severityNames = [
+    \Laminas\Log\Logger::EMERG => $escape($translate('Emergency')),
+    \Laminas\Log\Logger::ALERT => $escape($translate('Alert')),
+    \Laminas\Log\Logger::CRIT => $escape($translate('Critical')),
+    \Laminas\Log\Logger::ERR => $escape($translate('Error')),
+    \Laminas\Log\Logger::WARN => $escape($translate('Warning')),
+    \Laminas\Log\Logger::NOTICE => $escape($translate('Notice')),
+    \Laminas\Log\Logger::INFO => $escape($translate('Info')),
+    \Laminas\Log\Logger::DEBUG => $escape($translate('Debug')),
+];
+?>
+
+<script>
+$('select[name=severity]').on('change', function() {
+    $(this).closest('form').submit();
+});
+</script>
+
+<?= $this->pageTitle(sprintf($translate('Import #%d'), $resource->id()), 1, $translate('Bulk import')) ?>
+
+<nav class="section-nav">
+    <?= $this->navigation('Laminas\Navigation\BulkImport')->menu() ?>
+</nav>
+
+<div id="content">
+    <form>
+        <label>
+            <?= $escape($translate('Show only messages whose importance is higher than or equal to')) ?>
+            <select name="severity">
+                <?php foreach ($severityNames as $i => $name): ?>
+                    <?php $selected = ($i === $severity) ? 'selected' : ''; ?>
+                    <option value="<?= $i; ?>" <?= $selected; ?>><?= $name ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+    </form>
+    <br/>
+
+<?php if (count($logs)): ?>
+    <?= $pagination = (string) $this->pagination() ?>
+
+    <table class="tablesaw batch-edit" data-tablesaw-mode="stack">
+        <thead>
+        <tr>
+            <th><?= $escape($translate('Message')) ?></th>
+            <th><?= $escape($translate('Severity')) ?></th>
+            <th><?= $escape($translate('Time')) ?></th>
+        </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($logs as $log) { ?>
+            <tr>
+                <td class="webui-popover-parent">
+                    <span class="log-message">
+                        <?php $text = $log->text(); ?>
+                        <?php $isLong = mb_strlen($text) > 240; ?>
+                        <?php if ($isLong): ?>
+                        <span class="log-message-truncated truncate"><?= nl2br(mb_substr($text, 0, 240)) . '…' ?></span>
+                        <?php else: ?>
+                        <?= nl2br($text) ?>
+                        <?php endif; ?>
+                    </span>
+                    <ul class="actions">
+                        <?php if ($isLong): ?>
+                        <li><?php
+                            echo $hyperlink('', '#', [
+                                'class' => 'o-icon- fa fa-expand popover',
+                                'title' => $translate('Full log'),
+                            ]); ?>
+                            <div class="log-message-full webui-popover-content webui-popover-current"><?= nl2br($escape($text)) ?></div>
+                        </li>
+                        <?php endif; ?>
+                    </ul>
+                </td>
+                <td><?= $translate($log->severityLabel()) ?> </td>
+                <td><?= $log->created()->format('Y-m-d H:i:s') ?></td>
+            </tr>
+        <?php } ?>
+        </tbody>
+    </table>
+
+    <?= $pagination ?>
+
+    <?php if ($import->isInProgress()): ?>
+    <p>
+        <?= $hyperlink($translate('Attempt to stop job'),
+            $this->url('admin/bulk/id', ['controller' => 'import', 'action' => 'stop', 'id' => $import->id()], true)) ?>
+    <p>
+    <?php endif; ?>
+
+    <p>
+        <?= $hyperlink(sprintf($translate('Manage logs')),
+            $this->url('admin/log/default', [], ['query' => ['reference' => 'bulk/import/' . $import->id()]])) ?>
+    </p>
+
+<?php else: ?>
+    <p><?= $escape($translate('No logs yet.')); ?> <a href=""><?= $escape($translate('Refresh page')) ?></a></p>
+<?php endif; ?>
+</div>

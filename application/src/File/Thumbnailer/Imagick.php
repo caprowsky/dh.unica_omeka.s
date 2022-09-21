@@ -15,7 +15,7 @@ class Imagick extends AbstractThumbnailer
     protected $tempFileFactory;
 
     /**
-     * Check whether the GD entension is loaded.
+     * Check whether the GD extension is loaded.
      *
      * @throws Exception\InvalidThumbnailer
      */
@@ -32,7 +32,7 @@ class Imagick extends AbstractThumbnailer
         $mediaType = $this->sourceFile->getMediaType();
         $origPath = sprintf('%s[%s]', $this->source, $this->getOption('page', 0));
         if (strpos($mediaType, 'video/') === 0) {
-            $origPath = 'mpeg:' . $origPath;
+            $origPath = 'mp4:' . $origPath;
         }
 
         try {
@@ -55,7 +55,12 @@ class Imagick extends AbstractThumbnailer
         $imagick->setBackgroundColor('white');
         $imagick->setImageBackgroundColor('white');
         $imagick->setImagePage($origWidth, $origHeight, 0, 0);
-        $imagick = $imagick->mergeImageLayers(ImagickPhp::LAYERMETHOD_FLATTEN);
+
+        if (defined('Imagick::ALPHACHANNEL_REMOVE')) {
+            $imagick->setImageAlphaChannel(ImagickPhp::ALPHACHANNEL_REMOVE);
+        } else {
+            $imagick = $imagick->mergeImageLayers(ImagickPhp::LAYERMETHOD_FLATTEN);
+        }
 
         switch ($strategy) {
             case 'square':

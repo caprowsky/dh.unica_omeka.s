@@ -2,6 +2,79 @@
 
 All notable changes to this project will be documented in this file, in reverse chronological order by release.
 
+## 3.5.2 - 2021-01-17
+
+
+-----
+
+### Release Notes for [3.5.2](https://github.com/laminas/laminas-servicemanager/milestone/6)
+
+3.5.x bugfix release (patch)
+
+### 3.5.2
+
+- Total issues resolved: **0**
+- Total pull requests resolved: **1**
+- Total contributors: **1**
+
+#### Bug
+
+ - [75: backported testConfigureInvokablesTakePrecedenceOverFactories to 3.5.x](https://github.com/laminas/laminas-servicemanager/pull/75) thanks to @driehle
+
+## 3.5.1 - 2020-12-01
+
+### Release Notes for [3.5.1](https://github.com/laminas/laminas-servicemanager/milestone/4)
+
+This is a full revert of release `3.5.0`.
+
+`3.5.0` contained multiple backwards-incompatible (BC) breakages that were not
+supposed to be released in a minor version, and therefore had to be reverted.
+
+Due to unfortunate branch naming issues when migrating from the old `develop`
+branch, `develop` was renamed `3.5.x`, but contained multiple BC breaks that
+were fundamentally incompatible with the `3.0.0` and newer features.
+
+Due to the quick response time, in order to not break further downstream systems
+that yet have to receive the update, the `3.5.0` release was deleted, so that
+it does not appear in your system if you accidentally run `composer update`.
+
+Thanks to @fabiang for promptly detecting the issue and reporting it
+at https://github.com/laminas/laminas-servicemanager/issues/59
+
+### 3.5.1
+
+- Total issues resolved: **1**
+- Total pull requests resolved: **0**
+- Total contributors: **1**
+
+#### BC Break,Bug
+
+ - [59: `ContainerInterface` reference was changed in a minor release](https://github.com/laminas/laminas-servicemanager/issues/59) thanks to @fabiang
+
+## 3.4.1 - 2020-05-11
+
+### Added
+
+- Nothing.
+
+### Changed
+
+- Nothing.
+
+### Deprecated
+
+- Nothing.
+
+### Removed
+
+- Nothing.
+
+### Fixed
+
+- [#28](https://github.com/laminas/laminas-servicemanager/pull/28) provides updates to the `ConfigAbstractFactory` to ensure it works correctly under PHP 7.4 when the `config` service is represented by an `ArrayObject` or `ArrayAccess` implementation.
+
+- [#35](https://github.com/laminas/laminas-servicemanager/pull/35) updates two exception messagers from the `ConfigAbstractFactory` to be more clear about what caused them.
+
 ## 3.4.0 - 2018-12-22
 
 ### Added
@@ -252,24 +325,6 @@ All notable changes to this project will be documented in this file, in reverse 
   in the delegator factories documentation.
 - [zendframework/zend-servicemanager#98](https://github.com/zendframework/zend-servicemanager/pull/98) Using coveralls ^1.0
   for tracking test code coverage changes.
-
-## 3.0.4 - TBD
-
-### Added
-
-- Nothing.
-
-### Deprecated
-
-- Nothing.
-
-### Removed
-
-- Nothing.
-
-### Fixed
-
-- Nothing.
 
 ## 3.0.3 - 2016-02-02
 

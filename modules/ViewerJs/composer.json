@@ -1,0 +1,65 @@
+{
+    "name": "daniel-km/omeka-s-module-viewer-js",
+    "description": "ViewerJs (module for Omeka S)",
+    "type": "library",
+    "license": "CECILL-2.1",
+    "authors": [
+        {
+            "name": "Daniel Berthereau",
+            "email": "Daniel.packagist@Berthereau.net"
+        }
+    ],
+    "homepage": "https://gitlab.com/Daniel-KM/Omeka-S-module-ViewerJs",
+    "support": {
+        "issues": "https://gitlab.com/Daniel-KM/Omeka-S-module-ViewerJs/-/issues",
+        "forum": "https://forum.omeka.org/"
+    },
+    "keywords": [
+        "Omeka S",
+        "Omeka S module",
+        "viewer",
+        "OpenDocument",
+        "pdf",
+        "odt",
+        "ods",
+        "odp"
+    ],
+    "autoload": {
+        "psr-4": {
+            "ViewerJs\\": "src/"
+        }
+    },
+    "repositories": [
+        {
+            "type": "package",
+            "package": {
+                "name": "daniel-km/viewerjs",
+                "version": "0.7.2",
+                "type": "omeka-addon-asset",
+                "dist": {
+                    "type": "zip",
+                    "url": "https://github.com/Daniel-KM/ViewerJS/releases/download/0.7.2/viewerjs-0.7.2.zip",
+                    "reference": ""
+                }
+            }
+        }
+    ],
+    "require": {
+        "oomphinc/composer-installers-extender": "^2.0",
+        "daniel-km/viewerjs": "^0.7.2"
+    },
+    "extra": {
+        "installer-types": ["omeka-addon-asset"],
+        "installer-paths": {
+            "asset/vendor/{$name}/": [
+                "type:omeka-addon-asset"
+            ]
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "composer/installers": true,
+            "oomphinc/composer-installers-extender": true
+        }
+    }
+}

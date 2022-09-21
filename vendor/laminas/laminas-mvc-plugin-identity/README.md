@@ -1,7 +1,6 @@
 # laminas-mvc-plugin-identity
 
-[![Build Status](https://travis-ci.org/laminas/laminas-mvc-plugin-identity.svg?branch=master)](https://travis-ci.org/laminas/laminas-mvc-plugin-identity)
-[![Coverage Status](https://coveralls.io/repos/github/laminas/laminas-mvc-plugin-identity/badge.svg?branch=master)](https://coveralls.io/github/laminas/laminas-mvc-plugin-identity?branch=master)
+[![Build Status](https://github.com/laminas/laminas-mvc-plugin-identity/workflows/Continuous%20Integration/badge.svg)](https://github.com/laminas/laminas-mvc-plugin-identity/actions?query=workflow%3A"Continuous+Integration")
 
 Provides a
 [laminas-mvc](https://docs.laminas.dev/laminas-mvc/) plugin (for versions 3.0
@@ -16,7 +15,7 @@ Run the following to install this library:
 $ composer require laminas/laminas-mvc-plugin-identity
 ```
 
-If you are using the [laminas-component-installer](https://docs.laminas.dev/laminas-component-installer),
+If you are using the [laminas-component-installer](https://docs.laminas.dev/laminas-component-installer/),
 you're done!
 
 If not, you will need to add the component as a module to your

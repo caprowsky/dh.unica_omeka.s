@@ -1,3 +1,15 @@
+# Upgrade to 2.8
+
+## Minor BC BREAK: Failed commit now throw OptimisticLockException
+
+Method `Doctrine\ORM\UnitOfWork#commit()` can throw an OptimisticLockException when a commit silently fails and returns false
+since `Doctrine\DBAL\Connection#commit()` signature changed from returning void to boolean
+
+## Deprecated: `Doctrine\ORM\AbstractQuery#iterator()`
+
+The method `Doctrine\ORM\AbstractQuery#iterator()` is deprecated in favor of `Doctrine\ORM\AbstractQuery#toIterable()`.
+Note that `toIterable()` yields results of the query, unlike `iterator()` which yielded each result wrapped into an array.
+
 # Upgrade to 2.7
 
 ## Added `Doctrine\ORM\AbstractQuery#enableResultCache()` and `Doctrine\ORM\AbstractQuery#disableResultCache()` methods	
@@ -30,7 +42,7 @@ Method `Doctrine\ORM\AbstractQuery#useResultCache()` is deprecated because it is
 and `disableResultCache()`. It will be removed in 3.0.
 
 ## Deprecated code generators and related console commands
- 
+
 These console commands have been deprecated:
 
  * `orm:convert-mapping`
@@ -47,7 +59,7 @@ Whole Doctrine\ORM\Tools\Export namespace with all its members have been depreca
 ## Deprecated `Doctrine\ORM\Proxy\Proxy` marker interface
 
 Proxy objects in Doctrine ORM 3.0 will no longer implement `Doctrine\ORM\Proxy\Proxy` nor
-`Doctrine\Common\Persistence\Proxy`: instead, they implement
+`Doctrine\Persistence\Proxy`: instead, they implement
 `ProxyManager\Proxy\GhostObjectInterface`.
 
 These related classes have been deprecated:
@@ -439,17 +451,17 @@ above you must implement these new methods.
 
 ## Metadata Drivers
 
-Metadata drivers have been rewritten to reuse code from Doctrine\Common. Anyone who is using the
+Metadata drivers have been rewritten to reuse code from `Doctrine\Persistence`. Anyone who is using the
 `Doctrine\ORM\Mapping\Driver\Driver` interface should instead refer to
-`Doctrine\Common\Persistence\Mapping\Driver\MappingDriver`. Same applies to
+`Doctrine\Persistence\Mapping\Driver\MappingDriver`. Same applies to
 `Doctrine\ORM\Mapping\Driver\AbstractFileDriver`: you should now refer to
-`Doctrine\Common\Persistence\Mapping\Driver\FileDriver`.
+`Doctrine\Persistence\Mapping\Driver\FileDriver`.
 
 Also, following mapping drivers have been deprecated, please use their replacements in Doctrine\Common as listed:
 
- *  `Doctrine\ORM\Mapping\Driver\DriverChain`       => `Doctrine\Common\Persistence\Mapping\Driver\MappingDriverChain`
- *  `Doctrine\ORM\Mapping\Driver\PHPDriver`         => `Doctrine\Common\Persistence\Mapping\Driver\PHPDriver`
- *  `Doctrine\ORM\Mapping\Driver\StaticPHPDriver`   => `Doctrine\Common\Persistence\Mapping\Driver\StaticPHPDriver`
+ *  `Doctrine\ORM\Mapping\Driver\DriverChain`       => `Doctrine\Persistence\Mapping\Driver\MappingDriverChain`
+ *  `Doctrine\ORM\Mapping\Driver\PHPDriver`         => `Doctrine\Persistence\Mapping\Driver\PHPDriver`
+ *  `Doctrine\ORM\Mapping\Driver\StaticPHPDriver`   => `Doctrine\Persistence\Mapping\Driver\StaticPHPDriver`
 
 # Upgrade to 2.2
 
@@ -538,7 +550,7 @@ Previously EntityManager#find(null) returned null. It now throws an exception.
 
 ## Interface for EntityRepository
 
-The EntityRepository now has an interface Doctrine\Common\Persistence\ObjectRepository. This means that your classes that override EntityRepository and extend find(), findOneBy() or findBy() must be adjusted to follow this interface.
+The EntityRepository now has an interface Doctrine\Persistence\ObjectRepository. This means that your classes that override EntityRepository and extend find(), findOneBy() or findBy() must be adjusted to follow this interface.
 
 ## AnnotationReader changes
 

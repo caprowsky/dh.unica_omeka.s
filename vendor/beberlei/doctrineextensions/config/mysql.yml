@@ -31,6 +31,7 @@ doctrine:
                  timestampadd: DoctrineExtensions\Query\Mysql\TimestampAdd
                  timestampdiff: DoctrineExtensions\Query\Mysql\TimestampDiff
                  timetosec: DoctrineExtensions\Query\Mysql\TimeToSec
+                 truncate: DoctrineExtensions\Query\Mysql\Truncate
                  week: DoctrineExtensions\Query\Mysql\Week
                  weekday: DoctrineExtensions\Query\Mysql\WeekDay
                  year: DoctrineExtensions\Query\Mysql\Year
@@ -53,6 +54,9 @@ doctrine:
                  degrees: DoctrineExtensions\Query\Mysql\Degrees
                  exp: DoctrineExtensions\Query\Mysql\Exp
                  floor: DoctrineExtensions\Query\Mysql\Floor
+                 json_contains: DoctrineExtensions\Query\Mysql\JsonContains
+                 json_depth: DoctrineExtensions\Query\Mysql\JsonDepth
+                 json_length: DoctrineExtensions\Query\Mysql\JsonLength
                  log: DoctrineExtensions\Query\Mysql\Log
                  log10: DoctrineExtensions\Query\Mysql\Log10
                  log2: DoctrineExtensions\Query\Mysql\Log2
@@ -84,6 +88,7 @@ doctrine:
                  field: DoctrineExtensions\Query\Mysql\Field
                  find_in_set: DoctrineExtensions\Query\Mysql\FindInSet
                  format: DoctrineExtensions\Query\Mysql\Format
+                 from_base64: DoctrineExtensions\Query\Mysql\FromBase64
                  greatest: DoctrineExtensions\Query\Mysql\Greatest
                  group_concat: DoctrineExtensions\Query\Mysql\GroupConcat
                  hex: DoctrineExtensions\Query\Mysql\Hex

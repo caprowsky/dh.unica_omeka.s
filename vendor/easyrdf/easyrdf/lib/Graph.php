@@ -373,7 +373,7 @@ class Graph
     /** Get an associative array of all the resources stored in the graph.
      *  The keys of the array is the URI of the EasyRdf\Resource.
      *
-     * @return Resource[]
+     * @return \EasyRdf\Resource[]
      */
     public function resources()
     {
@@ -407,7 +407,7 @@ class Graph
      * @param  string  $property   The property to check.
      * @param  mixed   $value      Optional, the value of the propery to check for.
      *
-     * @return Resource[]
+     * @return \EasyRdf\Resource[]
      */
     public function resourcesMatching($property, $value = null)
     {
@@ -592,10 +592,10 @@ class Graph
      *
      * This method will return null if the property does not exist.
      *
-     * @param  string    $resource       The URI of the resource (e.g. http://example.com/joe#me)
-     * @param  string    $propertyPath   A valid property path
-     * @param  string    $type           The type of value to filter by (e.g. literal or resource)
-     * @param  string    $lang           The language to filter by (e.g. en)
+     * @param  string        $resource       The URI of the resource (e.g. http://example.com/joe#me)
+     * @param  string|array  $propertyPath   A valid property path
+     * @param  string        $type           The type of value to filter by (e.g. literal or resource)
+     * @param  string        $lang           The language to filter by (e.g. en)
      *
      * @throws \InvalidArgumentException
      * @return mixed                     A value associated with the property
@@ -608,9 +608,11 @@ class Graph
             return $this->getSingleProperty($resource, $propertyPath->getUri(), $type, $lang);
         } elseif (is_string($propertyPath) and preg_match('|^(\^?)<(.+)>|', $propertyPath, $matches)) {
             return $this->getSingleProperty($resource, "$matches[1]$matches[2]", $type, $lang);
+        } elseif (is_array($propertyPath)) {
+            $propertyPath = implode('|', $propertyPath); // convert to path expression
         } elseif ($propertyPath === null or !is_string($propertyPath)) {
             throw new \InvalidArgumentException(
-                '$propertyPath should be a string or EasyRdf\Resource and cannot be null'
+                '$propertyPath should be a string, array or EasyRdf\Resource and cannot be null'
             );
         } elseif ($propertyPath === '') {
             throw new \InvalidArgumentException(
@@ -701,7 +703,7 @@ class Graph
      * @param  string|array $property The name of the property (e.g. foaf:name)
      * @param  string       $lang     The language to filter by (e.g. en)
      *
-     * @return Literal  Literal value associated with the property
+     * @return \EasyRdf\Literal Literal value associated with the property
      */
     public function getLiteral($resource, $property, $lang = null)
     {
@@ -1525,7 +1527,7 @@ class Graph
      *
      * @param string|null $resource
      *
-     * @return Resource[]
+     * @return \EasyRdf\Resource[]
      */
     public function typesAsResources($resource = null)
     {
@@ -1610,7 +1612,7 @@ class Graph
      * @param string|null $resource
      * @param string|null $lang
      *
-     * @return string A label for the resource.
+     * @return \EasyRdf\Literal|null An instance of Literal which contains the label or null.
      */
     public function label($resource = null, $lang = null)
     {
