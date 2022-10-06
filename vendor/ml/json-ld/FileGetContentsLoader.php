@@ -53,7 +53,7 @@ class FileGetContentsLoader implements DocumentLoaderInterface
                         $remoteDocument->documentUrl = $msg;
                         $remoteDocument->mediaType = null;
 
-                        $httpHeadersOffset = count($http_response_header);
+                        $httpHeadersOffset = isset($http_response_header) ? count($http_response_header) : 0;
                     }
                 }
             ));
@@ -77,11 +77,16 @@ class FileGetContentsLoader implements DocumentLoaderInterface
                 }
             }
 
-            $linkHeaderValues = $this->parseContextLinkHeaders($linkHeaderValues, new IRI($url));
+            $linkHeaderValues = $this->parseLinkHeaders($linkHeaderValues, new IRI($url));
 
-            if (count($linkHeaderValues) === 1) {
-                $remoteDocument->contextUrl = reset($linkHeaderValues);
-            } elseif (count($linkHeaderValues) > 1) {
+            $contextLinkHeaders = array_filter($linkHeaderValues, function ($link) {
+                return (isset($link['rel'])
+                    && in_array('http://www.w3.org/ns/json-ld#context', explode(' ', $link['rel'])));
+            });
+
+            if (count($contextLinkHeaders) === 1) {
+                $remoteDocument->contextUrl = $contextLinkHeaders[0]['uri'];
+            } elseif (count($contextLinkHeaders) > 1) {
                 throw new JsonLdException(
                     JsonLdException::MULTIPLE_CONTEXT_LINK_HEADERS,
                     'Found multiple contexts in HTTP Link headers',
@@ -100,13 +105,33 @@ class FileGetContentsLoader implements DocumentLoaderInterface
 
                 if ('application/ld+json' === $remoteDocument->mediaType) {
                     $remoteDocument->contextUrl = null;
-                } elseif (('application/json' !== $remoteDocument->mediaType) &&
-                    (0 !== substr_compare($remoteDocument->mediaType, '+json', -5))) {
-                    throw new JsonLdException(
-                        JsonLdException::LOADING_DOCUMENT_FAILED,
-                        'Invalid media type',
-                        $remoteDocument->mediaType
-                    );
+                } else {
+                    // If the Media type was not as expected, check to see if the desired content type
+                    // is being offered in a Link header (this is what schema.org now does).
+                    $altLinkHeaders = array_filter($linkHeaderValues, function ($link) {
+                        return (isset($link['rel']) && isset($link['type'])
+                            && ($link['rel'] === 'alternate') && ($link['type'] === 'application/ld+json'));
+                    });
+
+                    // The spec states 'A response MUST NOT contain more than one HTTP Link Header
+                    // using the alternate link relation with type="application/ld+json"'
+                    if (count($altLinkHeaders) === 1) {
+                        return $this->loadDocument($altLinkHeaders[0]['uri']);
+                    } elseif (count($altLinkHeaders) > 1) {
+                        throw new JsonLdException(
+                            JsonLdException::LOADING_DOCUMENT_FAILED,
+                            'Received multiple alternate link headers'
+                        );
+                    }
+
+                    if (('application/json' !== $remoteDocument->mediaType) &&
+                        (0 !== substr_compare($remoteDocument->mediaType, '+json', -5))) {
+                        throw new JsonLdException(
+                            JsonLdException::LOADING_DOCUMENT_FAILED,
+                            'Invalid media type',
+                            $remoteDocument->mediaType
+                        );
+                    }
                 }
             }
 
@@ -121,12 +146,14 @@ class FileGetContentsLoader implements DocumentLoaderInterface
     /**
      * Parse HTTP Link headers
      *
-     * @param array $values  An array of HTTP Link header values
-     * @param  IRI  $baseIri The document's URL (used to expand relative URLs to absolutes)
+     * @param array $values  An array of HTTP Link headers.
+     * @param IRI   $baseIri The document's URL (used to expand relative URLs to absolutes).
      *
-     * @return array An array of parsed HTTP Link headers
+     * @return array A structured representation of the Link header values.
+     *
+     * @internal Do not use this method directly, it's only temporarily accessible for testing.
      */
-    private function parseContextLinkHeaders(array $values, IRI $baseIri)
+    public function parseLinkHeaders(array $values, IRI $baseIri)
     {
         // Separate multiple links contained in a single header value
         for ($i = 0, $total = count($values); $i < $total; $i++) {
@@ -144,19 +171,27 @@ class FileGetContentsLoader implements DocumentLoaderInterface
         };
 
         // Split the header in key-value pairs
+        $result = array();
+
         foreach ($values as $val) {
             $part = array();
+
             foreach (preg_split('/;(?=([^"]*"[^"]*")*[^"]*$)/', $val) as $kvp) {
                 preg_match_all('/<[^>]+>|[^=]+/', $kvp, $matches);
                 $pieces = array_map($trimWhitespaceCallback, $matches[0]);
-                $part[$pieces[0]] = isset($pieces[1]) ? $pieces[1] : '';
+
+                if (count($pieces) > 1) {
+                    $part[$pieces[0]] = $pieces[1];
+                } elseif (count($pieces) === 1) {
+                    $part['uri'] = (string) $baseIri->resolve(trim($pieces[0], '<> '));
+                }
             }
 
-            if (in_array('http://www.w3.org/ns/json-ld#context', explode(' ', $part['rel']))) {
-                $contexts[] = (string) $baseIri->resolve(trim(key($part), '<> '));
+            if (!empty($part)) {
+                $result[] = $part;
             }
         }
 
-        return array_values(array_unique($contexts));
+        return $result;
     }
 }

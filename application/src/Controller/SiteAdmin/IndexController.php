@@ -96,6 +96,7 @@ class IndexController extends AbstractActionController
                 unset($formData['csrf']);
                 $formData['o:assign_new_items'] = $postData['general']['o:assign_new_items'];
                 $formData['o:is_public'] = $postData['o:is_public'];
+                $formData['o:thumbnail'] = ['o:id' => $postData['thumbnail_id']];
                 // Prepare settings form data.
                 $settingsFormData = $settingsForm->getData();
                 unset($settingsFormData['csrf']);
@@ -126,6 +127,9 @@ class IndexController extends AbstractActionController
             // Prepare form data on first load.
             $form->setData($site->jsonSerialize());
             $settingsForm->get('general')->get('o:assign_new_items')->setValue($site->assignNewItems());
+            if ($site->thumbnail()) {
+                $form->get('thumbnail_id')->setValue($site->thumbnail()->id());
+            }
         }
 
         $view = new ViewModel;
@@ -240,13 +244,7 @@ class IndexController extends AbstractActionController
                 $updateData = [
                     'o:site_item_set' => $formData['o:site_item_set'] ?? [],
                 ];
-                $itemPool = $formData;
-                unset(
-                    $itemPool['siteresourcesform_csrf'],
-                    $itemPool['item_assignment_action'],
-                    $itemPool['save_search'],
-                    $itemPool['o:site_item_set']
-                );
+                parse_str($formData['item_pool'], $itemPool);
                 $updateData['o:item_pool'] = $formData['save_search'] ? $itemPool : $site->itemPool();
                 if ($formData['item_assignment_action'] && $formData['item_assignment_action'] !== 'no_action') {
                     $this->jobDispatcher()->dispatch('Omeka\Job\UpdateSiteItems', [
@@ -263,6 +261,8 @@ class IndexController extends AbstractActionController
             } else {
                 $this->messenger()->addFormErrors($form);
             }
+        } else {
+            $form->setData(['item_pool' => http_build_query($site->itemPool())]);
         }
 
         $itemCount = $this->api()
@@ -373,18 +373,14 @@ class IndexController extends AbstractActionController
             $form->add($elementSpec);
         }
 
-        // Fix to manage empty values for selects and multicheckboxes.
+        // Set backend required flag according to client-side attr
+        // (also, handle elements that otherwise default to required)
         $inputFilter = $form->getInputFilter();
         foreach ($form->getElements() as $element) {
-            if ($element instanceof \Laminas\Form\Element\MultiCheckbox
-                || ($element instanceof \Laminas\Form\Element\Select
-                    && $element->getOption('empty_option') !== null)
-            ) {
-                $inputFilter->add([
-                    'name' => $element->getName(),
-                    'allow_empty' => true,
-                ]);
-            }
+            $inputFilter->add([
+                'name' => $element->getName(),
+                'required' => (bool) $element->getAttribute('required'),
+            ]);
         }
 
         $oldSettings = $this->siteSettings()->get($theme->getSettingsKey());

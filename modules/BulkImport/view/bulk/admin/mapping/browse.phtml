@@ -1,0 +1,77 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \BulkImport\Api\Representation\MappingRepresentation[] $mappings
+ */
+
+use BulkImport\Interfaces\Configurable as ConfigurableImport;
+
+$escape = $this->plugin('escapeHtml');
+$translate = $this->plugin('translate');
+
+$this->htmlElement('body')->appendAttribute('class', 'bulk-mappings browse');
+$this->headLink()->appendStylesheet($this->assetUrl('css/bulk-import.css', 'BulkImport'));
+?>
+
+<?= $this->pageTitle($translate('Mappings'), 1, $translate('Bulk import')) ?>
+
+<div id="page-actions">
+    <?php if ($this->userIsAllowed(\BulkImport\Api\Adapter\MappingAdapter::class, 'create')): ?>
+    <?= $this->hyperlink($translate('Add new mapping'), $this->url('admin/bulk/default', ['controller' => 'mapping', 'action' => 'add'], true), ['class' => 'button']) ?>
+    <?php endif; ?>
+</div>
+
+<h2><?= $escape($translate('Configuration of mappings')) ?></h2>
+
+<?php if (count($mappings)): ?>
+<table class="tablesaw batch-edit" data-tablesaw-mode="stack">
+    <thead>
+        <tr>
+            <th><?= $escape($translate('Name')) ?></th>
+            <th><?= $escape($translate('Last modified')) ?></th>
+        </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($mappings as $mapping): ?>
+        <?php $userIsAllowedUpdate = $mapping->userIsAllowed('update'); ?>
+        <?php $userIsAllowedDelete = $mapping->userIsAllowed('delete'); ?>
+        <tr>
+            <td>
+                <?= $mapping->link($mapping->label(), 'edit') ?>
+                <ul class="actions">
+                    <?php if ($userIsAllowedUpdate): ?>
+                    <li><?= $mapping->link('', 'edit', [
+                        'class' => 'o-icon-edit',
+                        'title' => $translate('Edit'),
+                    ]) ?></li>
+                    <?php endif; ?>
+                    <?php if ($userIsAllowedDelete): ?>
+                    <li><?= $mapping->link('', 'delete', [
+                        'class' => 'o-icon-delete',
+                        'title' => $translate('Delete'),
+                    ]); /*
+                    echo $this->hyperlink('', '#', [
+                        'data-sidebar-selector' => '#sidebar',
+                        'data-sidebar-content-url' => $importer->url('delete-confirm'),
+                        'class' => 'o-icon-delete sidebar-content',
+                        'title' => $translate('Delete'),
+                    ]); */ ?></li>
+                    <?php endif; ?>
+                </ul>
+            </td>
+            <td>
+                <?php if ($mapping->modified()): ?>
+                <?= $mapping->modified()->format('Y-m-d H:i:s') ?>
+                <?php else: ?>
+                <?= $mapping->created()->format('Y-m-d H:i:s') ?>
+                <?php endif; ?>
+            </td>
+        </tr>
+    <?php endforeach; ?>
+    </tbody>
+</table>
+<?php else: ?>
+<div class="no-resources">
+    <p><?= $escape($translate('No mappings yet.')) ?></p>
+</div>
+<?php endif; ?>

@@ -41,7 +41,7 @@ class Cli
     }
 
     /**
-     * Verfy that a command exists and is executable.
+     * Verify that a command exists and is executable.
      *
      * @param string $commandDir The command's directory or the command path if
      *     $command is not passed
@@ -102,7 +102,7 @@ class Cli
     {
         exec($command, $output, $exitCode);
         if (0 !== $exitCode) {
-            $this->logger->err(sprintf('Command "%s" failed with status code %s.', $command, $exitCode));
+            $this->logger->err(sprintf('Command "%s" failed with status code %s.', $command, $exitCode)); // @translate
             return false;
         }
         return implode(PHP_EOL, $output);
@@ -140,7 +140,7 @@ class Cli
         if (0 !== $exitCode) {
             // Log standard error
             $this->logger->err($errors);
-            $this->logger->err(sprintf('Command "%s" failed with status code %s.', $command, $exitCode));
+            $this->logger->err(sprintf('Command "%s" failed with status code %s.', $command, $exitCode)); // @translate
             return false;
         }
         return trim($output);

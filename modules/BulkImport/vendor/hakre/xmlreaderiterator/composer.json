@@ -1,0 +1,28 @@
+{
+    "name": "hakre/xmlreaderiterator",
+    "description": "Iterators for PHP XMLReader for ease of parsing",
+    "keywords": ["XML", "XMLReader", "Iterator"],
+    "homepage": "https://github.com/hakre/XMLReaderIterator",
+    "minimum-stability": "stable",
+    "license": "AGPL-3.0-or-later",
+    "authors": [
+        {
+            "name": "hakre",
+            "homepage": "https://hakre.wordpress.com/"
+        }
+    ],
+    "autoload": {
+        "classmap": ["src/"]
+    },
+    "require": {
+        "ext-dom": "*",
+        "ext-simplexml": "*",
+        "ext-xmlreader": "*",
+        "ext-xmlwriter": "*"
+    },
+    "require-dev": {
+        "ext-bz2": "*",
+        "ext-libxml": "*",
+        "phpunit/phpunit": "3.7.*"
+    }
+}

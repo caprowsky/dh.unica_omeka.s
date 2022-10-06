@@ -1,0 +1,26 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Omeka\Api\Representation\AbstractResourceRepresentation $resource
+ * @var \Annotate\Form\AnnotateForm $annotateForm
+ */
+
+$translate = $this->plugin('translate');
+
+$annotateForm->prepare();
+$resourceClass = $resource->resourceClass();
+$isAnnotation = $resourceClass && $resourceClass->localName() === 'Annotation';
+// if ($isAnnotation):
+//     $annotationResource = $this->annotationTargetResource($resource);
+// endif;
+?>
+<div class="property">
+    <h4><?= $translate('New annotation') ?></h4>
+    <?php if ($isAnnotation): ?>
+    <p>
+    <?= $translate('Warning: the resource is already an annotation.') ?>
+    <?= $translate('Go to the tab "Metadata" to find and to annotate the original target resource.') ?>
+    </p>
+    <?php endif; ?>
+    <?= $this->form($annotateForm) ?>
+</div>

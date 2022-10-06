@@ -3,10 +3,11 @@
 namespace Doctrine\Persistence;
 
 use UnexpectedValueException;
-use function interface_exists;
 
 /**
  * Contract for a Doctrine persistence layer ObjectRepository class to implement.
+ *
+ * @template T
  */
 interface ObjectRepository
 {
@@ -16,13 +17,15 @@ interface ObjectRepository
      * @param mixed $id The identifier.
      *
      * @return object|null The object.
+     * @psalm-return T|null
      */
     public function find($id);
 
     /**
      * Finds all objects in the repository.
      *
-     * @return object[] The objects.
+     * @return array<int, object> The objects.
+     * @psalm-return T[]
      */
     public function findAll();
 
@@ -37,8 +40,10 @@ interface ObjectRepository
      * @param string[]|null $orderBy
      * @param int|null      $limit
      * @param int|null      $offset
+     * @psalm-param array<string, 'asc'|'desc'|'ASC'|'DESC'> $orderBy
      *
      * @return object[] The objects.
+     * @psalm-return T[]
      *
      * @throws UnexpectedValueException
      */
@@ -50,6 +55,7 @@ interface ObjectRepository
      * @param mixed[] $criteria The criteria.
      *
      * @return object|null The object.
+     * @psalm-return T|null
      */
     public function findOneBy(array $criteria);
 
@@ -60,5 +66,3 @@ interface ObjectRepository
      */
     public function getClassName();
 }
-
-interface_exists(\Doctrine\Common\Persistence\ObjectRepository::class);

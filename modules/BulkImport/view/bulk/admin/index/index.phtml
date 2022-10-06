@@ -1,0 +1,60 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \BulkImport\Api\Representation\ImporterRepresentation[] $importers
+ * @var \BulkImport\Api\Representation\ImportRepresentation[] $imports
+ */
+
+$translate = $this->plugin('translate');
+$escape = $this->plugin('escapeHtml');
+$hyperlink = $this->plugin('hyperlink');
+
+$this->htmlElement('body')->appendAttribute('class', 'bulk-importers bulk-imports browse');
+$this->headLink()->appendStylesheet($this->assetUrl('css/bulk-import.css', 'BulkImport'));
+?>
+
+<?= $this->pageTitle($translate('Bulk import'), 1, $translate('Bulk import')) ?>
+
+<h2><?= $escape($translate('Available importers')) ?></h2>
+
+<?php if (count($importers)): ?>
+<table class="tablesaw batch-edit" data-tablesaw-mode="stack">
+    <thead>
+        <tr>
+            <th><?= $escape($translate('Name')) ?></th>
+            <th><?= $escape($translate('Reader')) ?></th>
+            <th><?= $escape($translate('Processor')) ?></th>
+        </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($importers as $importer): ?>
+        <tr>
+            <td>
+                <?= $hyperlink($importer->label(), $this->url('admin/bulk/id', ['controller' => 'importer', 'action' => 'start', 'id' => $importer->id()])) ?>
+                <ul class="actions">
+                    <li><?= $importer->link('', 'start', [
+                        'class' => 'fas fa-cloud-upload-alt',
+                        'title' => $translate('Import'),
+                    ]); ?></li>
+                </ul>
+            </td>
+            <td>
+                <?php $reader = $importer->reader(); ?>
+                <?= $reader ? $reader->getLabel() : null; ?>
+            </td>
+            <td>
+                <?php $processor = $importer->processor(); ?>
+                <?= $processor ? $processor->getLabel() : null; ?>
+            </td>
+        </tr>
+    <?php endforeach; ?>
+    </tbody>
+</table>
+
+<?php endif; ?>
+
+<?php if (!empty($imports)): ?>
+    <h2><?= $escape($translate('Last imports')) ?></h2>
+    <?= $hyperlink('See all imports', $this->url('admin/bulk/default', ['controller' => 'import', 'action' => 'browse'])) ?>
+    <?= $this->partial('bulk/admin/import/import-table', ['imports' => $imports]) ?>
+<?php endif; ?>
