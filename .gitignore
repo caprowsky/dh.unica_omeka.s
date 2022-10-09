@@ -1,4 +1,4 @@
-## Drupal Ignore
+## omeka Ignore
 /web/sites/*/files/
 /files/*
 /files
