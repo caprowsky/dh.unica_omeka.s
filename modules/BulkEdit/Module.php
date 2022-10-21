@@ -63,6 +63,7 @@ class Module extends AbstractModule
                 'api.update.pre',
                 [$this, 'handleResourceUpdatePreBatchUpdate']
             );
+            // Batch update via sql queries.
             $sharedEventManager->attach(
                 $adapter,
                 'api.batch_update.post',
@@ -105,16 +106,6 @@ class Module extends AbstractModule
         $formElementManager = $services->get('FormElementManager');
         /** @var \BulkEdit\Form\BulkEditFieldset $fieldset */
         $fieldset = $formElementManager->get(BulkEditFieldset::class);
-
-        // Append some infos about datatypes for js.
-        $dataTypeManager = $services->get('Omeka\DataTypeManager');
-        $datatypes = [];
-        foreach ($dataTypeManager->getRegisteredNames() as $datatype) {
-            $datatypes[$datatype] = $this->mainDataType($datatype);
-        }
-        $fieldset->get('convert')->get('from')
-            ->setAttribute('data-datatypes', json_encode($datatypes, 320));
-
         $form->add($fieldset);
     }
 
@@ -275,7 +266,8 @@ class Module extends AbstractModule
         /**
          * A batch update process is launched one to three times in the core,
          * at least with option "collectionAction" = "replace".
-         * Batch updates are always partial,.
+         * Batch updates are always partial.
+         *
          * @see \Omeka\Job\BatchUpdate::perform()
          * @var \Omeka\Api\Request $request
          */
@@ -321,7 +313,7 @@ class Module extends AbstractModule
     }
 
     /**
-     * Process action on batch update (all or partial).
+     * Process action on batch update (all or partial) via direct sql.
      *
      * Data may need to be reindexed if a module like Search is used, even if
      * the results are probably the same with a simple trimming.
@@ -376,15 +368,17 @@ class Module extends AbstractModule
 
         $processes = [
             'replace' => null,
-            'fill_values' => null,
-            'order_values' => null,
-            'properties_visibility' => null,
             'displace' => null,
             'explode' => null,
             'merge' => null,
             'convert' => null,
+            'order_values' => null,
+            'properties_visibility' => null,
+            'fill_data' => null,
+            'fill_values' => null,
             'media_html' => null,
             'media_type' => null,
+            // Cleaning is done separately.
             'trim_values' => null,
             'specify_datatypes' => null,
             'clean_languages' => null,
@@ -421,50 +415,6 @@ class Module extends AbstractModule
                     'properties' => $params['properties'],
                 ];
             }
-        }
-
-        $params = $bulkedit['fill_values'] ?? [];
-        if (!empty($params['mode'])
-            && in_array($params['mode'], ['empty', 'all', 'remove'])
-            && !empty($params['properties'])
-        ) {
-            $processes['fill_values'] = [
-                'mode' => $params['mode'],
-                'properties' => $params['properties'],
-                'datatypes' => $params['datatypes'],
-                'language_code' => $params['language_code'],
-                'featured_subject' => (bool) $params['featured_subject'],
-            ];
-            // TODO Use a job only to avoid to fetch the same values multiple times or prefill values.
-            // $this->preFillValues($processes['fill_values']);
-        }
-
-        $params = $bulkedit['order_values'] ?? [];
-        if (!empty($params['languages'])) {
-            $languages = preg_replace('/[^a-zA-Z-]/', "\n", $params['languages']);
-            $languages = array_filter(explode("\n", $languages));
-            $properties = $params['properties'];
-            if ($languages && $properties) {
-                $processes['order_values'] = [
-                    'languages' => $languages,
-                    'properties' => $properties,
-                ];
-            }
-        }
-
-        $params = $bulkedit['properties_visibility'] ?? [];
-        if (isset($params['visibility'])
-            && $params['visibility'] !== ''
-            && !empty($params['properties'])
-        ) {
-            $visibility = (int) (bool) $params['visibility'];
-            $processes['properties_visibility'] = [
-                'visibility' => $visibility,
-                'properties' => $params['properties'],
-                'datatypes' => $params['datatypes'],
-                'languages' => $this->stringToList($params['languages']),
-                'contains' => $params['contains'],
-            ];
         }
 
         $params = $bulkedit['displace'] ?? [];
@@ -520,6 +470,59 @@ class Module extends AbstractModule
                 'uri_base_site' => $params['uri_base_site'],
                 'contains' => $params['contains'],
             ];
+        }
+
+        $params = $bulkedit['order_values'] ?? [];
+        if (!empty($params['languages'])) {
+            $languages = preg_replace('/[^a-zA-Z-]/', "\n", $params['languages']);
+            $languages = array_filter(explode("\n", $languages));
+            $properties = $params['properties'];
+            if ($languages && $properties) {
+                $processes['order_values'] = [
+                    'languages' => $languages,
+                    'properties' => $properties,
+                ];
+            }
+        }
+
+        $params = $bulkedit['properties_visibility'] ?? [];
+        if (isset($params['visibility'])
+            && $params['visibility'] !== ''
+            && !empty($params['properties'])
+        ) {
+            $visibility = (int) (bool) $params['visibility'];
+            $processes['properties_visibility'] = [
+                'visibility' => $visibility,
+                'properties' => $params['properties'],
+                'datatypes' => $params['datatypes'],
+                'languages' => $this->stringToList($params['languages']),
+                'contains' => $params['contains'],
+            ];
+        }
+
+        $params = $bulkedit['fill_data'] ?? [];
+        if (array_key_exists('owner', $params) && is_numeric($params['owner'])) {
+            $processes['fill_data'] = [
+                'owner' => (int) $params['owner'] ?: null,
+            ];
+        }
+
+        $params = $bulkedit['fill_values'] ?? [];
+        if (!empty($params['mode'])
+            && in_array($params['mode'], ['label_missing', 'label_all', 'label_remove', 'uri_missing', 'uri_all'])
+            && !empty($params['properties'])
+        ) {
+            $processes['fill_values'] = [
+                'mode' => $params['mode'],
+                'properties' => $params['properties'],
+                'datatypes' => $params['datatypes'],
+                'datatype' => $params['datatype'],
+                'language' => $params['language'],
+                'update_language' => $params['update_language'],
+                'featured_subject' => (bool) $params['featured_subject'],
+            ];
+            // TODO Use a job only to avoid to fetch the same values multiple times or prefill values.
+            // $this->preFillValues($processes['fill_values']);
         }
 
         $params = $bulkedit['media_html'] ?? [];
@@ -612,40 +615,38 @@ class Module extends AbstractModule
     ): array {
         // It's simpler to process data as a full array.
         $data = json_decode(json_encode($resource), true);
-        // Keep only properties values: a batch edit is partial and Bulk Edit
-        // manages only properties.
-        $properties = $this->getPropertyIds();
-        $data = array_intersect_key($data, $properties);
 
-        // Keep data that may have been added during batch pre-process,
+        // Keep data that may have been added during batch pre-process.
         $data = array_replace($data, $dataToUpdate);
 
-        // TODO Remove toUpdate that is not used anymore.
-        $toUpdate = false;
+        // Note: $data is passed by reference to each process.
         foreach ($processes as $process => $params) switch ($process) {
             case 'replace':
-                $this->updateValuesForResource($resource, $data, $toUpdate, $params);
-                break;
-            case 'fill_values':
-                $this->fillValuesForResource($resource, $data, $toUpdate, $params);
-                break;
-            case 'order_values':
-                $this->orderValuesForResource($resource, $data, $toUpdate, $params);
-                break;
-            case 'properties_visibility':
-                $this->applyVisibilityForResourceValues($resource, $data, $toUpdate, $params);
+                $this->updateValuesForResource($resource, $data, $params);
                 break;
             case 'displace':
-                $this->displaceValuesForResource($resource, $data, $toUpdate, $params);
+                $this->displaceValuesForResource($resource, $data, $params);
                 break;
             case 'explode':
-                $this->explodeValuesForResource($resource, $data, $toUpdate, $params);
+                $this->explodeValuesForResource($resource, $data, $params);
                 break;
             case 'merge':
-                $this->mergeValuesForResource($resource, $data, $toUpdate, $params);
+                $this->mergeValuesForResource($resource, $data, $params);
                 break;
             case 'convert':
-                $this->convertDatatypeForResource($resource, $data, $toUpdate, $params);
+                $this->convertDatatypeForResource($resource, $data, $params);
+                break;
+            case 'order_values':
+                $this->orderValuesForResource($resource, $data, $params);
+                break;
+            case 'properties_visibility':
+                $this->applyVisibilityForResourceValues($resource, $data, $params);
+                break;
+            case 'fill_data':
+                $this->fillDataForResource($resource, $data, $params);
+                break;
+            case 'fill_values':
+                $this->fillValuesForResource($resource, $data, $params);
                 break;
             default:
                 break;
@@ -717,7 +718,6 @@ class Module extends AbstractModule
     protected function updateValuesForResource(
         AbstractResourceEntityRepresentation $resource,
         array &$data,
-        &$toUpdate,
         array $params
     ): void {
         static $settings;
@@ -784,7 +784,6 @@ class Module extends AbstractModule
                     if ($value['type'] !== 'literal') {
                         continue;
                     }
-                    $toUpdate = true;
                     // Unsetting is done in last step.
                     $data[$property][$key]['@value'] = '';
                 }
@@ -810,7 +809,6 @@ class Module extends AbstractModule
                     if ($value['@value'] === $newValue) {
                         continue;
                     }
-                    $toUpdate = true;
                     $data[$property][$key]['@value'] = $newValue;
                 }
             }
@@ -826,7 +824,6 @@ class Module extends AbstractModule
                     if ($value['@value'] === $newValue) {
                         continue;
                     }
-                    $toUpdate = true;
                     $data[$property][$key]['@value'] = $newValue;
                 }
             }
@@ -842,7 +839,6 @@ class Module extends AbstractModule
                     if ($currentLanguage === $language) {
                         continue;
                     }
-                    $toUpdate = true;
                     $data[$property][$key]['@language'] = $language;
                 }
             }
@@ -859,7 +855,6 @@ class Module extends AbstractModule
                 }
                 $data[$property][$key]['@value'] = trim($data[$property][$key]['@value']);
                 if (!mb_strlen($data[$property][$key]['@value'])) {
-                    $toUpdate = true;
                     unset($data[$property][$key]);
                 }
             }
@@ -867,257 +862,11 @@ class Module extends AbstractModule
     }
 
     /**
-     * Update values for resources.
-     *
-     * @param AbstractResourceEntityRepresentation $resource
-     * @param array $data
-     * @param bool $toUpdate
-     * @param array $params
-     */
-    protected function fillValuesForResource(
-        AbstractResourceEntityRepresentation $resource,
-        array &$data,
-        &$toUpdate,
-        array $params
-    ): void {
-        static $settings;
-
-        // TODO Only geonames and idref are managed.
-        // TODO Add a query for a single value in ValueSuggest (or dereferenceable).
-        $managedDatatypes = [
-            'valuesuggest:geonames:geonames',
-            'valuesuggest:idref:all',
-            'valuesuggest:idref:person',
-            'valuesuggest:idref:corporation',
-            'valuesuggest:idref:conference',
-            'valuesuggest:idref:subject',
-            'valuesuggest:idref:rameau',
-            /* // No mapping currently.
-            'valuesuggest:idref:fmesh',
-            'valuesuggest:idref:geo',
-            'valuesuggest:idref:family',
-            'valuesuggest:idref:title',
-            'valuesuggest:idref:authorTitle',
-            'valuesuggest:idref:trademark',
-            'valuesuggest:idref:ppn',
-            'valuesuggest:idref:library',
-            */
-        ];
-
-        if (is_null($settings)) {
-            $mode = $params['mode'];
-            $properties = $params['properties'] ?? [];
-            $datatypes = isset($params['datatypes']) ? array_filter($params['datatypes']) : [];
-            $featuredSubject = !empty($params['featured_subject']);
-            $languageCode = $params['language_code'] ?? '';
-
-            $processAllProperties = in_array('all', $properties);
-            $processAllDatatypes = empty($datatypes);
-
-            // Flat the list of datatypes.
-            $dataTypeManager = $this->getServiceLocator()->get('Omeka\DataTypeManager');
-            $datatypes = $processAllDatatypes
-                ? array_intersect($dataTypeManager->getRegisteredNames(), $managedDatatypes)
-                : array_intersect($dataTypeManager->getRegisteredNames(), $datatypes, $managedDatatypes);
-
-            $fillLabelForUriOptions = [
-                'featured_subject' => $featuredSubject,
-                'language_code' => preg_replace('/[^a-zA-Z0-9_-]+/', '', $languageCode),
-            ];
-
-            $settings = $params;
-            $settings['mode'] = $mode;
-            $settings['properties'] = $properties;
-            $settings['processAllProperties'] = $processAllProperties;
-            $settings['datatypes'] = $datatypes;
-            $settings['processAllDatatypes'] = $processAllDatatypes;
-            $settings['fillLabelForUriOptions'] = $fillLabelForUriOptions;
-        } else {
-            extract($settings);
-        }
-
-        // Note: this is the original values.
-        $properties = $processAllProperties
-            ? array_keys($resource->values())
-            : array_intersect($properties, array_keys($resource->values()));
-        if (empty($properties)) {
-            return;
-        }
-
-        if ($mode === 'remove') {
-            foreach ($properties as $property) {
-                foreach ($data[$property] as $key => $value) {
-                    if (empty($value['@id']) || !in_array($value['type'], $managedDatatypes)) {
-                        continue;
-                    }
-                    $vvalue = $value['o:label'] ?? $value['@value'] ?? null;
-                    if (!strlen((string) $vvalue)) {
-                        continue;
-                    }
-                    $toUpdate = true;
-                    unset($data[$property][$key]['@value']);
-                    unset($data[$property][$key]['o:label']);
-                }
-            }
-            return;
-        }
-
-        $onlyMissing = $mode !== 'all';
-        foreach ($properties as $property) {
-            foreach ($data[$property] as $key => $value) {
-                if (empty($value['@id']) || !in_array($value['type'], $managedDatatypes)) {
-                    continue;
-                }
-                $vvalue = $value['o:label'] ?? $value['@value'] ?? null;
-                if ($onlyMissing && strlen((string) $vvalue)) {
-                    continue;
-                }
-                $vvalue = $this->fillLabelForUri($value['@id'], $value['type'], $fillLabelForUriOptions);
-                if (is_null($vvalue)) {
-                    continue;
-                }
-                $toUpdate = true;
-                $data[$property][$key]['o:label'] = $vvalue;
-            }
-        }
-    }
-
-    /**
-     * Order values in a list of properties.
-     *
-     * This feature is generally used for title, description and subjects.
-     *
-     * @param AbstractResourceEntityRepresentation $resource
-     * @param array $data
-     * @param bool $toUpdate
-     * @param array $params
-     */
-    protected function orderValuesForResource(
-        AbstractResourceEntityRepresentation $resource,
-        array &$data,
-        &$toUpdate,
-        array $params
-    ): void {
-        $languages = $params['languages'];
-        $forProperties = $params['properties'];
-        if (empty($languages) || empty($forProperties)) {
-            return;
-        }
-
-        $languages = array_fill_keys($languages, []);
-        $processAllProperties = in_array('all', $forProperties);
-
-        // Note: this is the original values.
-        $properties = $processAllProperties
-            ? array_keys($resource->values())
-            : array_intersect($forProperties, array_keys($resource->values()));
-        if (empty($properties)) {
-            return;
-        }
-
-        $toUpdate = true;
-
-        foreach ($properties as $property) {
-            // This two loops process is quicker with many languages.
-            $values = $languages;
-            foreach ($data[$property] as $value) {
-                if ($value['type'] !== 'literal' || empty($value['@language'])) {
-                    $values[''][] = $value;
-                    continue;
-                }
-                $values[$value['@language']][] = $value;
-            }
-            $vals = [];
-            foreach ($values as $vs) {
-                $vals = array_merge($vals, $vs);
-            }
-            $data[$property] = $vals;
-        }
-    }
-
-    /**
-     * Set visibility to the specified properties of the specified resources.
-     *
-     * @param AbstractResourceEntityRepresentation $resource
-     * @param array $data
-     * @param bool $toUpdate
-     * @param array $params
-     */
-    protected function applyVisibilityForResourceValues(
-        AbstractResourceEntityRepresentation $resource,
-        array &$data,
-        &$toUpdate,
-        array $params
-    ): void {
-        static $settings;
-        if (is_null($settings)) {
-            $visibility = (int) (bool) $params['visibility'];
-            $properties = $params['properties'];
-            $datatypes = array_filter($params['datatypes']);
-            $languages = $params['languages'];
-            $contains = (string) $params['contains'];
-
-            $checkDatatype = !empty($datatypes);
-            $checkLanguage = !empty($languages);
-            $checkContains = (bool) mb_strlen($contains);
-
-            $settings = $params;
-            $settings['properties'] = $properties;
-            $settings['visibility'] = $visibility;
-            $settings['checkDatatype'] = $checkDatatype;
-            $settings['checkLanguage'] = $checkLanguage;
-            $settings['checkContains'] = $checkContains;
-        } else {
-            extract($settings);
-        }
-
-        if (empty($properties)) {
-            return;
-        }
-
-        // Note: this is the original values.
-        $processAllProperties = in_array('all', $properties);
-        $properties = $processAllProperties
-            ? array_keys($resource->values())
-            : array_intersect($properties, array_keys($resource->values()));
-        if (empty($properties)) {
-            return;
-        }
-
-        foreach ($properties as $property) {
-            foreach ($data[$property] as $key => $value) {
-                $value += ['@language' => null, 'type' => null, '@value' => null];
-                $currentVisibility = isset($value['is_public']) ? (int) $value['is_public'] : 1;
-                if ($currentVisibility === $visibility) {
-                    continue;
-                }
-                if ($checkDatatype && !in_array($value['type'], $datatypes)) {
-                    continue;
-                }
-                if ($checkLanguage && !in_array($value['@language'], $languages)) {
-                    continue;
-                }
-                if ($checkContains && strpos((string) $value['@value'], $contains) === false) {
-                    continue;
-                }
-                $toUpdate = true;
-                $data[$property][$key]['is_public'] = $visibility;
-            }
-        }
-    }
-
-    /**
      * Displace values from a list of properties to another one.
-     *
-     * @param AbstractResourceEntityRepresentation $resource
-     * @param array $data
-     * @param bool $toUpdate
-     * @param array $params
      */
     protected function displaceValuesForResource(
         AbstractResourceEntityRepresentation $resource,
         array &$data,
-        &$toUpdate,
         array $params
     ): void {
         static $settings;
@@ -1180,8 +929,6 @@ class Module extends AbstractModule
             return;
         }
 
-        $toUpdate = true;
-
         foreach ($properties as $property) {
             if ($property === $toProperty) {
                 continue;
@@ -1210,16 +957,10 @@ class Module extends AbstractModule
 
     /**
      * Explode values from a list of properties into multiple values.
-     *
-     * @param AbstractResourceEntityRepresentation $resource
-     * @param array $data
-     * @param bool $toUpdate
-     * @param array $params
      */
     protected function explodeValuesForResource(
         AbstractResourceEntityRepresentation $resource,
         array &$data,
-        &$toUpdate,
         array $params
     ): void {
         static $settings;
@@ -1250,8 +991,6 @@ class Module extends AbstractModule
             return;
         }
 
-        $toUpdate = true;
-
         foreach ($properties as $property) {
             // This variable is used to keep order of original values.
             $values = [];
@@ -1280,16 +1019,10 @@ class Module extends AbstractModule
 
     /**
      * Merge values from a list of properties into one.
-     *
-     * @param AbstractResourceEntityRepresentation $resource
-     * @param array $data
-     * @param bool $toUpdate
-     * @param array $params
      */
     protected function mergeValuesForResource(
         AbstractResourceEntityRepresentation $resource,
         array &$data,
-        &$toUpdate,
         array $params
     ): void {
         static $settings;
@@ -1363,8 +1096,6 @@ class Module extends AbstractModule
                 continue;
             }
 
-            $toUpdate = true;
-
             // Third loop to update data.
             $data[$property] = [];
             foreach ($pairs as $pair) {
@@ -1386,16 +1117,10 @@ class Module extends AbstractModule
 
     /**
      * Convert datatype of a list of properties to another one.
-     *
-     * @param AbstractResourceEntityRepresentation $resource
-     * @param array $data
-     * @param bool $toUpdate
-     * @param array $params
      */
     protected function convertDatatypeForResource(
         AbstractResourceEntityRepresentation $resource,
         array &$data,
-        &$toUpdate,
         array $params
     ): void {
         static $settings;
@@ -1424,8 +1149,9 @@ class Module extends AbstractModule
                 ? $services->get('Omeka\DataTypeManager')->get($toDatatype)
                 : null;
 
-            $fromDatatypeMain = $this->mainDataType($fromDatatype);
-            $toDatatypeMain = $this->mainDataType($toDatatype);
+            $mainDataType = $services->get('ViewHelperManager')->get('mainDataType');
+            $fromDatatypeMain = $mainDataType($fromDatatype);
+            $toDatatypeMain = $mainDataType($toDatatype);
 
             $fromToMain = $fromDatatypeMain . ' => ' . $toDatatypeMain;
             $fromTo = $fromDatatype . ' => ' . $toDatatype;
@@ -1746,8 +1472,376 @@ class Module extends AbstractModule
                         ));
                         continue;
                     }
-                    $toUpdate = true;
                     $data[$property][$key] = $newValue;
+                }
+            }
+        }
+    }
+
+    /**
+     * Order values in a list of properties.
+     *
+     * This feature is generally used for title, description and subjects.
+     */
+    protected function orderValuesForResource(
+        AbstractResourceEntityRepresentation $resource,
+        array &$data,
+        array $params
+    ): void {
+        $languages = $params['languages'];
+        $forProperties = $params['properties'];
+        if (empty($languages) || empty($forProperties)) {
+            return;
+        }
+
+        $languages = array_fill_keys($languages, []);
+        $processAllProperties = in_array('all', $forProperties);
+
+        // Note: this is the original values.
+        $properties = $processAllProperties
+            ? array_keys($resource->values())
+            : array_intersect($forProperties, array_keys($resource->values()));
+        if (empty($properties)) {
+            return;
+        }
+
+        foreach ($properties as $property) {
+            // This two loops process is quicker with many languages.
+            $values = $languages;
+            foreach ($data[$property] as $value) {
+                if ($value['type'] !== 'literal' || empty($value['@language'])) {
+                    $values[''][] = $value;
+                    continue;
+                }
+                $values[$value['@language']][] = $value;
+            }
+            $vals = [];
+            foreach ($values as $vs) {
+                $vals = array_merge($vals, $vs);
+            }
+            $data[$property] = $vals;
+        }
+    }
+
+    /**
+     * Set visibility to the specified properties of the specified resources.
+     */
+    protected function applyVisibilityForResourceValues(
+        AbstractResourceEntityRepresentation $resource,
+        array &$data,
+        array $params
+    ): void {
+        static $settings;
+        if (is_null($settings)) {
+            $visibility = (int) (bool) $params['visibility'];
+            $properties = $params['properties'];
+            $datatypes = array_filter($params['datatypes']);
+            $languages = $params['languages'];
+            $contains = (string) $params['contains'];
+
+            $checkDatatype = !empty($datatypes);
+            $checkLanguage = !empty($languages);
+            $checkContains = (bool) mb_strlen($contains);
+
+            $settings = $params;
+            $settings['properties'] = $properties;
+            $settings['visibility'] = $visibility;
+            $settings['checkDatatype'] = $checkDatatype;
+            $settings['checkLanguage'] = $checkLanguage;
+            $settings['checkContains'] = $checkContains;
+        } else {
+            extract($settings);
+        }
+
+        if (empty($properties)) {
+            return;
+        }
+
+        // Note: this is the original values.
+        $processAllProperties = in_array('all', $properties);
+        $properties = $processAllProperties
+            ? array_keys($resource->values())
+            : array_intersect($properties, array_keys($resource->values()));
+        if (empty($properties)) {
+            return;
+        }
+
+        foreach ($properties as $property) {
+            foreach ($data[$property] as $key => $value) {
+                $value += ['@language' => null, 'type' => null, '@value' => null];
+                $currentVisibility = isset($value['is_public']) ? (int) $value['is_public'] : 1;
+                if ($currentVisibility === $visibility) {
+                    continue;
+                }
+                if ($checkDatatype && !in_array($value['type'], $datatypes)) {
+                    continue;
+                }
+                if ($checkLanguage && !in_array($value['@language'], $languages)) {
+                    continue;
+                }
+                if ($checkContains && strpos((string) $value['@value'], $contains) === false) {
+                    continue;
+                }
+                $data[$property][$key]['is_public'] = $visibility;
+            }
+        }
+    }
+
+    /**
+     * Update values for resources.
+     */
+    protected function fillDataForResource(
+        AbstractResourceEntityRepresentation $resource,
+        array &$data,
+        array $params
+    ): void {
+        static $settings;
+        if (is_null($settings)) {
+            $ownerId = (int) $params['owner'] ?: null;
+
+            $settings = $params;
+            $settings['ownerId'] = $ownerId;
+        } else {
+            extract($settings);
+        }
+
+        $currentResourceOwner = $resource->owner();
+        if (!$currentResourceOwner && !$ownerId) {
+            return;
+        }
+        if ($currentResourceOwner && $currentResourceOwner->id() === $ownerId) {
+            return;
+        }
+
+        $data['o:owner'] = ['o:id' => $ownerId];
+    }
+
+    /**
+     * Update values for resources.
+     */
+    protected function fillValuesForResource(
+        AbstractResourceEntityRepresentation $resource,
+        array &$data,
+        array $params
+    ): void {
+        static $settings;
+
+        // TODO Only geonames and idref are managed.
+        // TODO Add a query for a single value in ValueSuggest (or dereferenceable).
+        $managedDatatypes = [
+            'literal',
+            'uri',
+            'valuesuggest:geonames:geonames',
+            'valuesuggest:idref:all',
+            'valuesuggest:idref:person',
+            'valuesuggest:idref:corporation',
+            'valuesuggest:idref:conference',
+            'valuesuggest:idref:subject',
+            'valuesuggest:idref:rameau',
+            /* // No mapping currently.
+            'valuesuggest:idref:fmesh',
+            'valuesuggest:idref:geo',
+            'valuesuggest:idref:family',
+            'valuesuggest:idref:title',
+            'valuesuggest:idref:authorTitle',
+            'valuesuggest:idref:trademark',
+            'valuesuggest:idref:ppn',
+            'valuesuggest:idref:library',
+            */
+        ];
+
+        if (is_null($settings)) {
+            $mode = $params['mode'];
+            $properties = $params['properties'] ?? [];
+            $datatypes = $params['datatypes'] ?? [];
+            $datatype = $params['datatype'] ?? null;
+            $featuredSubject = !empty($params['featured_subject']);
+            $language = $params['language'] ?? '';
+            $updateLanguage = empty($params['update_language'])
+                || !in_array($params['update_language'], ['keep', 'update', 'remove'])
+                || ($params['update_language'] === 'update' && !$language)
+                ? 'keep'
+                : $params['update_language'];
+
+            $processAllProperties = in_array('all', $properties);
+            $processAllDatatypes = in_array('all', $datatypes);
+
+            $skip = false;
+            if (!in_array($mode, ['label_missing', 'label_all', 'label_remove', 'uri_missing', 'uri_all'])) {
+                $logger = $this->getServiceLocator()->get('Omeka\Logger');
+                $logger->warn(new Message('Process is skipped: mode "%s" is unmanaged', // @translate
+                    $mode
+                ));
+                $skip = true;
+            }
+
+            // Flat the list of datatypes.
+            $dataTypeManager = $this->getServiceLocator()->get('Omeka\DataTypeManager');
+            $datatypes = $processAllDatatypes
+                ? array_intersect($dataTypeManager->getRegisteredNames(), $managedDatatypes)
+                : array_intersect($dataTypeManager->getRegisteredNames(), $datatypes, $managedDatatypes);
+
+            if ((in_array('literal', $datatypes) || in_array('uri', $datatypes)) && in_array($datatype, ['', 'literal', 'uri'])) {
+                $logger = $this->getServiceLocator()->get('Omeka\Logger');
+                $logger->warn(new Message('When "literal" or "uri" is used, the datatype should be specified.')); // @translate
+                $skip = true;
+            }
+
+            $isModeUri = $mode === 'uri_missing' || $mode === 'uri_all';
+            if ($isModeUri && !in_array($datatype, $datatypes) || in_array($datatype, ['', 'literal', 'uri'])) {
+                $logger = $this->getServiceLocator()->get('Omeka\Logger');
+                $logger->warn(new Message('When filling an uri, the datatype should be specified.')); // @translate
+                $skip = true;
+            }
+
+            if ($isModeUri && !$this->isModuleActive('ValueSuggest')) {
+                $logger = $this->getServiceLocator()->get('Omeka\Logger');
+                $logger->warn(new Message('When filling an uri, the module Value Suggest should be available.')); // @translate
+                $skip = true;
+            }
+
+            $labelAndUriOptions = [
+                'language' => preg_replace('/[^a-zA-Z0-9_-]+/', '', $language),
+                'featured_subject' => $featuredSubject,
+            ];
+
+            $settings = $params;
+            $settings['mode'] = $mode;
+            $settings['properties'] = $properties;
+            $settings['processAllProperties'] = $processAllProperties;
+            $settings['datatypes'] = $datatypes;
+            $settings['datatype'] = $datatype;
+            $settings['processAllDatatypes'] = $processAllDatatypes;
+            $settings['labelAndUriOptions'] = $labelAndUriOptions;
+            $settings['language'] = $language;
+            $settings['updateLanguage'] = $updateLanguage;
+            $settings['skip'] = $skip;
+        } else {
+            extract($settings);
+        }
+
+        if ($skip) {
+            return;
+        }
+
+        // Note: this is the original values.
+        $properties = $processAllProperties
+            ? array_keys($resource->values())
+            : array_intersect($properties, array_keys($resource->values()));
+        if (empty($properties)) {
+            return;
+        }
+
+        if ($mode === 'label_remove') {
+            foreach ($properties as $property) {
+                foreach ($data[$property] as $key => $value) {
+                    if ($value['type'] === 'literal'
+                        || !in_array($value['type'], $datatypes)
+                    ) {
+                        continue;
+                    }
+                    // Don't remove label if there is no id.
+                    // Manage and store badly formatted id.
+                    if (empty($value['@id'])) {
+                        $data[$property][$key]['@id'] = $value['@id'] = null;
+                        continue;
+                    }
+                    $vvalue = $value['o:label'] ?? $value['@value'] ?? null;
+                    if (!strlen((string) $vvalue)) {
+                        continue;
+                    }
+                    unset($data[$property][$key]['@value']);
+                    unset($data[$property][$key]['o:label']);
+                    if ($updateLanguage === 'update') {
+                        $data[$property][$key]['@language'] = $language;
+                    } elseif ($updateLanguage === 'remove') {
+                        unset($data[$property][$key]['@language']);
+                    }
+                }
+            }
+            return;
+        }
+
+        if ($mode === 'label_missing' || $mode === 'label_all') {
+            $onlyMissing = $mode === 'label_missing';
+            foreach ($properties as $property) {
+                foreach ($data[$property] as $key => $value) {
+                    // Manage and store badly formatted id.
+                    if (empty($value['@id'])) {
+                        $data[$property][$key]['@id'] = $value['@id'] = null;
+                    }
+                    if (!in_array($value['type'], $datatypes)
+                        || !in_array($value['type'], ['literal', 'uri', $datatype])
+                    ) {
+                        continue;
+                    }
+                    $vuri = $value['type'] === 'literal' ? $value['@value'] : ($value['@id'] ?? null);
+                    if (empty($vuri)) {
+                        continue;
+                    }
+                    $vvalue = $value['type'] !== 'literal'
+                        ? $value['o:label'] ?? $value['@value'] ?? null
+                        : null;
+                    if ($onlyMissing && strlen((string) $vvalue)) {
+                        continue;
+                    }
+                    $vtype = in_array($value['type'], ['literal', 'uri']) ? $datatype: $value['type'];
+                    $vvalueNew = $this->getLabelForUri($vuri, $vtype, $labelAndUriOptions);
+                    if (is_null($vvalueNew)) {
+                        continue;
+                    }
+                    $data[$property][$key]['o:label'] = $vvalueNew;
+                    $data[$property][$key]['@value'] = null;
+                    $data[$property][$key]['type'] = $vtype;
+                    $data[$property][$key]['@id'] = $vuri;
+                    if ($updateLanguage === 'update') {
+                        $data[$property][$key]['@language'] = $language;
+                    } elseif ($updateLanguage === 'remove') {
+                        unset($data[$property][$key]['@language']);
+                    }
+                }
+            }
+            return;
+        }
+
+        if ($mode === 'uri_missing' || $mode === 'uri_all') {
+            $onlyMissing = $mode === 'uri_missing';
+            foreach ($properties as $property) {
+                foreach ($data[$property] as $key => $value) {
+                    // Manage and store badly formatted id.
+                    if (empty($value['@id'])) {
+                        $data[$property][$key]['@id'] = $value['@id'] = null;
+                    }
+                    if (!in_array($value['type'], $datatypes)
+                        || !in_array($value['type'], ['literal', 'uri', $datatype])
+                    ) {
+                        continue;
+                    }
+                    if ($value['@id']
+                        && $onlyMissing
+                        // Manage badly formatted values.
+                        && (substr($value['@id'], 0, 8) === 'https://' || substr($value['@id'], 0, 7) === 'http://')
+                    ) {
+                        continue;
+                    }
+                    $vvalue = $value['@id'] ?? $value['o:label'] ?? $value['@value'] ?? null;
+                    if (empty($vvalue)) {
+                        continue;
+                    }
+                    $vtype = in_array($value['type'], ['literal', 'uri']) ? $datatype: $value['type'];
+                    $vuri = $this->getValueSuggestUriForLabel($vvalue, $vtype, $language);
+                    if (!$vuri) {
+                        continue;
+                    }
+                    $data[$property][$key]['o:label'] = $vvalue === $vuri ? null : $vvalue;
+                    $data[$property][$key]['@value'] = null;
+                    $data[$property][$key]['type'] = $vtype;
+                    $data[$property][$key]['@id'] = $vuri;
+                    if ($updateLanguage === 'update') {
+                        $data[$property][$key]['@language'] = $language;
+                    } elseif ($updateLanguage === 'remove') {
+                        unset($data[$property][$key]['@language']);
+                    }
                 }
             }
         }
@@ -1891,96 +1985,7 @@ class Module extends AbstractModule
         }
     }
 
-    /**
-     * Get main datatype ("literal", "resource" or "uri") from any data type.
-     */
-    protected function mainDataType(?string $dataType): ?string
-    {
-        if (empty($dataType)) {
-            return null;
-        }
-        $dataType = strtolower($dataType);
-        if (in_array($dataType, ['literal', 'uri'])) {
-            return $dataType;
-        }
-        if (substr($dataType, 0, 8) === 'resource') {
-            return 'resource';
-        }
-        if (
-            // Module DataTypeGeometry.
-            substr($dataType, 0, 8) === 'geometry'
-            || in_array($dataType, [
-                // Module DataTypePlace.
-                'place',
-                // Module DataTypeRdf.
-                'html',
-                'xml',
-                'boolean',
-                // Specific module.
-                'email',
-            ])
-            // Module NumericDataTypes.
-            || substr($dataType, 0, 7) === 'numeric'
-        ) {
-            return 'literal';
-        }
-        // Module ValueSuggest.
-        if (substr($dataType, 0, 12) === 'valuesuggest'
-            || substr($dataType, 0, 15) === 'valuesuggestall'
-        ) {
-            return 'uri';
-        }
-        if (substr($dataType, 0, 11) === 'customvocab') {
-            // CustomVocab v1.7 is not yet released, so use a specific helper.
-            return $this->getServiceLocator()->get('ViewHelperManager')->get('customVocabBaseType')(substr($dataType, 12));
-        }
-        return null;
-    }
-
-    /**
-     * Check if a string or a id is a managed term.
-     */
-    protected function isPropertyTerm($term): bool
-    {
-        $ids = $this->getPropertyIds();
-        return isset($ids[$term]);
-    }
-
-    /**
-     * Get all property ids by term.
-     *
-     * @return array Associative array of ids by term.
-     */
-    protected function getPropertyIds(): array
-    {
-        static $properties;
-        if (isset($properties)) {
-            return $properties;
-        }
-
-        /** @var \Doctrine\DBAL\Connection $connection */
-        $connection = $this->getServiceLocator()->get('Omeka\Connection');
-        $qb = $connection->createQueryBuilder();
-        $qb
-            ->select(
-                'DISTINCT CONCAT(vocabulary.prefix, ":", property.local_name) AS term',
-                'property.id AS id',
-                // Only the two first selects are needed, but some databases
-                // require "order by" or "group by" value to be in the select.
-                'vocabulary.id',
-                'property.id'
-            )
-            ->from('property', 'property')
-            ->innerJoin('property', 'vocabulary', 'vocabulary', 'property.vocabulary_id = vocabulary.id')
-            ->orderBy('vocabulary.id', 'asc')
-            ->addOrderBy('property.id', 'asc')
-            ->addGroupBy('property.id')
-        ;
-        $properties = array_map('intval', $connection->executeQuery($qb)->fetchAllKeyValue());
-        return $properties;
-    }
-
-    protected function fillLabelForUri($uri, $datatype = null, array $options = []): ?string
+    protected function getLabelForUri(string $uri, string $datatype, array $options = []): ?string
     {
         static $filleds = [];
         static $logger = null;
@@ -1990,21 +1995,138 @@ class Module extends AbstractModule
         }
 
         $featuredSubject = !empty($options['featured_subject']);
-        $languageCode = $options['language_code'] ?? '';
+        $language = $options['language'] ?? '';
 
+        $endpointData = $this->endpointDatatype($datatype, $language, $featuredSubject);
+        if (!$endpointData) {
+            return null;
+        }
+
+        if (array_key_exists($uri, $filleds)) {
+            return $filleds[$uri];
+        }
+
+        // So get the url from the uri.
+        $url = $this->cleanRemoteUri($uri, $datatype, $language, $featuredSubject);
+        if (!$url) {
+            $filleds[$uri] = null;
+            return null;
+        }
+
+        if (array_key_exists($url, $filleds)) {
+            return $filleds[$url];
+        }
+
+        $doc = $this->fetchUrlXml($url);
+        if (!$doc) {
+            return null;
+        }
+
+        $xpath = new \DOMXPath($doc);
+
+        switch ($datatype) {
+            case 'valuesuggest:geonames:geonames':
+                $xpath->registerNamespace('rdf', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#');
+                $xpath->registerNamespace('gn', 'http://www.geonames.org/ontology#');
+                break;
+            default:
+                break;
+        }
+
+        $queries = (array) $endpointData['path'];
+        foreach ($queries as $query) {
+            $nodeList = $xpath->query($query);
+            if (!$nodeList || !$nodeList->length) {
+                continue;
+            }
+            $value = trim((string) $nodeList->item(0)->nodeValue);
+            if ($value === '') {
+                continue;
+            }
+
+            $logger->info(new Message(
+                'The label for uri "%1$s" is "%2$s".', // @translate
+                $uri, $value
+            ));
+
+            $filleds[$uri] = $value;
+            return $value;
+        }
+
+        $logger->err(new Message(
+            'The label for uri "%s" was not found.', // @translate
+            $uri
+        ));
+        $filleds[$uri] = null;
+        return null;
+    }
+
+    /**
+     * @see \ValueSuggest\Controller\IndexController::proxyAction()
+     */
+    protected function getValueSuggestUriForLabel(string $label, string $datatype, ?string $language = null): ?string
+    {
+        static $filleds = [];
+        static $logger = null;
+        static $dataTypeManager = null;
+
+        if (!$logger) {
+            $logger = $this->getServiceLocator()->get('Omeka\Logger');
+            $dataTypeManager = $this->getServiceLocator()->get('Omeka\DataTypeManager');
+        }
+
+        if (array_key_exists($label, $filleds)) {
+            return $filleds[$label];
+        }
+
+        if (!strlen($label)) {
+            return null;
+        }
+
+        if (!$datatype || !$dataTypeManager->has($datatype)) {
+            return null;
+        }
+
+        $dataType = $dataTypeManager->get($datatype);
+        if (!$dataType instanceof \ValueSuggest\DataType\DataTypeInterface) {
+            return null;
+        }
+
+        $suggester = $dataType->getSuggester();
+        if (!$suggester instanceof \ValueSuggest\Suggester\SuggesterInterface) {
+            return null;
+        }
+
+        $suggestions = $suggester->getSuggestions($label, $language);
+        if (!is_array($suggestions) || !count($suggestions)) {
+            return null;
+        }
+
+        if (count($suggestions) > 1) {
+            return null;
+        }
+
+        $suggestion = reset($suggestions);
+        return $suggestion['data']['uri'] ?? null;
+    }
+
+    /**
+     * @todo Move these hard-coded mappings into the form.
+     */
+    protected function endpointDatatype(string $datatype, ?string $language = null, bool $featuredSubject = false): array
+    {
         $baseurlIdref = [
             'idref.fr/',
         ];
 
-        // TODO Move these hard-coded mappings into the form.
-        $managedDatatypes = [
+        $endpointDatatypes = [
             'valuesuggest:geonames:geonames' => [
                 'base_url' => [
                     'geonames.org/',
                     'sws.geonames.org/',
                 ],
                 'path' => [
-                    '/rdf:RDF/gn:Feature/gn:officialName[@xml:lang="' . $languageCode . '"][1]',
+                    '/rdf:RDF/gn:Feature/gn:officialName[@xml:lang="' . $language . '"][1]',
                     '/rdf:RDF/gn:Feature/gn:name[1]',
                     '/rdf:RDF/gn:Feature/gn:shortName[1]',
                 ],
@@ -2057,12 +2179,9 @@ class Module extends AbstractModule
             'valuesuggest:idref:library' => null,
         ];
 
-        if (!isset($managedDatatypes[$datatype])) {
-            return null;
-        }
-
+        // Fix datatypes for rameau.
         if ($featuredSubject && $datatype === 'valuesuggest:idref:rameau') {
-            $managedDatatypes['valuesuggest:idref:rameau']['path'] = [
+            $endpointDatatypes['valuesuggest:idref:rameau']['path'] = [
                 '/record/datafield[@tag="250"]/subfield[@code="a"][1]',
                 '/record/datafield[@tag="915"]/subfield[@code="a"][1]',
                 // If featured subject is missing, use the current subject.
@@ -2071,19 +2190,22 @@ class Module extends AbstractModule
             ];
         }
 
-        $headers = [
-            'User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64; rv:102.0) Gecko/20100101 Firefox/102.0',
-            'Content-Type' => 'application/xml',
-            'Accept-Encoding' => 'gzip, deflate',
-        ];
+        return $endpointDatatypes[$datatype] ?? [];
+    }
 
-        $uri = trim((string) $uri);
+    protected function cleanRemoteUri(string $uri, string $datatype, ?string $language = null, bool $featuredSubject = false): ?string
+    {
         if (!$uri) {
             return null;
         }
 
+        $endpointData = $this->endpointDatatype($datatype, $language, $featuredSubject);
+        if (!$endpointData) {
+            return null;
+        }
+
         $isManagedUrl = false;
-        foreach ($managedDatatypes[$datatype]['base_url'] as $baseUrl) {
+        foreach ($endpointData['base_url'] as $baseUrl) {
             foreach (['http://', 'https://', 'http://www.', 'https://www.'] as $prefix) {
                 if (mb_substr($uri, 0, strlen($prefix . $baseUrl)) === $prefix . $baseUrl) {
                     $isManagedUrl = true;
@@ -2095,20 +2217,16 @@ class Module extends AbstractModule
             return null;
         }
 
-        if (array_key_exists($uri, $filleds)) {
-            return $filleds[$uri];
-        }
-
         switch ($datatype) {
             case 'valuesuggest:geonames:geonames':
                 // Extract the id.
                 $id = preg_replace('~.*/(?<id>[0-9]+).*~m', '$1', $uri);
                 if (!$id) {
+                    $logger = $this->getServiceLocator()->get('Omeka\Logger');
                     $logger->err(new Message(
                         'The label for uri "%s" was not found.', // @translate
                         $uri
                     ));
-                    $filleds[$uri] = null;
                     return null;
                 }
                 $url = "https://sws.geonames.org/$id/about.rdf";
@@ -2119,6 +2237,23 @@ class Module extends AbstractModule
             default:
                 return null;
         }
+
+        return $url;
+    }
+
+    protected function fetchUrlXml(string $url): ?\DOMDocument
+    {
+        static $logger = null;
+
+        if (!$logger) {
+            $logger = $this->getServiceLocator()->get('Omeka\Logger');
+        }
+
+        $headers = [
+            'User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64; rv:115.0) Gecko/20100101 Firefox/115.0',
+            'Content-Type' => 'application/xml',
+            'Accept-Encoding' => 'gzip, deflate',
+        ];
 
         try {
             $response = \Laminas\Http\ClientStatic::get($url, [], $headers);
@@ -2160,6 +2295,7 @@ class Module extends AbstractModule
             ));
             return null;
         }
+
         if (!$doc) {
             $logger->err(new Message(
                 'Output is not xml for url "%s".', // @translate
@@ -2168,42 +2304,49 @@ class Module extends AbstractModule
             return null;
         }
 
-        $xpath = new \DOMXPath($doc);
+        return $doc;
+    }
 
-        switch ($datatype) {
-            case 'valuesuggest:geonames:geonames':
-                $xpath->registerNamespace('rdf', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#');
-                $xpath->registerNamespace('gn', 'http://www.geonames.org/ontology#');
-                break;
-            default:
-                break;
+    /**
+     * Check if a string or a id is a managed term.
+     */
+    protected function isPropertyTerm($term): bool
+    {
+        $ids = $this->getPropertyIds();
+        return isset($ids[$term]);
+    }
+
+    /**
+     * Get all property ids by term.
+     *
+     * @return array Associative array of ids by term.
+     */
+    protected function getPropertyIds(): array
+    {
+        static $properties;
+        if (isset($properties)) {
+            return $properties;
         }
 
-        $queries = (array) $managedDatatypes[$datatype]['path'];
-        foreach ($queries as $query) {
-            $nodeList = $xpath->query($query);
-            if (!$nodeList || !$nodeList->length) {
-                continue;
-            }
-            $value = trim((string) $nodeList->item(0)->nodeValue);
-            if ($value === '') {
-                continue;
-            }
-
-            $logger->info(new Message(
-                'The label for uri "%1$s" is "%2$s".', // @translate
-                $uri, $value
-            ));
-
-            $filleds[$uri] = $value;
-            return $value;
-        }
-
-        $logger->err(new Message(
-            'The label for uri "%s" was not found.', // @translate
-            $uri
-        ));
-        $filleds[$uri] = null;
-        return null;
+        /** @var \Doctrine\DBAL\Connection $connection */
+        $connection = $this->getServiceLocator()->get('Omeka\Connection');
+        $qb = $connection->createQueryBuilder();
+        $qb
+            ->select(
+                'DISTINCT CONCAT(vocabulary.prefix, ":", property.local_name) AS term',
+                'property.id AS id',
+                // Only the two first selects are needed, but some databases
+                // require "order by" or "group by" value to be in the select.
+                'vocabulary.id',
+                'property.id'
+            )
+            ->from('property', 'property')
+            ->innerJoin('property', 'vocabulary', 'vocabulary', 'property.vocabulary_id = vocabulary.id')
+            ->orderBy('vocabulary.id', 'asc')
+            ->addOrderBy('property.id', 'asc')
+            ->addGroupBy('property.id')
+        ;
+        return $properties
+            = array_map('intval', $connection->executeQuery($qb)->fetchAllKeyValue());
     }
 }

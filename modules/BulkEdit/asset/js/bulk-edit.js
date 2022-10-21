@@ -33,7 +33,6 @@ $(document).ready(function() {
     $('.batch-edit #content > form:first-of-type > fieldset')
         .filter(function () {
             return bulkeditFieldsets.hasOwnProperty($(this).attr('id'));
-            return bulkeditFieldsets.indexOf($(this).attr('id')) >= 0;
         })
         .wrapAll('<fieldset id="bulk-edit" class="section">');
 
@@ -45,6 +44,10 @@ $(document).ready(function() {
 
     $('#bulk-edit')
         .prepend('<p>' + Omeka.jsTranslate('The actions are processed in the order of the form. Be careful when mixing them.') + '</p>');
+    if (!$('input#geometry_convert_literal_to_coordinates').length) {
+        $('#bulk-edit')
+            .append('<p>' + Omeka.jsTranslate('To convert values to/from mapping markers, use module DataTypeGeometry.') + '</p>');
+    }
 
     $('#fill_values > .collapsible')
         .prepend('<p>' + Omeka.jsTranslate('Fill a value from remote data can be slow, so it is recommended to process it in background with "batch edit all", not "batch edit selected".') + '</p>')
@@ -96,6 +99,17 @@ $(document).ready(function() {
         }
     });
     $('#convert_from, #convert_to').trigger('change');
+
+    $('.batch-edit').on('change', 'input[name="bulkedit[fill_values][mode]"]', function() {
+        const fieldset = $(this).closest('fieldset');
+        const mainMode = $(this).data('fill-main').length ? $(this).data('fill-main') : 'label';
+        fieldset.find('[data-fill-mode=' + mainMode + ']').closest('.field').show();
+        fieldset.find('[data-fill-mode]').not('[data-fill-mode=' + mainMode + ']').closest('.field').hide();
+        fieldset.find('[data-fill-mode-option=' + mainMode + ']').show();
+        fieldset.find('[data-fill-mode-option]').not('[data-fill-mode-option=' + mainMode + ']').hide();
+        fieldset.find('[data-fill-mode-option]').closest('select').trigger('chosen:updated');
+    });
+    // $('input[name="bulkedit[fill_values][mode]"]').trigger('change');
 
     $('.batch-edit').on('change', '#mediahtml_remove', function() {
         const fields = $('#mediahtml_from, #mediahtml_to, #mediahtml_mode, #mediahtml_prepend, #mediahtml_append').closest('.field');

@@ -13,21 +13,32 @@ return [
         ],
     ],
     'view_helpers' => [
+        'invokables' => [
+            'formNote' => Form\View\Helper\FormNote::class,
+        ],
         'factories' => [
-            // Copy from AdvancedResourceTemplate. Copy in BulkExport and BulkEdit. Used in Contribute.
+            // Copy from AdvancedResourceTemplate. Copy in BulkExport, BulkEdit and BulkImport. Used in Contribute.
             'customVocabBaseType' => Service\ViewHelper\CustomVocabBaseTypeFactory::class,
+            'mainDataType' => Service\ViewHelper\MainDataTypeFactory::class,
+        ],
+        'delegators' => [
+            'Laminas\Form\View\Helper\FormElement' => [
+                Service\Delegator\FormElementDelegatorFactory::class,
+            ],
         ],
     ],
     'form_elements' => [
         'invokables' => [
+            Form\Element\Note::class => Form\Element\Note::class,
             Form\Element\OptionalRadio::class => Form\Element\OptionalRadio::class,
             Form\Element\OptionalSelect::class => Form\Element\OptionalSelect::class,
             Form\SettingsFieldset::class => Form\SettingsFieldset::class,
         ],
         'factories' => [
             Form\BulkEditFieldset::class => Service\Form\BulkEditFieldsetFactory::class,
-            Form\Element\OptionalPropertySelect::class => Service\Form\Element\OptionalPropertySelectFactory::class,
             Form\Element\DataTypeSelect::class => Service\Form\Element\DataTypeSelectFactory::class,
+            Form\Element\OptionalPropertySelect::class => Service\Form\Element\OptionalPropertySelectFactory::class,
+            Form\Element\OptionalUserSelect::class => Service\Form\Element\OptionalUserSelectFactory::class,
         ],
         'aliases' => [
             // Use aliases to keep core keys.
@@ -50,6 +61,7 @@ return [
         'Expand', // @translate
         'Collapse', // @translate
         'The actions are processed in the order of the form. Be careful when mixing them.', // @translate
+        'To convert values to/from mapping markers, use module DataTypeGeometry.', // @translate
         'Fill a value from remote data can be slow, so it is recommended to process it in background with "batch edit all", not "batch edit selected".', // @translate
     ],
     'bulkedit' => [
