@@ -2,7 +2,7 @@
 return [
     'logger' => [
         'log' => true,
-        'priority' => \Zend\Log\Logger::NOTICE,
+        'priority' => \Zend\Log\Logger::DEBUG,
     ],
     'http_client' => [
         'sslcapath' => null,
