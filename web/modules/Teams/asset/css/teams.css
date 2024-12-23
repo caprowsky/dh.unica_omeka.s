@@ -1,0 +1,20 @@
+.row-left {
+    padding-right: 15px;
+
+}
+
+.selected {
+    background-color: lightgrey;
+}
+
+.toggle-vis {
+    display: none;
+}
+
+.chozn-select select{
+    display: block;
+}
+
+#team-resources td ul {
+    float:right;
+}

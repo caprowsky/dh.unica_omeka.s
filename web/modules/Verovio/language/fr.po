@@ -1,0 +1,285 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-04-05 00:00+0000\n"
+"PO-Revision-Date: 2021-04-05 00:00+0000\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Last-Translator: Daniel Berthereau <Daniel.fr@Berthereau.net>\n"
+"Language-Team: \n"
+"X-Generator: Poedit 2.4.2\n"
+
+#: Module.php:56
+msgid "The Verovio library should be installed."
+msgstr "La bibliothèque Verovio doit être installée."
+
+#: Module.php:57
+msgid "See module’s installation documentation."
+msgstr "Consulter la documentation d’installation du module."
+
+#: src/Generic/AbstractModule.php:66
+#, php-format
+msgid "This module requires the module \"%s\"."
+msgstr "Ce module requiert le module \"%s\"."
+
+#: src/Generic/AbstractModule.php:73
+#, php-format
+msgid "This module requires modules \"%s\"."
+msgstr "Ce module requiert les modules \"%s\"."
+
+#: src/Generic/AbstractModule.php:80
+msgid "This module has resources that cannot be installed."
+msgstr "Ce module a des ressource qui ne peuvent pas être installées."
+
+#: src/Generic/AbstractModule.php:707
+#, php-format
+msgid ""
+"The module \"%s\" was automatically deactivated because the dependencies are "
+"unavailable."
+msgstr ""
+"Le module \"%s\" a été automatiquement désactivé car ses dépendances ne sont "
+"plus disponibles."
+
+#: view/common/verovio-mei-viewer.phtml:65 view/common/verovio-toolkit.phtml:30
+#: view/common/verovio-viewer.phtml:63 view/common/verovio.phtml:30
+msgid "The viewer is loading…"
+msgstr "La visionneuse est en cours de chargement…"
+
+#: view/common/verovio-mei-viewer.phtml:79 view/common/verovio-viewer.phtml:79
+msgid "Sorry, Verovio failed to process the MEI data."
+msgstr "Désolé, Verovio a échoué à traiter les données MEI."
+
+#: view/common/verovio-mei-viewer.phtml:98 view/common/verovio-viewer.phtml:100
+msgid "First page"
+msgstr "Première page"
+
+#: view/common/verovio-mei-viewer.phtml:101
+#: view/common/verovio-viewer.phtml:103
+msgid "Previous page"
+msgstr "Page précédente"
+
+#: view/common/verovio-mei-viewer.phtml:105
+#: view/common/verovio-viewer.phtml:107
+msgid "Jump to page"
+msgstr "Aller à la page"
+
+#: view/common/verovio-mei-viewer.phtml:107
+#: view/common/verovio-viewer.phtml:109
+msgid "Next page"
+msgstr "Page suivante"
+
+#: view/common/verovio-mei-viewer.phtml:110
+#: view/common/verovio-viewer.phtml:112
+msgid "Last page"
+msgstr "Dernière page"
+
+#: view/common/verovio-mei-viewer.phtml:120
+#: view/common/verovio-viewer.phtml:120
+msgid "Zoom out"
+msgstr "Dézoomer"
+
+#: view/common/verovio-mei-viewer.phtml:124
+#: view/common/verovio-viewer.phtml:124
+msgid "Zoom"
+msgstr "Zoom"
+
+#: view/common/verovio-mei-viewer.phtml:126
+#: view/common/verovio-viewer.phtml:126
+msgid "Zoom in"
+msgstr "Zoomer"
+
+#: view/common/verovio-mei-viewer.phtml:134
+#: view/common/verovio-viewer.phtml:133
+msgid "Generate a PDF file"
+msgstr "Créer un fichier pdf"
+
+#: view/common/verovio-mei-viewer.phtml:134
+#: view/common/verovio-viewer.phtml:133
+msgid "Generating PDF…"
+msgstr "Créer un PDF…"
+
+#: view/common/verovio-mei-viewer.phtml:136
+#: view/common/verovio-viewer.phtml:135
+msgid "PDF"
+msgstr "PDF"
+
+#: view/common/verovio-mei-viewer.phtml:138
+#: view/common/verovio-viewer.phtml:137
+msgid "Edit styles"
+msgstr "Éditer les styles"
+
+#: view/common/verovio-mei-viewer.phtml:138
+#: view/common/verovio-viewer.phtml:137
+msgid "Style editor…"
+msgstr "Éditeur de style…"
+
+#: view/common/verovio-mei-viewer.phtml:142
+#: view/common/verovio-viewer.phtml:141
+msgid "Download"
+msgstr "Télécharger"
+
+#: view/common/verovio-mei-viewer.phtml:145
+#: view/common/verovio-viewer.phtml:144
+msgid "Midi player"
+msgstr "Lecteur Midi"
+
+#: view/common/verovio-mei-viewer.phtml:160
+#: view/common/verovio-viewer.phtml:159
+msgid "Help"
+msgstr "Aide"
+
+#: view/common/verovio-mei-viewer.phtml:161
+#: view/common/verovio-viewer.phtml:160
+msgid ""
+"On mobile devices, you can swipe left or right to change page and tap or "
+"double tap to zoom-in or zoom-out. On desktops, you can use [ctrl+] left or "
+"right arrows and +/- keys."
+msgstr ""
+"Sur les appareils mobiles, vous pouvez glissez à gauche ou à droite pour "
+"changer la page et taper ou double-taper pour zoomer. Sur les appareils de "
+"bureau, bous pouvez utiliser [ctrl+] flèches gauche ou droite et les touches "
+"+/-."
+
+#: view/common/verovio-mei-viewer.phtml:163
+#: view/common/verovio-viewer.phtml:162
+#, php-format
+msgid ""
+"This viewer uses the latest development version %s and might be unstable."
+msgstr ""
+"La visionneuse utilise la dernière version de développement %s et peut être "
+"instable."
+
+#: view/common/verovio-mei-viewer.phtml:170
+#: view/common/verovio-viewer.phtml:169
+msgid "Full screen view"
+msgstr "Vue plein écran"
+
+#: view/common/verovio-mei-viewer.phtml:188
+#: view/common/verovio-viewer.phtml:187
+msgid "PDF options"
+msgstr "Options PDF"
+
+#: view/common/verovio-mei-viewer.phtml:203
+#: view/common/verovio-viewer.phtml:203
+msgid "Orientation"
+msgstr "Orientation"
+
+#: view/common/verovio-mei-viewer.phtml:206
+#: view/common/verovio-viewer.phtml:205
+msgid "Portrait"
+msgstr "Portrait"
+
+#: view/common/verovio-mei-viewer.phtml:207
+#: view/common/verovio-viewer.phtml:206
+msgid "Landscape"
+msgstr "Paysage"
+
+#: view/common/verovio-mei-viewer.phtml:215
+#: view/common/verovio-viewer.phtml:213
+msgid "Warning!"
+msgstr "Attention !"
+
+#: view/common/verovio-mei-viewer.phtml:215
+#: view/common/verovio-viewer.phtml:213
+msgid "This is an experimental feature and it can take some time."
+msgstr "Cette fonction est expérimentale et peut prendre un certain temps."
+
+#: view/common/verovio-mei-viewer.phtml:218
+#: view/common/verovio-mei-viewer.phtml:238
+#: view/common/verovio-viewer.phtml:216 view/common/verovio-viewer.phtml:238
+msgid "OK"
+msgstr "Ok"
+
+#: view/common/verovio-mei-viewer.phtml:236
+#: view/common/verovio-viewer.phtml:236
+msgid "Reset to default"
+msgstr "Réinitialiser les valeurs"
+
+#: view/common/verovio-mei-viewer.phtml:248
+#: view/common/verovio-toolkit.phtml:34 view/common/verovio-viewer.phtml:248
+#: view/common/verovio.phtml:34
+msgid "This browser does not support javascript."
+msgstr "Le navigateur ne gère pas le javascript."
+
+#: view/common/verovio-mei-viewer.phtml:249
+#: view/common/verovio-toolkit.phtml:35 view/common/verovio-viewer.phtml:249
+#: view/common/verovio.phtml:35
+#, php-format
+msgid "You may %sdownload it%s to view it offline."
+msgstr "Vous pouvez %sle télécharger %s pour le lire hors ligne."
+
+#: src/Form/SettingsFieldset.php:9 src/Form/SiteSettingsFieldset.php:9
+msgid "Verovio MEI viewer"
+msgstr "Visionneuse Verovio MEI"
+
+#: src/Form/SettingsFieldset.php:18
+msgid "Property used for external MEI"
+msgstr "Propriété utilisée pour les fichiers MEI externes"
+
+#: src/Form/SettingsFieldset.php:19
+msgid ""
+"The property supplying the MEI file via URL, for example \"dcterms:hasFormat"
+"\" or \"dcterms:isFormatOf\"."
+msgstr ""
+"Cette propriété permet de disposer du fichier MEI via une url, par exemple "
+"\"dcterms:hasFormat\" ou \"dcterms:isFormatOf\"."
+
+#: src/Form/SettingsFieldset.php:26
+msgid "Select a property…"
+msgstr "Choisir une propriété…"
+
+#: src/Form/SiteSettingsFieldset.php:18
+msgid "Verovio template"
+msgstr "Modèle Verovio"
+
+#: src/Form/SiteSettingsFieldset.php:21 src/Form/VerovioFieldset.php:44
+msgid "App (simple viewer)"
+msgstr "App (visionneuse simple)"
+
+#: src/Form/SiteSettingsFieldset.php:22 src/Form/VerovioFieldset.php:45
+msgid "Official (Bootstrap 3)"
+msgstr "Officiel (Bootstrap 3)"
+
+#: src/Form/SiteSettingsFieldset.php:23 src/Form/VerovioFieldset.php:46
+msgid "Web (Bootstrap 4)"
+msgstr "Web (Bootstrap 4)"
+
+#: src/Form/SiteSettingsFieldset.php:24 src/Form/VerovioFieldset.php:47
+msgid "Custom (via theme)"
+msgstr "Personnalisée (via le thème)"
+
+#: src/Form/VerovioFieldset.php:16
+msgid "Block title"
+msgstr "Titre du bloc"
+
+#: src/Form/VerovioFieldset.php:17
+msgid "Heading for the block, if any."
+msgstr "Entête du bloc."
+
+#: src/Form/VerovioFieldset.php:29
+msgid ""
+"The url to display. Note: media attached to items are automatically rendered "
+"via common blocks, in particular \"Media\"."
+msgstr ""
+"L’url à afficher. Note : les médias attachés aux items sont automatiquement "
+"rendus via les blocs par défaut, notamment \"Média\"."
+
+#: src/Form/VerovioFieldset.php:40
+msgid "Template to display"
+msgstr "Gabarit à afficher"
+
+#: src/Form/VerovioFieldset.php:53
+msgid "Select a template…"
+msgstr "Choisir un modèle de ressource…"
+
+#: src/Site/BlockLayout/Verovio.php:20
+msgid "Verovio viewer"
+msgstr "Visionneuse Verovio"

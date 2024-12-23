@@ -1,0 +1,80 @@
+{
+    "name": "daniel-km/omeka-s-module-verovio",
+    "description": "Verovio (module for Omeka S)",
+    "type": "library",
+    "license": "CECILL-2.1",
+    "authors": [
+        {
+            "name": "Daniel Berthereau",
+            "email": "Daniel.packagist@Berthereau.net"
+        }
+    ],
+    "homepage": "https://gitlab.com/Daniel-KM/Omeka-S-module-Verovio",
+    "support": {
+        "issues": "https://gitlab.com/Daniel-KM/Omeka-S-module-Verovio/-/issues",
+        "forum": "https://forum.omeka.org/"
+    },
+    "keywords": [
+        "Omeka S",
+        "Omeka S module",
+        "viewer",
+        "viewer",
+        "musical score",
+        "MEI",
+        "MusicXml",
+        "MIDI"
+    ],
+    "autoload": {
+        "psr-4": {
+            "ViewerJs\\": "src/"
+        }
+    },
+    "config": {
+        "vendor-dir": "vendor/asset"
+    },
+    "repositories": [
+        {
+            "type": "package",
+            "package": {
+                "name": "rism-ch/verovio-toolkit-wasm",
+                "version": "2.1.0",
+                "dist": {
+                "url": "https://www.verovio.org/javascript/2.1.0/verovio-toolkit-wasm.js",
+                "type": "file"
+                }
+            }
+        },
+        {
+            "type": "package",
+            "package": {
+                "name": "rism-ch/verovio-wasm",
+                "version": "2.1.0",
+                "dist": {
+                    "url": "https://www.verovio.org/javascript/2.1.0/verovio.wasm",
+                    "type": "file"
+                }
+            }
+        }
+    ],
+    "require": {
+        "slowprog/composer-copy-file": "^0.3",
+        "rism-ch/verovio-toolkit-wasm": "*",
+        "rism-ch/verovio-wasm": "*",
+        "twbs/bootstrap": "^4.3"
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "SlowProg\\CopyFile\\ScriptHandler::copy"
+        ],
+        "post-update-cmd": [
+            "SlowProg\\CopyFile\\ScriptHandler::copy"
+        ]
+    },
+    "extra": {
+        "copy-file": {
+            "vendor/asset/rism-ch/verovio-toolkit-wasm/verovio-toolkit-wasm.js": "asset/vendor/verovio/js/",
+            "vendor/asset/rism-ch/verovio-wasm/verovio.wasm": "asset/vendor/verovio/js/",
+            "vendor/asset/twbs/bootstrap/dist": "asset/vendor/bootstrap/"
+        }
+    }
+}

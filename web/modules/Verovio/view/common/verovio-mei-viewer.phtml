@@ -1,0 +1,251 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Omeka\Api\Representation\AbstractResourceEntityRepresentation $resource
+ * @var array $options
+ */
+
+// Official Verovio viewer (based on Bootsrap 3).
+
+$translate = $this->plugin('translate');
+$escape = $this->plugin('escapeHtml');
+$assetUrl = $this->plugin('assetUrl');
+
+$baseUrl = $this->serverUrl() . $assetUrl('vendor/verovio/js/', 'Verovio', false, false);
+$source = $options['source'] ?? $resource->originalUrl();
+
+$this->headLink()
+    // Latest compiled and minified CSS.
+    ->appendStylesheet($assetUrl('vendor/bootstrap-3.3/css/bootstrap.min.css', 'Verovio'))
+    // Optional theme.
+    ->appendStylesheet($assetUrl('vendor/bootstrap-3.3/css/bootstrap-theme.min.css', 'Verovio'))
+    // Syntax highlighting CSS.
+    ->appendStylesheet($assetUrl('vendor/verovio/css/syntax.css', 'Verovio'))
+    // Custom CSS.
+    ->appendStylesheet($assetUrl('vendor/verovio/css/verovio.css', 'Verovio'))
+    ->appendStylesheet($assetUrl('vendor/verovio/css/verovio-sidebar.css', 'Verovio'))
+    ->appendStylesheet($assetUrl('vendor/verovio/css/midiplayer.css', 'Verovio'))
+    // Custom CSS for Omeka.
+    ->appendStylesheet($assetUrl('css/verovio.css', 'Verovio'))
+;
+
+$this->headScript()
+    // jQuery (necessary for Bootstrap's JavaScript plugins): Verovio official player uses jQuery > 1.9 and < 3.0.
+    // ->prependFile($assetUrl('vendor/jquery/jquery.min.js', 'Omeka'))
+    ->appendFile($assetUrl('vendor/jquery/jquery.min.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+    ->appendFile($assetUrl('vendor/jquery/jquery.touchSwipe.min.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+    ->appendFile($assetUrl('vendor/bootstrap-3.3/js/bootstrap.min.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+    ->appendFile($assetUrl('vendor/bootstrap-contextmenu/bootstrap-contextmenu.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+    ->appendFile($assetUrl('vendor/filesaver/FileSaver.min.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+    ->appendFile($assetUrl('vendor/d3/d3.min.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+    ->appendFile($assetUrl('vendor/jquery/jquery.cookie.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+    ->appendFile($assetUrl('vendor/jsonform/jsonform.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+    // Verovio.
+    // Use this to increase the memory for Verovio.
+    // ->appendFile($assetUrl('vendor/verovio/js/verovio-memory.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+    ->appendFile($assetUrl('vendor/verovio/js/verovio-toolkit.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+    // Midi-player for playback in the editor.
+    ->appendFile($assetUrl('vendor/verovio/js/midi-player/wildwebmidi.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+    ->appendFile($assetUrl('vendor/verovio/js/midi-player/midiplayer.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+    // Pdf kit.
+    ->appendFile($assetUrl('vendor/verovio/js/pdfkit/blobstream.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+    ->appendFile($assetUrl('vendor/verovio/js/pdfkit/pdfkit.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+    ->appendFile($assetUrl('vendor/verovio/js/pdfkit/source.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+    ->appendFile($assetUrl('vendor/verovio/js/pdfkit/vrv-ttf.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+    // Init and custom for Omeka.
+    ->appendFile($assetUrl('js/verovio-mei-viewer.js', 'Verovio'), 'text/javascript', ['defer' => 'defer'])
+;
+?>
+
+<?php if (!empty($options['heading'])): ?>
+    <h2><?= $options['heading'] ?></h2>
+<?php endif; ?>
+
+<div id="verovio" class="verovio" data-base-url="<?= $escape($baseUrl) ?>" data-url="<?= $escape($source) ?>">
+    <?= $translate('The viewer is loading…') ?>
+</div>
+
+<div id="verovio-offcanvas" class="verovio row-offcanvas row-offcanvas-right" <?= $options['attributes'] ?>>
+
+<div class="modal fade" id="errorDialog" tabindex="-1" role="dialog">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="<?= $translate('Close') ?>"><span aria-hidden="true" class="glyphicon glyphicon-remove"> </span></button>
+                <h4 class="modal-title" id="myModalLabel"><?= $translate('Error') ?></h4>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger" role="alert">
+                    <?= $translate('Sorry, Verovio failed to process the MEI data.') ?>
+                </div>
+                <div id="errDiv">
+                    <pre id="err"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="page-content-wrapper">
+    <div id="navbar" class="navbar navbar-default navbar-with-sidebar">
+        <a class="navbar-brand logo-nav" href="https://www.verovio.org">
+            <img src="<?= $assetUrl('vendor/verovio/img/verovio-fadded-50.png', 'Verovio') ?>" />
+        </a>
+
+        <div class="btn-group">
+            <div class="input-group input-group-sm" style="width: 20px;">
+                <span class="input-group-btn">
+                    <button id="first-page-button" class="btn btn-default" type="button" title="<?= $translate('First page') ?>">
+                        <span class="glyphicon glyphicon-fast-backward"></span>
+                    </button>
+                    <button id="prev-page-button" class="btn btn-default" type="button" title="<?= $translate('Previous page') ?>">
+                        <span class="glyphicon glyphicon-backward"></span>
+                    </button>
+                </span>
+                <input id="jump-text" type="text" class="form-control" placeholder="0" style="width: 45px !important;" aria-label="<?= $translate('Jump to page') ?>"/>
+                <span class="input-group-btn">
+                    <button id="next-page-button" class="btn btn-default" type="button" title="<?= $translate('Next page') ?>">
+                        <span class="glyphicon glyphicon-forward"></span>
+                    </button>
+                    <button id="last-page-button" class="btn btn-default" type="button" title="<?= $translate('Last page') ?>">
+                        <span class="glyphicon glyphicon-fast-forward"></span>
+                    </button>
+                </span>
+            </div>
+        </div>
+
+        <div class="btn-group">
+            <div class="input-group input-group-sm" style="width: 20px;">
+                <span class="input-group-btn">
+                    <button id="zoom-out-button" class="btn btn-default" type="button" title="<?= $translate('Zoom out') ?>">
+                        <span class="glyphicon glyphicon-zoom-out"></span>
+                    </button>
+                </span>
+                <input id="zoom-text" type="text" class="form-control" aria-label="<?= $translate('Zoom') ?>" style="width:60px !important;" placeholder="100%"/>
+                <span class="input-group-btn">
+                    <button id="zoom-in-button" class="btn btn-default" type="button" title="<?= $translate('Zoom in') ?>">
+                        <span class="glyphicon glyphicon-zoom-in"></span>
+                    </button>
+                </span>
+            </div>
+        </div>
+
+        <div class="btn-group">
+            <button id="pdf-button" class="btn btn-sm btn-default" data-toggle="modal" data-target="#pdfDialog" type="button" title="<?= $translate('Generate a PDF file') ?>" data-loading-text="<?= $escape($translate('Generating PDF…')) ?>" style="display: none;">
+                <span class="glyphicon glyphicon-book"></span>
+                <span class="hidden-xs"><?= $translate('PDF') ?></span>
+            </button>
+            <button id="options-button" class="btn btn-sm btn-default hidden-xs" data-toggle="modal" data-target="#optionDialog" type="button" title="<?= $translate('Edit styles') ?>" data-loading-text="<?= $escape($translate('Style editor…')) ?>" style="display: none;">
+                <span class="glyphicon glyphicon-wrench"></span>
+                <span class="hidden-xs"><?= $translate('Options') ?></span>
+            </button>
+            <button id="mei-download" class="btn btn-sm btn-default" type="button" title="<?= $translate('Download') ?>" style="display: none;">
+                <span class="glyphicon glyphicon-download"></span>
+            </button>
+            <button id="play-button" class="btn btn-sm btn-default" type="button" title="<?= $translate('Midi player') ?>" style="display: none;">
+                <span class="glyphicon glyphicon-volume-up"></span>
+            </button>
+        </div>
+
+        <!--
+        <div class="btn-group">
+            <div id="log_panel" style="display: none">
+                <hr class="panel"/>
+                <p id="log_p"></p>
+            </div>
+        </div>
+        -->
+
+        <div class="btn-group">
+            <a id="verovio-help" tabindex="0" role="button" class="btn btn-default btn-sm pull-left popover-btn popover-dismiss" type="button" data-container="body" data-toggle="popover" data-trigger="focus" data-placement="bottom" data-html="true" title="<?= $translate('Help') ?>" data-content="<?php
+                echo '<p>' . $escape($translate('On mobile devices, you can swipe left or right to change page and tap or double tap to zoom-in or zoom-out. On desktops, you can use [ctrl+] left or right arrows and +/- keys.')) . '</p>';
+                echo '<hr/>';
+                echo '<p>' . $escape(sprintf($translate('This viewer uses the latest development version %s and might be unstable.'), '<a href="" id="version">[version]</a>')) . '</p>';
+            ?>">
+                <span class="glyphicon glyphicon-question-sign"></span>
+            </a>
+        </div>
+
+        <div class="btn-group">
+            <button id="fullscreen-button" class="btn btn-default" type="button" title="<?= $escape($translate('Full screen view')) ?>">
+                <span class="glyphicon glyphicon-fullscreen"></span>
+            </button>
+        </div>
+
+    </div>
+
+    <div id="svg_panel" style="background-color: #fff;">
+        <div id="player" style="z-index: 20; position: absolute; display: none;"></div>
+        <div id="svg_output" style="overflow:hidden;"></div>
+    </div>
+</div>
+
+<div class="modal fade" id="pdfDialog" role="dialog" style="display: none;">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
+                <h4><?= $translate('PDF options') ?></h4>
+            </div>
+            <div class="modal-body">
+                <form role="form">
+                    <div class="form-group">
+                        <label for="pdfFormat"><?= $translate('Format') ?></label>
+                        <div>
+                            <select class="form-control" id="pdfFormat">
+                                <option value="A4">A4</option>
+                                <option value="letter">Letter</option>
+                                <option value="B4">B4</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="pdfOrientation"><?= $translate('Orientation') ?></label>
+                        <div>
+                            <select class="form-control" id="pdfOrientation">
+                                <option value="portrait"><?= $translate('Portrait') ?></option>
+                                <option value="landscape"><?= $translate('Landscape') ?></option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <div class="alert alert-warning" style="text-align:left;">
+                    <strong><?= $translate('Warning!') ?></strong> <?= $translate('This is an experimental feature and it can take some time.') ?>
+                </div>
+                <button type="button" class="btn btn-default" data-dismiss="modal"><?= $translate('Cancel') ?></button>
+                <button type="button" id="pdfOK" class="btn btn-primary"><?= $translate('OK') ?></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="optionDialog" role="dialog" style="display: none;">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="<?= $escape($translate('Close')) ?>"><span aria-hidden="true">×</span></button>
+                <h4><?= $translate('Options') ?></h4>
+            </div>
+            <div class="modal-body" id="optionDialogContent">
+                <div id="option-div">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="optionDefault" class="btn btn-default"><?= $translate('Reset to default') ?></button>
+                <button type="button" class="btn btn-default" data-dismiss="modal"><?= $translate('Cancel') ?></button>
+                <button type="button" id="optionOK" class="btn btn-primary"><?= $translate('OK') ?></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</div>
+
+<noscript>
+    <p>
+        <?= $translate('This browser does not support javascript.') ?>
+        <?= sprintf($translate('You may %sdownload it%s to view it offline.'), '<a href="' . $escape($source) . '">', '</a>') ?>
+    </p>
+</noscript>

@@ -1,0 +1,11 @@
+## omeka Ignore
+/web/sites/*/files/
+/files/*
+/files
+
+.idea/
+.docker-sync/
+/mariadb-init/*.sql
+/mariadb-init/*.zip
+/web/sites/*/files/
+/.idea/

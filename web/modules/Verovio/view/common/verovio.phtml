@@ -1,0 +1,37 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Omeka\Api\Representation\AbstractResourceEntityRepresentation $resource
+ * @var array $options
+ */
+
+// Official Verovio simple application viewer.
+
+$translate = $this->plugin('translate');
+$escape = $this->plugin('escapeHtml');
+$assetUrl = $this->plugin('assetUrl');
+
+$baseUrl = $this->serverUrl() . $assetUrl('vendor/verovio/js/', 'Verovio', false, false);
+$source = empty($options['source']) ? $resource->originalUrl() : $options['source'];
+
+$this->headLink()
+    ->appendStylesheet($assetUrl('css/verovio.css', 'Verovio'))
+;
+$this->headScript()
+    ->appendFile($assetUrl('js/verovio.js', 'Verovio'), 'module')
+;
+?>
+
+<?php if (!empty($options['heading'])): ?>
+    <h2><?= $options['heading'] ?></h2>
+<?php endif; ?>
+
+<div id="verovio" class="verovio" data-base-url="<?= $escape($baseUrl) ?>" data-url="<?= $escape($source) ?>" <?= $options['attributes'] ?>>
+    <?= $translate('The viewer is loading…') ?>
+</div>
+<noscript>
+    <p>
+        <?= $translate('This browser does not support javascript.') ?>
+        <?= sprintf($translate('You may %sdownload it%s to view it offline.'), '<a href="' . $escape($source) . '">', '</a>') ?>
+    </p>
+</noscript>
