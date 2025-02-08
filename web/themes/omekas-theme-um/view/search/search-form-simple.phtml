@@ -1,0 +1,25 @@
+<?php
+// MC 8-6-2022: This is a very simple free text search form that redirects to the advanced search
+
+$translate = $this->plugin('translate');
+
+// $searchAction uses the "->url() API representation method". Info here: https://omeka.org/s/docs/developer/api/representations/#urls
+// The value for 'controller' in $searchAction needs to match the path of the search page that is configured in "Search Manager".
+// If you're using a custom controller (i.e. 'solr-obs' or 'my-search') you can configure this in the theme settings (Admin -> Site -> Theme -> Edit theme settings).
+// If nothing is configured in the theme settings, the default value 'find' is used.
+
+if ($this->themeSetting('searchController')) {
+    $searchAction=$this->url('site/resource', ['controller' => '' . $this->themeSetting('searchController') . '' ,'action' => null], true);
+} else {
+    $searchAction = $this->url('site/resource', ['controller' => 'find', 'action' => null], true);
+}
+$searchValue = $this->escapeHtml($this->params()->fromQuery('q', ''));
+
+?>
+
+<form action="<?php echo $this->escapeHtml($searchAction); ?>" id="search-form">
+    <input type="text" name="q" value="<?php echo $searchValue; ?>"
+        placeholder="<?php echo $translate('Search'); ?>"
+        aria-label="<?php echo $translate('Search'); ?>">
+    <button type="submit"><?php echo $translate('Search'); ?></button>
+</form>

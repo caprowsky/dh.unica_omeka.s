@@ -1,0 +1,27 @@
+{
+  "name": "basicdartmouth",
+  "version": "^1.0.0",
+  "description": "A Basic Dartmouth Library theme for Omeka-S",
+  "main": "gulpfile.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dartmouth-dltg/basic-dartmouth-theme.git"
+  },
+  "keywords": [
+    "omeka-s",
+    "theme"
+  ],
+  "author": "Dartmouth Library",
+  "license": "GPL-3.0",
+  "dependencies": {
+    "@accessible360/accessible-slick": "^1.0",
+    "@midzer/tobii": "^2.5.0"
+  },
+  "devDependencies": {
+    "@dltg/gulp-build": "^1.0.4"
+  },
+  "scripts": {
+    "preinstall": "make clean",
+    "postinstall": "if test -d node_modules/@dltg/gulp-build; then make linters; fi"
+  }
+}

@@ -1,0 +1,34 @@
+<?php
+    if ($attachment !== false) {
+        $item = $attachment->item();
+
+        $media = null;
+
+        if ($item) {
+            $title = $this->plugin('escapeHtml')($item->displayTitle());
+            $media = $attachment->media() ?: $item->primaryMedia();
+            $image = preg_match('/alt=""/', $this->thumbnail($media, $this->thumbnailType)) == 1 ? $this->thumbnail($media, $this->thumbnailType, ['alt' => $title]) : $this->thumbnail($media, $this->thumbnailType);
+        }
+
+        $caption = $attachment->caption();
+
+    }
+
+?>
+<div id="block-<?php echo $this->blockId; ?>" class="poster region <?php echo $this->thumbnailType; ?> <?php echo $this->regionClass; ?> <?php echo $this->colourScheme; ?> <?php echo $this->textTreatment; ?>" data-target-region-id="<?php echo $this->targetID; ?>">
+    <div class="poster-text">
+        <?php echo $this->html; ?>
+    </div>
+    <?php if ($attachment !== false && $media): ?>
+        <div class="image-background item resource">
+                <figure>
+                    <?php if (isset($this->block->page_title) && isset($this->block->page_url)): ?>
+                      <?php printf('<a href="%s" title="Visit %s’s Profile">%s</a>',$this->block->page_url, $this->block->page_title, $this->thumbnail($media,$thumbnailType));  ?>
+                    <?php else: ?>
+                      <?php echo $image; ?>
+                    <?php endif; ?>
+                </figure>
+        </div>
+    <?php endif; ?>
+
+</div>

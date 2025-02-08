@@ -1,0 +1,83 @@
+<?php
+$translate = $this->plugin('translate');
+$escape = $this->plugin('escapeHtml');
+$this->htmlElement('body')->appendAttribute('class', 'item resource browse');
+
+$query = $this->params()->fromQuery();
+$itemSetShow = isset($itemSet);
+if ($itemSetShow) :
+    $this->htmlElement('body')->appendAttribute('class', 'item-set');
+    $query['item_set_id'] = $itemSet->id();
+endif;
+$headingTerm = $this->siteSetting('browse_heading_property_term', 'dcterms:title');
+$bodyTerm = $this->siteSetting('browse_body_property_term', 'dcterms:description');
+$sortHeadings = [
+    [
+        'label' => $translate('Title'),
+        'value' => 'dcterms:title'
+    ],
+    [
+        'label' => $translate('Identifier'),
+        'value' => 'dcterms:identifier'
+    ],
+    [
+        'label' => $translate('Class'),
+        'value' => 'resource_class_label'
+    ],
+    [
+        'label' => $translate('Created'),
+        'value' => 'created'
+    ],
+];
+?>
+
+<?php if ($itemSetShow) : ?>
+    <?php echo $this->pageTitle($itemSet->displayTitle(), 2); ?>
+    <h3><?php echo $translate('Item set'); ?></h3>
+    <div class="metadata">
+        <?php echo $itemSet->displayValues(); ?>
+    </div>
+    <div class="item-set-items">
+        <?php echo '<h3>' . $escape($translate('Items')) . '</h3>'; ?>
+    <?php else : ?>
+        <div class="explore-the-archive">
+            <h1><?php echo $this->searchFilters(); ?></h1>
+        </div>
+    <?php endif; ?>
+
+    <div class="browse-controls">
+        <?php echo $this->pagination(); ?>
+    </div>
+
+    <?php $this->trigger('view.browse.before'); ?>
+    <ul class="resource-list-item-set <?php echo $currentLayout; ?>">
+        <?php
+        $headingTerm = $this->siteSetting('browse_heading_property_term');
+        $bodyTerm = $this->siteSetting('browse_body_property_term');
+        foreach ($itemSets as $itemSet) :
+            $heading = $headingTerm ? $itemSet->value($headingTerm, ['default' => $translate('[Untitled]')]) : $itemSet->displayTitle();
+            $body = $bodyTerm ? $itemSet->value($bodyTerm) : $itemSet->displayDescription();
+        ?>
+            <li class="item resource">
+                <?php if ($thumbnail = $this->thumbnail($itemSet, 'large')) : ?>
+                    <?php echo $itemSet->linkRaw($thumbnail, null, ['class' => 'thumbnail']); ?>
+                <?php endif; ?>
+                <h4><?php echo $itemSet->link($heading); ?></h4>
+
+                <?php
+                        $descripcion = $body; ?>
+                <?php if ($descripcion) {
+                    if (mb_strlen($descripcion) > 110) {
+                        echo '<div class="description">' . $descripcion . ' [...]' . '</div>';
+                    } else {
+                        echo '<div class="description">' . $descripcion . '</div>';
+                    }
+                };
+                ?>
+
+            </li>
+        <?php endforeach; ?>
+    </ul>
+
+    <?php echo $this->pagination(); ?>
+    <!--  <?php $this->trigger('view.browse.after'); ?> -->

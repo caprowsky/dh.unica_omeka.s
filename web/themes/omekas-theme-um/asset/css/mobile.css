@@ -1,0 +1,415 @@
+/** -- Mobile style sheet version --
+	Omeka-S Mobile style sheet for Maastricht University
+	Design and development: Peter Verberne
+	May 2023
+	Version: 0.1
+	Reason for splitting: Keep track and portability.
+*/
+
+
+
+
+
+@media screen and (max-width: 600px),
+screen and (max-height: 600px) {
+
+    body {
+        font-size: 14px;
+        line-height: 20px;
+    }
+
+    #content {
+        width: 100%;
+    }
+
+    h1 {
+        font-size: 1.8rem;
+    }
+
+    h2 {
+        font-size: 1.6rem;
+    }
+
+    h3 {
+        font-size: 1.0rem;
+        margin: 0.2rem;
+        font-size: 1.0rem;
+        line-height: 29px;
+
+    }
+
+    h4 {
+        font-size: 1.2rem;
+    }
+
+    header #top-bar {
+        display: flex;
+        width: 100%;
+        height: 40px;
+        flex-wrap: nowrap;
+    }
+
+    header.scroll #top-bar {
+        height: 40px;
+    }
+
+    header #top-bar #Logo-div {
+        display: flex;
+    }
+
+    header #top-bar #institution-logo {
+        margin: 4px 0 0 10px;
+        flex-grow: 1;
+    }
+
+    /* Site Title stuff - zoomed in */
+
+    header #site-header-title {
+        position: relative;
+        top: 36px;
+        flex-grow: 0;
+        margin: 0 0 0 0;
+    }
+
+    header #site-header-title h1 {
+        font-size: 0.8rem;
+        margin: 0;
+    }
+
+    /* Scrolling overrides necessary to avoid inheritance from other resolutions */
+
+    header.scroll #site-header-title h1 {
+        font-weight: 600;
+        font-size: 0.8rem;
+    }
+
+    header.scroll #site-header-title {
+        position: relative;
+        top: 36px;
+        left: 0px;
+    }
+
+    header #top-bar #institution-logo img {
+        /* height: 40px; */
+        /* position:absolute; */
+        /* top:-20px; */
+        clip: rect(0px, 175px, 40px, 0px);
+        width: 220px;
+    }
+
+
+    header #header-main {
+        height: 100%;
+    }
+
+    header nav {
+        position: absolute;
+    }
+
+    header nav ul.navigation {
+        display: block;
+    }
+
+    header nav:before {
+        font-family: "Font Awesome 5 Free";
+        content: "\f0c9";
+        display: block;
+        width: 30.5px;
+        height: 29.5px;
+        border: 1px solid #dedede;
+        text-align: center;
+        border-radius: 2px;
+        position: absolute;
+        right: 5px;
+        top: 5px;
+        cursor: pointer;
+        line-height: 31.5px;
+    }
+
+    header nav.open {
+        background-color: #ddd;
+        width: 100%;
+        top: 50px;
+    }
+
+    header nav.open:before {
+        content: "\f00d";
+        top: -45px;
+    }
+
+    header nav ul.navigation>li {
+        display: block;
+        padding-top: 7px;
+        padding-bottom: 7px;
+    }
+
+    header nav.closed ul {
+        display: none;
+    }
+
+    header nav.open ul {
+        display: block;
+    }
+
+
+    #search-head {
+        display: none;
+    }
+
+    .search-page #search {
+        display: block;
+    }
+
+    .search-page #content {
+        margin: 26px auto 0 auto;
+    }
+
+
+    .search-page .field .field-meta {
+        width: 40%;
+        padding-top: 11px;
+    }
+
+    .search-page .form-search input[type="search"] {
+        height: 31px;
+        border: 1px solid rgba(0, 0, 0, .15);
+        padding: 4px;
+        width: 100%;
+        min-height: 22px;
+        margin: 0;
+    }
+
+
+    #search {
+        display: block;
+        top: 27px;
+    }
+
+    #search form input[type="text"] {
+        font-size: 0.8em;
+        height: 30px;
+    }
+
+    #search form button[type="submit"] {
+        height: 30px;
+    }
+
+    #search form button[type="submit"]:before {
+        line-height: 30px;
+    }
+
+    #content {
+        max-width: 800px;
+        min-height: 75vh;
+        margin: 40px auto 0 auto;
+        padding: 13px;
+    }
+
+    body.resource #content>h2:first-of-type+h3 {
+        font-size: 15px;
+        text-transform: uppercase;
+        margin: 0px 0 5px;
+
+    }
+
+
+    .item-set #search-page h2:nth-of-type(1) {
+        margin: 0;
+        font-size: 1.2em;
+    }
+
+
+    .item-set #search-page h3:nth-of-type(1) {
+        margin: 0;
+        font-size: 0.8em;
+    }
+
+    .item-set #search-page .metadata {
+        font-size: 0.8em;
+    }
+
+    .item-set #search-page .resource-list li.items {
+        padding: 1em;
+    }
+
+    ul.resource-list .resource h4 {
+        font-size: 1.2em;
+        line-height: 1.2em;
+        margin-bottom: 0.3em;
+    }
+
+    ul.resource-list .resource h4 a,
+    ul.resource-list .resource h5 a {
+        text-underline-offset: 3px !important;
+    }
+
+
+
+
+    .item-set #search-page .resource-list .resource-metadata h4 {
+        font-size: 1.1em;
+    }
+
+    .item-set #search-page .resource-list .resource-metadata .description {
+        font-size: 0.8em !important;
+    }
+
+    .item-set #search-page .resource-list .resource-metadata .tags {
+        font-size: 0.8em !important;
+    }
+
+
+    .item #content .media-embeds {
+         
+        display: block !important;
+        width: 100%;
+        float: none;
+    }
+
+    .item #content .properties {
+        margin: 0;
+        width: 100%;
+        padding: 0;
+        height: fit-content;
+    }
+
+    #item-page-properties {
+        font-size: 0.9em;
+    }
+
+    .item #content .properties h5 {
+        font-size: 0.9em;
+    }
+
+    .item #content .message .media-box, .item #content .manuscript .media-box{
+        width: 100%;
+    }
+
+
+    .media-box-header {
+        font-size: 0.9em;
+    }
+
+    .item #content .properties h4 {
+        font-size: 0.9em;
+    }
+
+
+    .pagination form,
+    .pagination .button,
+    .pagination button,
+    .pagination .page-count {
+        display: inline-block;
+        vertical-align: top;
+        height: 25px
+    }
+
+    .pagination .button {
+        background-color: #001C3D;
+        width: 25px;
+        text-align: center;
+        padding: 0px;
+        border-radius: 2px;
+        color: white;
+        line-height: 20px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+    }
+
+    nav.pagination {
+        margin-bottom: 10px;
+        font-size: 14px;
+        line-height: 18px
+    }
+
+
+
+    .item #content {
+        padding: 0 1rem;
+    }
+
+    #item-page h2 {
+        font-size: 1.2em;
+        line-height: normal;
+    }
+
+    #item-page h3 {
+        font-size: 1.0em;
+        font-weight: 200;
+        font-style: italic;
+        line-height: normal;
+        margin: 0;
+    }
+
+
+    #search-page h2 {
+        margin: 0;
+        font-size: 1.2em;
+    }
+
+    #content .blocks h2 {
+        margin-top: 10px;
+    }
+
+    .search-results-wrapper {
+        display: block;
+    }
+
+    #advanced-search-form {
+        margin-left: 0;
+    }
+
+    input,
+    textarea,
+    button,
+    .button,
+    select,
+    input[type="text"] {
+        background-color: #fff;
+        padding: 0px;
+        border-color: #dedede;
+        height: 24px;
+        color: #594D48;
+        font-size: 14px;
+        line-height: auto;
+    }
+
+    nav.pagination .page-count {
+        margin: 2px 0 0 0;
+    }
+
+    nav.pagination .row-count {
+        padding-top: 2px;
+    }
+
+
+    .search-page .form-search [type="submit"] {
+        line-height: 0;
+        height: 40px;
+    }
+
+    .search-results-header .search-results-display {
+        display: none;
+    }
+
+    aside {
+        display: none;
+    }
+
+
+
+    .footer-wrapper {
+        width: 90%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .footer-items {
+        flex-wrap: wrap;
+    }
+
+    .footer-items .footer-col {
+        width: 100%;
+    }
+
+
+}

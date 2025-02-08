@@ -1,0 +1,79 @@
+// Colors
+$gray:                                  #ababab;
+$gray-dark:                             #333;
+$gray-medium:                           #666;
+$bold:                                  darken($gray, 20%);
+$light:                                 lighten($gray, 20%);
+$black:                                 #000;
+$white:                                 #fff;
+$dartgreen:                             #00693e;
+$blue:                                  #003c73;
+$bg:                                    $white;
+$link:                                  $white;
+
+// storybooth specific
+$storybooth-header-bg: #926d5d; // #553026;
+$storybooth-footer-bg: #2a1407;
+$storybooth-bg: #e3dbd3; // #d2cec3;
+$storybooth-art-btn-light: #b0c48d;
+$storybooth-art-btn-dark: #66764c;
+
+// Typography
+$base-font-size:                        1.25rem;
+$base-line-height:                      1.875rem;
+$serif:                                 "Lora", georgia, serif;
+$sansserif:                             "National2", verdana, sans-serif;
+$sansserif-bold:                        "National2-Bold", verdana, sans-serif;
+$sansserif-regular:                     "National2-Regular", verdana, sans-serif;
+
+// Units
+$spacing-s:                             0.25 * $base-line-height;
+$spacing-m:                             0.5 * $base-line-height;
+$spacing-l:                             $base-line-height;
+
+// Paths
+$basepath:                              "..";
+$fontfolder:                            $basepath + "/fonts";
+
+// Mixins
+
+@mixin container {
+  max-width: 1450px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+@mixin font-face($style-name, $file, $family, $category:"",$weight:"") {
+  $filepath: $fontfolder + "/" + $family + "/" + $file;
+
+  %#{$style-name} {
+    font: {
+      @if $category != "" {
+        $family: "#{$style-name}", #{$category};
+      }
+
+      @else {
+        $family: "#{$style-name}";
+      }
+    }
+  }
+
+  @font-face {
+    font-family: "#{$style-name}";
+    src: url($filepath + ".eot");
+    src: url($filepath + ".eot?#iefix") format("embedded-opentype"), url($filepath + ".woff") format("woff"), url($filepath + ".ttf")  format("truetype"), url($filepath + ".svg#" + $style-name + "") format("svg");
+
+    @if $weight == "bold" {
+      font-weight: 700;
+    }
+
+    @else {
+      font-weight: normal;
+    }
+  }
+}
+
+// Fonts
+@include font-face("National2", "National2-Light", "National2", "sans-serif");
+@include font-face("National2-Regular", "National2-Regular", "National2", "sans-serif");
+@include font-face("National2-Bold", "National2-Bold", "National2", "sans-serif");

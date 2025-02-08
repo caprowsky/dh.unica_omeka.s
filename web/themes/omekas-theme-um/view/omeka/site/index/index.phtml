@@ -1,0 +1,80 @@
+<?php 
+$query = $this->params()->fromQuery();
+$heroimg = $this->assetUrl('img/10krantlezen.jpg');
+$sg = $this->assetUrl('img/JacquesEnPeter.png');
+$hl1_txt="Highlight 1";
+$locations = $this->assetUrl('img/uns50_corridor_students.jpg');
+$organizations = $this->assetUrl('img/GL17_poort.jpg');
+$subjects = $this->assetUrl('img/mbb_students.png');
+$highlight_1_img=$this->themeSettingAssetUrl('highlight_Image_1');
+$highlight_1_txt=$this->themeSetting('highlight_Link_Text_1');
+// test 
+?>
+<div id="home">
+    <div id="search" class="home-hero" style="background-image: url('<?php echo $heroimg; ?>');min-height:<?php echo $this->themeSetting('cover_vh'); ?>vh">
+        <div id="home-hero-content" >
+            <div id="searchbar">
+                <?php //pv 2023-02-16 Code altered
+					echo $this->partial('search/search-form-simple'); 
+				//old value echo $this->partial('common/search-form'); 
+				
+				?>
+                <!--
+                <?php //pv 2023-02-16 Code altered
+
+				//old value echo $this->hyperlink($this->translate('Advanced search'), $this->url('site/resource', ['controller' => 'item', 'action' => 'search'], ['query' => $query], true), ['class' => 'advanced-search']); ?>
+                -->
+                <a role="button" id="browse-button" href="<?php echo $site->url(); ?>/explore">Explore</a>
+            </div>
+            <div id="strapline"><?php echo $this->themeSetting('searchTitle');?></div>
+        </div>
+    </div>
+	<div id="extra" style="display:none;">
+	blub blub
+	<?php echo $this->themeSettingAssetUrl('highlight_Image_1'); ?>
+	</div>
+	
+    <ul id="home-promo">
+		<?php 
+			if ($highlight_1_img): $sg=$highlight_1_img; endif;
+			if ($highlight_1_txt): $hl1_txt=$highlight_1_txt; endif;
+		
+		?>
+        <li class="promo-item">
+            <div class="promo-block" style="background-image: url('<?php echo $sg; ?>'); ">
+                <a href="<?php echo $site->url(); ?>/page/highlight_1"></a>
+                <div class="category-flag"><a href="<?php echo $site->url(); ?>/page/highlight_1"><?php echo $hl1_txt; ?></a></div>
+            </div>
+        </li>
+        <li class="promo-item">
+            <div class="promo-block" style="background-image: url('<?php echo $organizations; ?>');  ">
+                <a href="<?php echo $site->url(); ?>/reference/organizations"></a>
+                <div class="category-flag"><a href="<?php echo $site->url(); ?>/reference/organizations">Organizations</a></div>
+            </div>
+        </li>
+        <li class="promo-item">
+            <div class="promo-block" style="background-image: url('<?php echo $locations; ?>'); ">
+                <a href="<?php echo $site->url(); ?>/reference/locations"></a>
+                <div class="category-flag"><a href="<?php echo $site->url(); ?>/reference/locations">Locations</a></div>
+            </div>
+        </li>
+        <li class="promo-item">
+            <div class="promo-block" style="background-image: url('<?php echo $subjects; ?>'); ">
+                <a href="<?php echo $site->url(); ?>/reference/subjects"></a>
+                <div class="category-flag"><a href="<?php echo $site->url(); ?>/reference/subjects">Subjects</a></div>
+            </div>
+        </li>
+    </ul>
+    </div>
+    <hr class="decorative-hr"  />
+    <div id="home-users">
+        <?php if ($mainTextcontent = $this->themeSetting('mainText')): ?>
+		<?php echo $mainTextcontent; ?>
+		<?php else: ?>
+		<?php echo $this->translate('Main Text element'); ?>
+        <?php endif; ?>
+		
+        
+    </div>
+
+</div>

@@ -1,0 +1,164 @@
+body {
+  background-color: #231f20 !important;
+}
+
+main>div>ul {
+  grid-row-gap: unset !important;
+}
+
+main>div>ul li {
+  left: 0 !important;
+  top: 0 !important;
+}
+
+section main>div>* {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+h2 {
+  margin-top: unset !important;
+}
+
+ul.explorar {
+  margin-top: 75px !important;
+}
+
+@media only screen and (max-width:1000px) {
+  .page #primary-content {
+    padding: 0 0 !important;
+  }
+  ul.explorar {
+    margin-top: 0px !important;
+  }
+}
+
+.explorar {
+  line-height: 1;
+  vertical-align: baseline;
+  overflow-x: hidden;
+}
+
+ol, ul {
+  list-style: none;
+}
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+caption, th, td {
+  text-align: left;
+  font-weight: normal;
+  vertical-align: middle;
+}
+
+a img {
+  border: none;
+}
+
+article, aside, details, figcaption, figure, footer, header, hgroup, main, menu, nav, section, summary {
+  display: block;
+}
+
+ul {
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+ul li {
+  position: relative;
+}
+
+ul li .explorsec {
+  position: relative;
+  z-index: 100;
+  color: #000;
+  text-align: center;
+  padding: 50px 20px;
+  -moz-box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  display: inline-block;
+  width: 100%;
+  background-position: center;
+  background-size: cover;
+}
+
+ul li .explorsec .explorsecBox {
+  background-color: rgba(253, 150, 17, 0.8); /* temporary color */
+  width: 50vw;
+  margin: auto auto;
+  background-position: center;
+}
+
+ul li .explorsec h2, ul li .explorsec a, ul li .explorsec a:visited {
+  font-family: "Libre Baskerville", serif;
+  font-size: 34px;
+  line-height: 50px;
+  color: #fff;
+  padding-bottom: 1vh;
+  padding-top: 1vh;
+  margin-bottom: 0;
+}
+
+ul li .explorsec p, ul li .explordescr a {
+  font-family: "Montserrat", sans-serif;
+  font-size: 20px;
+  line-height: 30px;
+  color: #fff;
+  padding-bottom: 1vh;
+  text-decoration: none;
+
+}
+
+.explordescr a:hover {
+  text-decoration: underline;
+}
+
+ul li .explorsec .botexp {
+  font-family: "Montserrat", sans-serif;
+  text-shadow: 1px 1px 2px black;
+  line-height: 30px;
+  display: inline-block;
+  padding: 0 10px;
+  border: 1px solid #fff;
+  font-size: 14px;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: #fff;
+  margin-bottom: 20px;
+  cursor: pointer;
+}
+
+ul li .explorsec .explordescr {
+  display: none;
+}
+
+@media only screen and (min-width:1800px) {
+  .explorsec {
+    background-size: cover;
+  }
+}
+
+.ancienRegime {
+  background-image: url("/themes/inglorious_artist_theme/index/ancien_regime.jpg");
+}
+
+.empire {
+  background-image: url("/themes/inglorious_artist_theme/index/empire.jpg");
+}
+
+.julyMonarchy {
+  background-image: url("/themes/inglorious_artist_theme/index/july_monarchy.jpg");
+}
+
+.restoration {
+  background-image: url("/themes/inglorious_artist_theme/index/bourbon_restoration.jpg");
+}
+
+.revDirectoryConsulate {
+  background-image: url("/themes/inglorious_artist_theme/index/rev_directory_consulate.jpg");
+}

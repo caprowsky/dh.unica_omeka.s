@@ -1,0 +1,14 @@
+@import 'colors';
+@import 'variables';
+@import 'banner';
+@import 'header';
+@import 'footer';
+@import 'layouts';
+@import 'content/all';
+
+// We remove Open Sans from the font stack to prevent sending traffic to Google Fonts.
+body {
+    font-family: "Helvetica Neue",Helvetica,Arial,sans-serif;
+    font-size: 1.7rem;
+    line-height: 1.5;
+}

@@ -1,0 +1,57 @@
+<?php
+$translate = $this->plugin('translate');
+$escape = $this->plugin('escapeHtml');
+$this->headLink()->appendStylesheet($this->assetUrl('css/explore.css'));
+$this->headScript()->prependFile($this->assetUrl('js/explore.js'));
+?>
+
+<body id="body-explorar">
+  <ul class="explorar">
+    <li>
+      <div class="explorsec ancienRegime">  
+        <div class='explorsecBox'>
+          <h2><a href='<?php echo $this->url('site/resource', ['controller' => 'item', 'action' => 'browse'],['query'=> 'fulltext_search=ancien+Regime'],true);
+          ?>'>Ancien Regime</a>
+            </h2>
+          <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        </div>
+      </div>
+    </li>
+    <li>
+      <div class="explorsec empire">
+        <div class='explorsecBox'>
+          <h2><a href="<?php echo $this->url('site/resource', ['controller' => 'item', 'action' => 'browse'],['query'=> 'fulltext_search=empire'],true) ?>">Empire</a>
+          </h2>
+          <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        </div>
+      </div>
+    </li>
+    <li>
+      <div class="explorsec julyMonarchy">
+        <div class='explorsecBox'>
+          <h2><a href="<?php echo $this->url('site/resource', ['controller' => 'item', 'action' => 'browse'],['query'=> 'fulltext_search=july+monarchy'],true) ?>">July Monarchy</a>
+          </h2>
+          <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        </div>
+      </div>
+    </li>
+    <li>
+      <div class="explorsec restoration">
+        <div class='explorsecBox'>
+          <h2><a href="<?php echo $this->url('site/resource', ['controller' => 'item', 'action' => 'browse'],['query'=> 'fulltext_search=restoration'],true) ?>">Bourbon Restoration</a>
+          </h2>
+          <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        </div>
+      </div>
+    </li>
+    <li>
+      <div class="explorsec revDirectoryConsulate">
+        <div class='explorsecBox'>
+          <h2><a href="<?php echo $this->url('site/resource', ['controller' => 'item', 'action' => 'browse'],['query'=> 'fulltext_search=consulate'],true) ?>">Revolution Directory Consulate</a>
+          </h2>
+          <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        </div>
+      </div>
+    </li>
+  </ul>
+</body>

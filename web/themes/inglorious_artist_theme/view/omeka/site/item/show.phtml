@@ -1,0 +1,215 @@
+<?php
+$translate = $this->plugin('translate');
+$escape = $this->plugin('escapeHtml');
+// $this->headTitle($autor);
+$this->htmlElement('body')->appendAttribute('class', 'item resource show');
+$this->headScript()->appendFile($this->assetUrl('js/simple-lightbox.min.js'));
+$this->headLink()->appendStylesheet($this->assetUrl('css/simple-lightbox.min.css'));
+
+
+$lightMedia = [];
+$otherMedia = [];
+$whitelist = ['image/bmp', 'image/gif', 'image/jpeg', 'image/png', 'image/svg+xml', 'video/mp4'];
+foreach ($item->media() as $media) {
+    $mediaType = $media->mediaType();
+    $mediaRenderer = $media->renderer();
+    if (in_array($mediaType, $whitelist) || (strpos($mediaRenderer, 'youtube') !== false)) {
+        $lightMedia[] = $media;
+    } else {
+        $otherMedia[] = $media;
+    }
+}
+?>
+<style type="text/css" media="screen">
+    :root {
+        --primary:
+            <?php echo $primaryColor; ?>
+        ;
+        --secondary:
+            <?php echo $secondaryColor; ?>
+        ;
+        --backgroundImage:
+            <?php echo $backgroundImage; ?>
+        ;
+        --backgroundColor:
+            <?php echo $backgroundColor; ?>
+        ;
+    }
+</style>
+
+<div class="content-sheet">
+    <div class="tab-column-1">
+        <?php if (count($lightMedia) > 0): ?>
+            <ol id="itemfiles" class="media-list">
+                <?php foreach ($lightMedia as $media): ?>
+                    <?php $source = ($media->originalUrl()) ? $media->originalUrl() : $media->source(); ?>
+                    <li data-src="<?php echo $source; ?>" data-thumb="<?php echo $escape($media->thumbnailUrl('medium')); ?>"
+                        data-download-url="<?php echo $source; ?>" class="media resource"
+                        data-tweet-text="<?php echo $site->title(); ?>: «<?php echo $media->displayTitle(); ?>» por"
+                        title="<?php echo $item->value('dcterms:title'); ?>" alt="<?php echo $item->value('dcterms:title'); ?>">
+                        <?php echo $media->render(); ?>
+                        <div class="title-image">
+                            <?php echo $item->value('dcterms:abstract'); ?>
+                        </div>
+                    </li>
+                <?php endforeach; ?>
+            </ol>
+        <?php endif; ?>
+
+
+        <?php if (count($otherMedia) > 0): ?>
+            <div id="other-media" class="property">
+                <div class="values">
+                    <?php foreach ($otherMedia as $media): ?>
+                        <div class="value">
+                            <a href="<?php echo $media->originalUrl(); ?>" title="<?php echo $item->value('dcterms:title'); ?>"
+                                alt="<?php echo $item->value('dcterms:abstract'); ?>">
+                                <?php echo $this->thumbnail($media, 'large'); ?>
+                            </a>
+                            <div class="media-title"><a href="<?php echo $media->originalUrl(); ?>">
+                                    <?php echo $media->displayTitle(); ?>
+                                    <?php echo " (formato " . strtoupper($media->extension()) . ")"; ?>
+                                </a></div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
+    </div>
+
+    <div class="tab-column-2">
+        <p class="title-catalog-sheet">
+            <?php echo ucfirst($item->resourceTemplate()->label()); ?>
+        </p>
+        <!--  Creates item title for the page -->
+        <div class="title-file">
+            <?php echo $this->pageTitle($item->displayTitle()); ?>
+        </div>
+         <!-- Writes item creator's name underneath item title-->
+        <?php
+        $author = $item->value('dcterms:creator', ['all' => true]);
+        foreach ($author as $value) {
+            echo '<h2 class="author-file">' . $value->asHtml() . '</h2>';
+        }
+        ?>
+        <div class="property">
+            <!-- <?php echo $item->displayValues(); ?> -->
+            <h4 class="property dt">Creator</h4>
+            <p><?php echo $item->value('dcterms:creator') ?></p>
+
+            <h4 class="property dt">Abstract</h4>
+            <p><?php echo $item->value('dcterms:abstract') ?></p>
+
+            <h4 class="property dt">Description</h4>
+            <p><?php echo $item->value('dcterms:description') ?></p>
+
+            <h4 class="property dt">Subjects</h4>
+            <?php 
+            $subjects = $item->value('dcterms:subject', ['all'=> true]);
+            foreach ($subjects as $subject) {
+                echo '<p>' . $subject->asHTMl() . '</p>';
+            }
+            ?>
+
+            <h4 class="property dt">Tags</h4>
+            <?php 
+            $tags = $item->value('curation:tag', ['all'=> true]);
+            foreach ($tags as $tag) {
+                echo '<p>' . $tag->asHTMl() . '</p>';
+            }
+            ?>
+
+            <h4 class="property dt">Rights</h4>
+            <p><?php echo $item->value('dcterms:rights') ?></p>
+
+            <h4 class="property dt">Access Rights</h4>
+            <p><?php echo $item->value('dcterms:accessRights') ?></p>
+
+            <h4 class="property dt">Location</h4>
+            <p><?php echo $item->value('curation:location') ?></p>
+
+            <h4 class="property dt">Extent</h4>
+            <p><?php echo $item->value('dcterms:extent') ?></p>
+
+            <h4 class="property dt">Note</h4>
+            <p><?php echo $item->value('curation:note') ?></p>
+
+
+        </div>
+
+
+        <script>
+
+            // function to create links -- should be moved to helpers
+            let create_links = (node, tags, tag_links) => {
+                let span = node.firstElementChild
+                span.textContent = '';
+                
+                tag_links.forEach((l,idx) => {
+                    let link = document.createElement('a');
+                    let link_txt = document.createTextNode(tags[idx]);
+                    link.appendChild(link_txt);
+                    link.title = tags[idx];
+                    link.href = l;
+                    span.appendChild(link);
+                    span.appendChild(document.createTextNode(', '));
+                })
+                span.lastChild.remove();
+
+            }
+
+            // fixes the display of the tags
+            document.querySelectorAll('dd.value').forEach(e => {
+                let txt = e.textContent;
+                let feature = e.previousElementSibling.textContent.trim();
+                let tags = []
+                let tag_links = []
+                if (feature === 'Subject') {
+                    txt.split(';').forEach(t => {
+                    tags.push(t.trim())
+                    tag_links.push(`http://localhost:88/s/test/item?property%5B0%5D%5Bjoiner%5D=and&property%5B0%5D%5Bproperty%5D=3&property%5B0%5D%5Btype%5D=in&property%5B0%5D%5Btext%5D=${t.trim()}&submit=Search`)
+                })    
+                create_links(e, tags, tag_links);
+                } else if (feature === 'Tag') {
+                    txt.split(';').forEach(t => {
+                    tags.push(t.trim())
+                    tag_links.push()
+                })
+                create_links(e, tags, tag_links);
+                }
+
+                
+
+            })
+
+        </script>
+
+
+
+        <!--    FIN DE MAPA   -->
+
+        <?php $itemSets = $item->itemSets(); ?>
+        <?php if (count($itemSets) > 0): ?>
+            <h4 class="label-tokens">
+                <?php echo "Sets"; ?>
+            </h4>
+            <?php foreach ($itemSets as $itemSet): ?>
+                <div class="value"><a href="<?php echo $escape($itemSet->url()); ?>">
+                        <?php echo $itemSet->displayTitle(); ?>
+                    </a></div>
+            <?php endforeach; ?>
+        <?php endif; ?>
+
+    </div>
+</div>
+
+<script>
+new SimpleLightbox('.media-render a', { 
+    overlayOpacity: 0.9,
+    widthRatio: 1.5,
+    heightRatio: 1,
+    scaleImageToRatio: true,
+    //Documentation: https://simplelightbox.com/
+ });
+</script>

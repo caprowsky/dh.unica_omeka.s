@@ -1,0 +1,232 @@
+<?php
+$escape = $this->plugin('escapeHtml');
+$this->htmlElement('html')->setAttribute('lang', $this->lang());
+$this->headMeta()->setCharset('utf-8');
+$this->headMeta()->appendName('viewport', 'width=device-width, initial-scale=1');
+$this->headTitle()->setSeparator(' · ');
+$this->headLink()->prependStylesheet($this->assetUrl('css/iconfonts.css', 'Omeka'));
+$this->headLink()->appendStylesheet($this->assetUrl('css/style.css'));
+$this->headLink()->prependStylesheet('//fonts.googleapis.com/css2?family=Montserrat');
+$this->headLink()->prependStylesheet('//fonts.googleapis.com/css2?family=Libre+Baskerville');
+$this->headScript()->prependFile($this->assetUrl('js/default.min.js'));
+$this->headScript()->prependFile($this->assetUrl('js/global.js', 'Omeka'));
+$this->headScript()->prependFile($this->assetUrl('vendor/jquery/jquery.min.js', 'Omeka'));
+$primaryColor = $this->themeSetting('primary_color') ?? '#fd9611';
+$secondaryColor = $this->themeSetting('secondary_color') ?? '#5f88b4';
+$backgroundImageId = $this->themeSetting('background_image');
+$disclaimer = $this->themeSetting('disclaimer') ?? 'Here\'s some disclaimer.';
+
+if ($backgroundImageId) {
+    // Use the API to retrieve the asset
+    $api = $this->api();
+    $response = $api->read('assets', $backgroundImageId);
+    $asset = $response->getContent();
+
+    // Get the URL of the asset
+    $backgroundImageUrl = $asset->assetUrl();
+} else {
+    $backgroundImageUrl = '';
+}
+
+$backgroundImage = $backgroundImageUrl ? "url('$backgroundImageUrl')" : 'none';
+$backgroundColor = $this->themeSetting('background_color') ? $this->themeSetting('background_color') : '#FFFFFF';
+
+
+
+$this->trigger('view.layout');
+$title = $this->pageTitle($site->title());
+$userBar = $this->userBar();
+
+$nav = $site->publicNav();
+$container = $nav->getContainer();
+$activePage = $nav->findActive($container);
+$pageClass = null;
+?>
+<?php echo $this->doctype(); ?>
+<?php echo $this->htmlElement('html'); ?>
+
+<head>
+  <?php echo $this->headMeta(); ?>
+  <?php echo $this->headTitle(); ?>
+  <?php echo $this->headLink(); ?>
+  <?php echo $this->headStyle(); ?>
+  <?php echo $this->headScript(); ?>
+
+  <style type="text/css" media="screen">
+    :root {
+      --primary:
+        <?php echo $primaryColor; ?>
+      ;
+      --secondary:
+        <?php echo $secondaryColor; ?>
+      ;
+      --backgroundImage:
+        <?php echo $backgroundImage; ?>
+      ;
+      --backgroundColor:
+        <?php echo $backgroundColor; ?>
+      ;
+    }
+  </style>
+
+
+</head>
+
+<?php echo $pageClass ? $this->htmlElement('body')->appendAttribute('class', $pageClass) : $this->htmlElement('body'); ?>
+<div class="full">
+  <?php echo $userBar; ?>
+</div>
+<header class="full">
+
+  <?php
+  $logoAssetId = $this->themeSetting('logo');
+  $displayedLogoUrl = $this->assetUrl('img/UniversityLibraries_logo_white_h.png'); // Default logo
+  
+  if ($logoAssetId) {
+    $asset = $this->api()->read('assets', $logoAssetId)->getContent();
+    if ($asset) {
+      $displayedLogoUrl = $asset->assetUrl();
+    }
+  }
+
+  $siteName = $this->themeSetting('site_name') ?: 'University of North Carolina at Chapel Hill';
+  $siteUrl = $site->url();
+  $displayOption = $this->themeSetting('display_option') ?: 'both';
+  ?>
+  <div class="site-title identidad-unc">
+    <?php if ($displayOption == 'logo' || $displayOption == 'both'): ?>
+      <a id='logo-stack' href="<?php echo $siteUrl; ?>" title="University of North Carolina at Chapel Hill">
+        <img src="<?php echo $displayedLogoUrl; ?>" alt="<?php echo $siteName; ?>">
+      </a>
+    <?php endif; ?>
+
+    <?php if ($displayOption == 'text' || $displayOption == 'both'): ?>
+      <a class="property-title" title="Return to the Gallery page" href="<?php echo $siteUrl; ?>">
+        <?php echo $siteName; ?>
+      </a>
+    <?php endif; ?>
+  </div>
+
+
+
+  <nav class="desktop-nav" aria-label="menu">
+    <?php echo $this->navigation($this->subNav)->menu()->renderMenu($container, ['maxDepth' => 2]); ?>
+  </nav>
+  <a class="menu-access-button" href="#">
+    <span>
+
+      <i class="down-arrow-black"></i>
+    </span>
+  </a>
+
+</header>
+
+<nav class="access-dropdown-mobile" style="display:none" aria-hidden='true' aria-label='Menu'>
+  <?php echo $this->navigation($this->subNav)->menu()->renderMenu($container, ['maxDepth' => 2]); ?>
+  <ul class="switch-cont">
+    <li class="mobile-switch-pos"><label class="dark-switch">
+        <input type="checkbox" aria-labelledby='darkmode-mobile-togglelabel'>
+        <span class="slider round"></span>
+        <span id='darkmode-mobile-togglelabel' title="Modo oscuro" class="toggle-label"><i class="fas fa-moon"
+            alt="Modo oscuro"></i></span>
+      </label>
+
+    </li>
+  </ul>
+</nav>
+<section id='splash' class='full'></section>
+<section id='primary-content' class='full'>
+  <a name='main-content'></a>
+  <main>
+    <div id='content-stack' contentstack>
+      <?php echo $this->content; ?>
+    </div>
+  </main>
+</section>
+<section class='full'>
+  <div>
+    <div id='secondary-content' style="display:none"></div>
+  </div>
+</section>
+<?php
+$footerLogoAssetId = $this->themeSetting('footer_logo');
+$defaultLogo = '/themes/inglorious_artist_theme/asset/img/UniversityLibraries_logo_white_h.png';
+$footerLogoUrl = $footerLogoAssetId ? $this->api()->read('assets', $footerLogoAssetId)->getContent()->assetUrl() : $defaultLogo;
+$orgName = $this->themeSetting('org_name') ?: 'University of North Carolina at Chapel Hill';
+$streetAddress = $this->themeSetting('street_address') ?: 'Some Campus Address';
+$postalCode = $this->themeSetting('postal_code') ?: '27514';
+$phone = $this->themeSetting('phone') ?: '+1 (888) 888 8888';
+$email = $this->themeSetting('email') ?: 'admin@unc.edu';
+?>
+
+<footer class="full">
+  <footer>
+    <div class="unc-footer">
+      <div class="unc-footer__datoscontacto">
+        <div class="unc-footer__datos-contacto-inner">
+
+          <div class="unc-footer__logo-unc">
+            <a href="https://www.unc.edu/">
+              <img src="<?php echo $footerLogoUrl; ?>" alt="<?php echo $orgName; ?>">
+            </a>
+          </div>
+          <div class="unc-footer__vcard vcard">
+            <div class="adr">
+              <span class="org">
+                <?php echo $orgName; ?>
+              </span><br>
+              <span class="street-address">
+                <?php echo $streetAddress; ?>
+              </span>.
+              <span class="postal-code">
+                <?php echo $postalCode; ?>
+              </span>
+            </div>
+            <div class="tel"><span class="type">Phone Number:</span> <span class="value">
+                <?php echo $phone; ?>
+              </span></div>
+            <div class="email"><a class="link-grey" title="Enviar un correo electrónico a <?php echo $email; ?>"
+                href="mailto:<?php echo $email; ?>"><i class="fa fa-envelope"></i>
+                <?php echo $email; ?>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="unc-footer__group-copyright-and-social">
+        <div class="unc-footer__copyright">
+          <?php
+          $footerLinksRaw = $this->themeSetting('footer_links') ?: "
+          Settings need to be configured for this theme. Please contact your site administrator. | #
+          ";
+          $footerLinks = explode("\n", trim($footerLinksRaw));
+          ?>
+        
+          <nav aria-labelledby="footer-utilities-menu">
+            <ul>
+              <?php foreach ($footerLinks as $link):
+                list($label, $url) = explode('|', $link);
+                ?>
+                <li class="unc-footer__copyright-menu-item">
+                  <a class="unc-footer__copyright-menu-link" href="<?php echo trim($url); ?>">
+                    <?php echo trim($label); ?>
+                  </a>
+                </li>
+              <?php endforeach; ?>
+            </ul>
+          </nav>
+              </br>
+          <div class="disclaimer">
+      <span>
+        <?php echo $disclaimer; ?>
+    </span>
+              </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+</footer>
+</body>
+
+</html>

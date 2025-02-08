@@ -1,0 +1,51 @@
+<?php
+/**
+ * This partial relates to the filterable UI on the platform landing page. This
+ * feature is described in the theme documentation at:
+ *
+ * docs/reference/sites-filter.md
+ */
+
+$sites_set = $this->themeSetting('sites_set');
+$sites_page = $this->themeSetting('sites_page');
+
+if (isset($sites_set) && isset($sites_page) && $sites_page == $page->slug()) {
+    $this->headScript()->appendFile($this->assetUrl('js/sites-filter.js'));
+    $this->headLink()->appendStylesheet($this->assetUrl('css/sites-filter.css'));
+
+    ?>
+    <fieldset class="site-filter-outer collapsed">
+        <legend>
+            <h2>
+                <button class="hidden-above-md" id="site-filter-toggle">
+                    <span class="open">Hide filter</span>
+                    <span class="collapsed">Filter exhibits by category</span>
+                </button>
+                <span class="hidden-below-lg">Filter exhibits by category</span>
+            </h2>
+        </legend>
+        <span id="site-filter">
+            <button class="filter-button" value="All">All</button>
+        </span>
+    </fieldset>
+    <h3 id="filter-live" role="status" aria-live="polite" aria-atomic="true" class="sr"></h3>
+    <ul id="site-grid"></ul>
+    <script>
+        $(document).ready(function() {
+            LoadItemSet( <?php echo $sites_set; ?> );
+
+            let toggle = document.getElementById('site-filter-toggle');
+            let container = document.getElementsByClassName('site-filter-outer')[0];
+
+            toggle.addEventListener(
+                "click",
+                (event) => {
+                    container.classList.toggle('collapsed');
+                },
+                false,
+            );
+
+        });
+    </script>
+    <?php
+}

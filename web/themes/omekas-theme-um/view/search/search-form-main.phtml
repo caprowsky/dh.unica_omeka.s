@@ -1,0 +1,28 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \AdvancedSearch\Form\MainSearchForm $form
+ * Theme: Maastricht University Theme
+ * Version: 2.0
+ * Last Change: 2023-02-06
+ * Version update: Made search fields permanently visible.
+ * 
+ * 
+ * 
+ * 
+ */
+
+// Scripts are loaded via an event on view.layout and can be managed in search-form-main-header.phtml.
+
+$params = $this->params()->fromQuery() ?: [];
+$form
+    ->setData($params)
+    ->prepare();
+?>
+
+<div id="advanced-search-form-wrapper" >
+    <!--<button onclick="myFunction()">Show/Hide search fields</button>-->
+    <div id="advanced-search-form" class="searchfields">
+        <?= $this->form($form) ?>
+    </div>
+</div>

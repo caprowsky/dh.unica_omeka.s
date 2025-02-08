@@ -1,0 +1,12 @@
+<?php
+$item = $marker->item();
+$media = $marker->media();
+?>
+<?php if ($marker->label()) : ?>
+    <a href="<?php echo $this->escapeHtml($marker->item()->url()); ?>">
+        <h3 class="titulo-mapa"><?php echo $this->escapeHtml($marker->label()); ?></h3>
+    </a>
+<?php endif; ?>
+<?php if ($marker->media()) : ?>
+    <a href="<?php echo $this->escapeHtml($marker->item()->url()); ?>"><img class="imagen-mapa" src="<?php echo $this->escapeHtml($marker->media()->thumbnailUrl('square')); ?>"></a>
+<?php endif; ?>

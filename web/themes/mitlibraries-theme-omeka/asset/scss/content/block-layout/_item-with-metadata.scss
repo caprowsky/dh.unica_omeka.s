@@ -1,0 +1,50 @@
+.item-with-metadata {
+    float: right;
+    margin-top: 0;
+    padding: 1rem;
+    width: 48%;
+
+    .show.resource {
+        container-type: inline-size;
+        margin: 0;
+        padding: 1rem;
+        text-align: left;
+
+        dl,
+        table {
+            .property {
+                display: grid;
+                grid-template-columns: 1fr 2fr;
+                gap: 1rem;
+                margin-bottom: 1rem;
+
+                dt,
+                th {
+                    grid-column: 1;
+                }
+
+                dd,
+                td {
+                    grid-column: 2;
+
+                    img {
+                        display: block;
+                        margin-bottom: 1rem;
+                    }
+
+                    img + span.resource-name {
+                        display: block;
+                    }
+                }
+            }
+        }
+
+    }
+}
+
+@media only screen and (max-width: $bp-screen-md) {
+    .item-with-metadata {
+        float: none;
+        width: 100%;
+    }
+}

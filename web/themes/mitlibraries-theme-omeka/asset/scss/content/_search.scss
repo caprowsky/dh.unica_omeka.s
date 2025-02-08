@@ -1,0 +1,28 @@
+.search {
+    display: flow-root;
+
+    #search-form {
+        float: right;
+        width: 33%;
+
+        &.form-horizontal {
+            .field-text {
+                min-width: inherit;
+                width: 75%;
+            }
+
+            .form-action {
+                width: 20%;
+            }
+        }
+    }
+}
+
+@media only screen and (max-width: $bp-screen-md) {
+    .search {
+        #search-form {
+            float: inherit;
+            width: inherit;
+        }
+    }
+}

@@ -1,0 +1,70 @@
+<?php
+$escape = $this->plugin('escapeHtml');
+$translate = $this->plugin('translate');
+$thumbnail = $this->plugin('thumbnail');
+$this->htmlElement('body')->appendAttribute('class', 'item resource browse');
+
+$filterLocale = (bool) $this->siteSetting('filter_locale_values');
+$lang = $this->lang();
+$valueLang = $filterLocale ? [$lang, ''] : null;
+
+$query = $this->params()->fromQuery();
+$itemSetShow = isset($itemSet);
+if ($itemSetShow):
+    $this->headLink()->appendStylesheet($this->assetUrl('css/resource-page-blocks.css', 'Omeka'));
+    $this->htmlElement('body')->appendAttribute('class', 'item-set');
+    $query['item_set_id'] = $itemSet->id();
+endif;
+$headingTerm = $this->siteSetting('browse_heading_property_term', 'dcterms:title');
+$bodyTerm = $this->siteSetting('browse_body_property_term', 'dcterms:description');
+?>
+
+<div class="content-block">
+<?php if ($itemSetShow): ?>
+    <?php echo $this->pageTitle($itemSet->displayTitle(null, ($filterLocale ? $lang : null)), 2); ?>
+    <h3><?php echo $translate('Item set'); ?></h3>
+    <div class="metadata">
+        <?php echo $itemSet->displayValues(); ?>
+    </div>
+    <div class="item-set-items">
+    <?php echo '<h3>' . $escape($translate('Items')) . '</h3>'; ?>
+<?php else: ?>
+    <?php echo $this->pageTitle($translate('Items'), 2); ?>
+<?php endif; ?>
+
+<div class="search-filters">
+<?php echo $this->searchFilters(); ?>
+<?php echo $this->hyperlink($translate('Advanced search'), $this->url('site/resource', ['controller' => 'item', 'action' => 'search'], ['query' => $query], true), ['class' => 'button advanced-search']); ?>
+</div>
+
+<div class="browse-controls">
+    <?php echo $this->pagination(); ?>
+    <?php echo $this->browse()->renderSortSelector('items'); ?>
+</div>
+
+<?php $this->trigger('view.browse.before'); ?>
+<ul id="search-results" class="resource-list">
+<?php
+foreach ($items as $item):
+  $heading = $headingTerm ? $item->value($headingTerm, ['default' => $translate('[Untitled]'), 'lang' => ($filterLocale ? [$lang, ''] : null)]) : $item->displayTitle(null, ($filterLocale ? [$lang, ''] : null));
+  $body = $bodyTerm ? $item->value($bodyTerm, ['lang' => ($filterLocale ? [$lang, ''] : null)]) : $item->displayDescription(null, ($filterLocale ? [$lang, ''] : null));
+?>
+    <li class="item resource">
+        <?php echo $item->linkRaw($this->thumbnail($item, 'medium',['alt'=>$item->displayTitle(),'class'=>'squareimage']), null, [
+                'class' => 'squarecontainer'
+            ]); ?>
+        <h3><?php echo $item->link($heading); ?></h3>
+        <?php if ($body): ?>
+        <div class="description"><?php echo $escape($body); ?></div>
+        <?php endif; ?>
+    </li>
+<?php endforeach; ?>
+</ul>
+<?php echo ($itemSetShow) ? '</div>' : ''; ?>
+<?php echo $this->pagination(); ?>
+</div>
+<div id="after" class="row">
+    <div class="full">
+        <?php $this->trigger('view.browse.after'); ?>
+    </div>
+</div>

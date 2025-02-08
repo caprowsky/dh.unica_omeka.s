@@ -1,0 +1,7 @@
+{
+    "name": "storybooth",
+    "type": "omeka-s-theme",
+    "require": {
+        "omeka/omeka-s": "*"
+    }
+}

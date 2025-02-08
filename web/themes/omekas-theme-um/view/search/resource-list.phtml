@@ -1,0 +1,156 @@
+<?php
+/* MC 07-06-2022: This theme file overrides modules/AdvancedSearch/view/search/resource-list.phtml
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Omeka\Api\Representation\SiteRepresentation $site
+ * @var \AdvancedSearch\Api\Representation\SearchConfigRepresentation $searchPage
+ * @var \AdvancedSearch\Query $query
+ * @var \AdvancedSearch\Response $response
+ * @var string $title
+ * @var string $resourceName
+ */
+
+$resources = $response->getResources($resourceName);
+// A check is done: when page is not first, the resources may be empty even with results.
+if (!$resources) return;
+$customFieldList=str_replace(' ','',$this->themeSetting('CustomFieldList'));
+$tagTermList=explode(",", $customFieldList);
+
+$plugins = $this->getHelperPluginManager();
+$escape = $plugins->get('escapeHtml');
+$assetUrl = $plugins->get('assetUrl');
+$translate = $plugins->get('translate');
+$hyperlink = $plugins->get('hyperlink');
+$thumbnailHelper = $plugins->get('thumbnail');
+
+$setting = $plugins->get($site ? 'siteSetting' : 'setting');
+
+$filterLocale = (bool) $setting('filter_locale_values');
+$siteLang = $plugins->get('lang')();
+$lang = $filterLocale ? $siteLang : null;
+$langValue = $filterLocale ? [$siteLang, ''] : null;
+$headingTerm = $setting('browse_heading_property_term');
+$bodyTerm = $setting('browse_body_property_term');
+$gridListMode = $searchPage ? $searchPage->subSetting('display', 'grid_list_mode', 'auto') : 'auto';
+
+$defaultThumbnail = '<img src="' . $assetUrl('thumbnails/default.png', 'Omeka', true) . '" title="' . $translate('No media') . '"/>';
+?>
+
+<?php if ($title): ?>
+
+<h3><?= $escape($title) ?></h3>
+<?php endif; ?>
+<!--<p><?//php echo "tester: <br/>";
+//print_r($tagTermList); 
+?></p>-->
+<ul class="resource-list search-results-list<?= $gridListMode === 'list_only' ? ' list' : ($gridListMode === 'grid_only' ? ' grid' : '') ?>">
+    <?php /** @var \Omeka\Api\Representation\AbstractResourceEntityRepresentation $resource */
+    foreach ($resources as $resource):
+        $resourceType = $resource->resourceName();
+        $media = $resource->primaryMedia();
+        $thumbnail = $media ? $thumbnailHelper($media, 'medium') : $defaultThumbnail;
+		$thumbnail = $media ? $thumbnailHelper($media, 'medium') : null;
+		//$thumbnail1= $this->thumbnail();
+		
+        $heading = $headingTerm ? $resource->value($headingTerm, ['lang' => $langValue]) : null;
+        $heading = $heading ? $heading->asHtml() : $escape($resource->displayTitle($translate('[Untitled]'), $lang));
+        $body = $bodyTerm ? $resource->value($bodyTerm, ['lang' => $langValue]) : null;
+        $body = $body ? $body->asHtml() : $escape($resource->displayDescription(null, $lang));
+
+        
+		
+        
+		# PV 15-6-2022: Order changed. Removed unused values;
+		//$tagTerms = ['modsrdf:name', 'modsrdf:subject',  'schema:dateIssued', 'schema:contributor', 'modsrdf:namePrincipal'];
+        $tagTerms = $tagTermList;
+        $showLabel = true;
+        $vals = $resource->values();
+        $template = $resource->resourceTemplate();
+      
+
+        $tagHtml = '';
+		$searchEngine=$this->themeSetting('searchController') ;
+				
+        foreach ($tagTerms as $tagTerm) {
+            if(isset($vals[$tagTerm])) {
+                $tagLabel="";
+                $fields = $vals[$tagTerm]['values'];
+
+                //PV 2023-11-05: This piece of code gets the resource template fot the current field.
+                $templateProperty = $template ? $template->resourceTemplateProperty($fields[0]->property()->id()) : null;
+                $altLabel = $templateProperty ? $templateProperty->alternateLabel() : null;
+
+
+                if(($fields!=null)&&(count($fields))) {
+                    $tagHtml .= '<div class="tag-group ' . str_replace(':', '\:', $tagTerm) . '">';
+
+                    if($showLabel) {
+                        $label = $fields[0]->property()->label();
+                        $label = $altLabel?$altLabel:$label;
+                        $tagLabel=$label;
+                        $tagHtml .= '<span class="tag-label">'.$tagLabel.'</span>:&nbsp;';
+                    }
+
+                    foreach ($fields as $val) {
+                        try {
+							$test='';
+                            $f_id = $val->property()->id();
+							$f_pid = $val->property()->label();
+							$f_pid2= $val->property()->localName();
+							$tt2=str_replace(':', '_', $tagTerm);
+							if($val)
+							{
+								if($tagTerm == "modsrdf:name" && $val->valueResource()) {    // The displayName for modsrdf:name is in the class method '$val->valueResource()->title()'. We need to test if it exists first.
+									// Query to make the field browsable with a link
+									$query = ['query' => [$searchEngine => '','property[0][property]' => $f_id, 'property[0][type]' => 'eq', 'property[0][text]' => strval($val->valueResource()->title())]];
+									//$tagHtml .= $this->hyperlink(strval($val->valueResource()->title()), $this->url('site/resource', ['controller' => 'find', 'action' => 'find'], $query, true), ['class' => 'tag'])." ";
+									$tagHtml .= $this->hyperlink(strval($val->valueResource()->title()), $this->url('site/resource',['controller' => 'item', 'action' => 'browse'] , $query, true), ['class' => 'tag'])." ";
+									
+									
+								} else {    // The displayName for all other tagTerms is in the default class method for value (= root of $val)
+									// Query to make the field browsable with a link
+									$query = ['query' => [$searchEngine => '', 'property[0][property]' => $f_id, 'property[0][type]' => 'eq', 'property[0][text]' => strval($val)]];
+									$tagHtml .= $this->hyperlink(strval($val), $this->url('site/resource', ['controller' => 'item', 'action' => 'browse'], $query, true), ['class' => 'tag'])." ";
+								}
+							}
+                        } catch (\Throwable $th) {
+                            echo $th;
+                        }
+                    }
+					
+					$tagHtml .= '</div>';
+                    
+					//$tagHtml .= '<div class="info">Property: '. $f_pid.' Property local name: '.$f_pid2.' Property local name: '.$tt2.'</div> ';
+                }
+            }
+        }
+       
+    ?>
+
+    <li class="resource <?= $resourceType ?>">
+       
+        <div class="resource-metadata">
+            
+		<!-- MC, 7-6-2022: logic copied from themes/UM-A/view/omeka/site/item/browse.phtml-->
+		<!-- PV 16-01-2023 Altered the order Thumbnail -> Title to Title thumbnail. -->
+		<div class="resource-thumbnail">
+			<?= $hyperlink->raw($thumbnail, $resource->url(), ['class' => 'resource-link']) ?>
+			
+        </div>
+		<h4><?= $resource->linkRaw($heading) ?></h4>
+            <?php if ($body): ?>
+                <div class="description">
+                  <?php echo $escape($body); ?>
+                </div>
+            <?php endif; ?>
+            <?php if(!empty($tagHtml)){ ?>
+                <div class="tags">
+                  <?php echo $tagHtml; ?>
+                </div>
+            <?php } ?>
+<!--        END MC, 7-6-2022-->
+        </div>
+    </li>
+
+    <?php endforeach; ?>
+</ul>

@@ -1,0 +1,202 @@
+<?php
+$escape = $this->plugin('escapeHtml');
+$this->htmlElement('body')->appendAttribute('class', 'item resource browse');
+$query = $this->params()->fromQuery();
+if (isset($itemSet)):
+    $this->htmlElement('body')->appendAttribute('class', 'item-set');
+    $query['item_set_id'] = $itemSet->id();
+endif;
+$headingTerm = $this->siteSetting('browse_heading_property_term', 'dcterms:title');
+$bodyTerm = $this->siteSetting('browse_body_property_term', 'dcterms:description');
+$itemSetShow = isset($itemSet);
+$siteUrl = $site->url();
+$filters = $this->searchFilters();
+$searchEngine=$this->themeSetting('searchController') ;
+?>
+
+
+
+<div id="total-results">
+    <?php echo $this->pagination(); ?>
+    <?php if($filters || isset($itemSet)){
+        echo " for ";
+    } 
+    if($filters){
+        echo $filters;
+    }
+    if(isset($itemSet)){?>
+        <span class="browse-item-set-title"><?php echo $itemSet->value("dcterms:title"); ?></span>
+    <?php }?>
+    
+    <?php //echo $this->pageTitle($this->translate('Items'), 0); ?>
+</div>
+<div id="browse-container">
+<!--
+<div id="browse-facets-container">
+    <h5>Refine your search</h5>
+
+    <blockquote>
+    <?php //echo $this->partial('common/refine-list', ['site' => $site]); ?>
+    </blockquote>
+
+
+</div>
+-->
+<div id="tab-wrap"> 
+    <input type="radio" id="list-input" name="s" class="tab" checked />
+    <input type="radio" id="grid-input" name="s" class="tab"  />
+    <div id="button-bar">
+        <label for="grid-input" id="grid" class="button-bar-button">
+            <svg class="icon icon-view-grid">
+                    <use xlink:href="#icon-view-grid">
+                        <svg id="icon-view-grid" viewBox="0 0 26 27" width="100%" height="100%">
+                            <path d="M 9.091 10.909 h -8.636 q -0.202 0 -0.328 -0.126 t -0.126 -0.328 v -8.636 q 0 -0.202 0.126 -0.328 t 0.328 -0.126 h 8.636 q 0.202 0 0.328 0.126 t 0.126 0.328 v 8.636 q 0 0.202 -0.126 0.328 t -0.328 0.126 Z M 21.364 10.909 h -8.636 q -0.202 0 -0.328 -0.126 t -0.126 -0.328 v -8.636 q 0 -0.202 0.126 -0.328 t 0.328 -0.126 h 8.636 q 0.202 0 0.328 0.126 t 0.126 0.328 v 8.636 q 0 0.202 -0.126 0.328 t -0.328 0.126 Z M 9.091 23.182 h -8.636 q -0.202 0 -0.328 -0.126 t -0.126 -0.328 v -8.636 q 0 -0.202 0.126 -0.328 t 0.328 -0.126 h 8.636 q 0.202 0 0.328 0.126 t 0.126 0.328 v 8.636 q 0 0.202 -0.126 0.328 t -0.328 0.126 Z M 21.364 23.182 h -8.636 q -0.202 0 -0.328 -0.126 t -0.126 -0.328 v -8.636 q 0 -0.202 0.126 -0.328 t 0.328 -0.126 h 8.636 q 0.202 0 0.328 0.126 t 0.126 0.328 v 8.636 q 0 0.202 -0.126 0.328 t -0.328 0.126 Z"></path>
+                        </svg>
+                    </use>
+                </svg>
+                Grid
+        </label>
+        <label for="list-input" id="list" class="button-bar-button">
+            <svg class="icon icon-view-list">
+                    <use xlink:href="#icon-view-list">
+                        <svg id="icon-view-list" viewBox="0 0 26 27" width="100%" height="100%">
+                            <path d="M 3.636 18.636 v 2.727 q 0 0.202 -0.126 0.328 t -0.328 0.126 h -2.727 q -0.202 0 -0.328 -0.126 t -0.126 -0.328 v -2.727 q 0 -0.202 0.126 -0.328 t 0.328 -0.126 h 2.727 q 0.202 0 0.328 0.126 t 0.126 0.328 Z M 3.636 10.909 v 2.727 q 0 0.202 -0.126 0.328 t -0.328 0.126 h -2.727 q -0.202 0 -0.328 -0.126 t -0.126 -0.328 v -2.727 q 0 -0.202 0.126 -0.328 t 0.328 -0.126 h 2.727 q 0.202 0 0.328 0.126 t 0.126 0.328 Z M 3.636 3.182 v 2.727 q 0 0.202 -0.126 0.328 t -0.328 0.126 h -2.727 q -0.202 0 -0.328 -0.126 t -0.126 -0.328 v -2.727 q 0 -0.202 0.126 -0.328 t 0.328 -0.126 h 2.727 q 0.202 0 0.328 0.126 t 0.126 0.328 Z M 21.818 18.636 v 2.727 q 0 0.202 -0.126 0.328 t -0.328 0.126 h -15.455 q -0.202 0 -0.328 -0.126 t -0.126 -0.328 v -2.727 q 0 -0.202 0.126 -0.328 t 0.328 -0.126 h 15.455 q 0.202 0 0.328 0.126 t 0.126 0.328 Z M 21.818 10.909 v 2.727 q 0 0.202 -0.126 0.328 t -0.328 0.126 h -15.455 q -0.202 0 -0.328 -0.126 t -0.126 -0.328 v -2.727 q 0 -0.202 0.126 -0.328 t 0.328 -0.126 h 15.455 q 0.202 0 0.328 0.126 t 0.126 0.328 Z M 21.818 3.182 v 2.727 q 0 0.202 -0.126 0.328 t -0.328 0.126 h -15.455 q -0.202 0 -0.328 -0.126 t -0.126 -0.328 v -2.727 q 0 -0.202 0.126 -0.328 t 0.328 -0.126 h 15.455 q 0.202 0 0.328 0.126 t 0.126 0.328 Z"></path>
+                        </svg>
+                    </use>
+                </svg>
+                List
+        </label>
+    </div>
+    
+    
+    <?php $this->trigger('view.browse.before'); ?>
+    <div class="sections">
+        <ul class="resource-list" id="results-list">
+        <hr class="decorative-hr" />
+       <?php
+foreach ($items as $item):
+    //$heading = $headingTerm ? $item->value($headingTerm, ['default' => $translate('[Untitled]')]) : $item->displayTitle();
+	$heading = $headingTerm ? $item->value($headingTerm): $item->displayTitle();
+    $body = $bodyTerm ? $item->value($bodyTerm) : $item->displayDescription();
+	
+	// Show tags
+	//Todo Cleanup 'schema:sourceOrganization',
+	//'modsrdf:name',
+	
+    $tagTerms = ['modsrdf:subject',  'dcterms:temporal','umnl:author_lastName', 'modsrdf:name', 'modsrdf:namePrincipal','schema:contributor',  'schema:dateIssued'];
+	$showLabel = true;
+    $tester="";
+    $vals = $item->values();
+	
+    $tagHtml = '';
+    foreach ($tagTerms as $tagTerm)
+    {
+        if(isset($vals[$tagTerm]))
+        {
+			$tagLabel="";
+            $fields = $vals[$tagTerm]['values'];
+			
+            if(($fields!=null)&&(count($fields)))
+            {
+                $tagHtml .= '<div class="tag-group ' . str_replace(':', '\:', $tagTerm) . '">';
+                if($showLabel)
+                {
+					
+					$label = $fields[0]->property()->label();
+					
+					
+					$fv='props ';
+					//$tt=$vals[$tagTerm][0]->properties();
+					$tagLabel=$label;
+					
+					switch($label)
+					{
+						case "Subject":
+							$tagLabel="Study discipline";
+						break;	
+						case "Name -  Principle":
+							$tagLabel="Author";
+						break;
+						case "contributor":
+							$tagLabel=$fields[0]->property()->label();
+						break;
+						case "dateIssued":
+							$tagLabel="Publication date";
+						break;
+					}
+					$tagHtml .= '<span class="tag-label">'.$tagLabel.'</span>:&nbsp;';
+                }
+                foreach ($fields as $val)
+                 try {
+                            $f_id = $val->property()->id();
+							$f_pid = $val->property()->label();
+							$f_pid2= $val->property()->localName();
+							$tt2=str_replace(':', '_', $tagTerm);
+							if($val)
+							{
+								if($tagTerm == "modsrdf:name" && $val->valueResource()) {    // The displayName for modsrdf:name is in the class method '$val->valueResource()->title()'. We need to test if it exists first.
+									// Query to make the field browsable with a link
+									$query = ['query' => [$searchEngine => '','property[0][property]' => $f_id, 'property[0][type]' => 'eq', 'property[0][text]' => strval($val->valueResource()->title())]];
+									$tagHtml .= $this->hyperlink(strval($val->valueResource()->title()), $this->url('site/resource', ['controller' => 'item', 'action' => 'browse'], $query, true), ['class' => 'tag'])." ";
+									
+									
+									
+								} else {    // The displayName for all other tagTerms is in the default class method for value (= root of $val)
+									// Query to make the field browsable with a link
+									$query = ['query' => [$searchEngine => '', 'property[0][property]' => $f_id, 'property[0][type]' => 'eq', 'property[0][text]' => strval($val)]];
+									$tagHtml .= $this->hyperlink(strval($val), $this->url('site/resource', ['controller' => 'item', 'action' => 'browse'], $query, true), ['class' => 'tag'])." ";
+								}
+							}
+                        } catch (\Throwable $th) {
+                            echo $th;
+                        }
+                    
+				//$tagHtml .= " length : ". strlen($tagHtml);
+                $tagHtml .= '</div>';
+            }
+        }        
+    }
+
+	
+	
+	
+?>
+       <li class="item resource">
+	   <?php echo $item->linkRaw($this->thumbnail($item, 'medium'), null, ['class' => 'item-thumbnail']); ?>
+        <div class="item-meta">
+            <h4><?php echo $item->link($heading); ?></h4>
+            <?php if ($body): ?>
+            <div class="description"><?php echo $escape($body); ?></div>
+            <?php endif; ?>
+			 <?php if(!empty($tagHtml)){ ?> <div class="tags"><?php echo $tagHtml; ?></div> <?php } ?>
+			 </div>
+        
+    </li>
+        <?php endforeach; ?> 
+        </ul>
+        <ul class="resource-list" id="results-grid" >
+            <div id="grid-wrapper" >
+                <div class="grid-sizer"></div>
+                <div class="gutter"></div>
+                <?php
+            foreach ($items as $item):
+                $heading = $headingTerm ? $item->value($headingTerm): $item->displayTitle();
+			?>
+                <li class="item resource">
+                    <?php echo $item->linkRaw($this->thumbnail($item, 'medium')); ?>
+                    <h4 style="padding:0 20px 20px 20px;"><?php echo $item->link($heading); ?></h4>
+                </li>
+                <?php endforeach; ?>
+            </div>
+        </ul>
+    </div>
+
+
+    <?php $this->trigger('view.browse.after'); ?>
+    <div id="browse-footer-pagination">
+        <?php echo $this->pagination(); ?>
+    </div>
+</div>
+</div>
+<div class="clear"></div>
+
