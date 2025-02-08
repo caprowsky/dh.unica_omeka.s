@@ -90,7 +90,7 @@ services:
 
   pma:
     image: phpmyadmin/phpmyadmin
-    container_name: risorse_colo_pma
+    container_name: storiedigitali_pma
     environment:
       PMA_HOST: mariadb
       PMA_USER: $DB_USER
