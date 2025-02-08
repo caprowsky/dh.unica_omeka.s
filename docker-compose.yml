@@ -88,17 +88,17 @@ services:
     ports:
       - "7000:80"
 
-pma:
-  image: phpmyadmin/phpmyadmin
-  container_name: risorse_colo_pma
-  environment:
-    PMA_HOST: mariadb
-    PMA_USER: $DB_USER
-    PMA_PASSWORD: $DB_PASSWORD
-    PHP_UPLOAD_MAX_FILESIZE: 1G
-    PHP_MAX_INPUT_VARS: 1G
-  ports:
-    - '9090:80'
+  pma:
+    image: phpmyadmin/phpmyadmin
+    container_name: risorse_colo_pma
+    environment:
+      PMA_HOST: mariadb
+      PMA_USER: $DB_USER
+      PMA_PASSWORD: $DB_PASSWORD
+      PHP_UPLOAD_MAX_FILESIZE: 1G
+      PHP_MAX_INPUT_VARS: 1G
+    ports:
+      - '9090:80'
 
 
 
