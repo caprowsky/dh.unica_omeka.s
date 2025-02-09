@@ -135,6 +135,24 @@
             "install-path": "../brick/math"
         },
         {
+            "name": "daniel-km/omeka-s-module-generic",
+            "version": "master",
+            "version_normalized": "dev-master",
+            "source": {
+                "type": "git",
+                "url": "https://gitlab.com/Daniel-KM/Omeka-S-module-Generic.git",
+                "reference": "master"
+            },
+            "type": "library",
+            "installation-source": "source",
+            "autoload": {
+                "classmap": [
+                    ""
+                ]
+            },
+            "install-path": "../daniel-km/omeka-s-module-generic"
+        },
+        {
             "name": "guzzlehttp/guzzle",
             "version": "7.3.0",
             "version_normalized": "7.3.0.0",
@@ -2658,17 +2676,17 @@
         },
         {
             "name": "vimeo/vimeo-api",
-            "version": "3.0.8",
-            "version_normalized": "3.0.8.0",
+            "version": "3.0.10",
+            "version_normalized": "3.0.10.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/vimeo/vimeo.php.git",
-                "reference": "d0635c1ee0ed6c7161b4ddf881cf6ca33210d5e4"
+                "reference": "79885b642594b17f6c356dc949d3e4a58c356c9b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/vimeo/vimeo.php/zipball/d0635c1ee0ed6c7161b4ddf881cf6ca33210d5e4",
-                "reference": "d0635c1ee0ed6c7161b4ddf881cf6ca33210d5e4",
+                "url": "https://api.github.com/repos/vimeo/vimeo.php/zipball/79885b642594b17f6c356dc949d3e4a58c356c9b",
+                "reference": "79885b642594b17f6c356dc949d3e4a58c356c9b",
                 "shasum": ""
             },
             "require": {
@@ -2682,7 +2700,7 @@
                 "phpunit/phpunit": "^7.4",
                 "vimeo/psalm": "^2.0"
             },
-            "time": "2021-05-04T17:15:10+00:00",
+            "time": "2022-02-18T14:05:55+00:00",
             "type": "library",
             "installation-source": "dist",
             "autoload": {
@@ -2708,11 +2726,11 @@
             ],
             "support": {
                 "issues": "https://github.com/vimeo/vimeo.php/issues",
-                "source": "https://github.com/vimeo/vimeo.php/tree/3.0.8"
+                "source": "https://github.com/vimeo/vimeo.php/tree/3.0.10"
             },
             "install-path": "../vimeo/vimeo-api"
         }
     ],
-    "dev": false,
+    "dev": true,
     "dev-package-names": []
 }

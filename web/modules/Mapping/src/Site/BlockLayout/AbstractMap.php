@@ -34,11 +34,20 @@ abstract class AbstractMap extends AbstractBlockLayout
 
     public function prepareForm(PhpRenderer $view)
     {
+        $view->headLink()->appendStylesheet($view->assetUrl('node_modules/leaflet/dist/leaflet.css', 'Mapping'));
+        $view->headLink()->appendStylesheet($view->assetUrl('node_modules/leaflet.fullscreen/Control.FullScreen.css', 'Mapping'));
+
+        $view->headScript()->appendFile($view->assetUrl('node_modules/leaflet/dist/leaflet.js', 'Mapping'));
+        $view->headScript()->appendFile($view->assetUrl('node_modules/leaflet-providers/leaflet-providers.js', 'Mapping'));
+        $view->headScript()->appendFile($view->assetUrl('node_modules/leaflet.fullscreen/Control.FullScreen.js', 'Mapping'));
+
         $view->headScript()->appendFile($view->assetUrl('js/mapping-block-form.js', 'Mapping'));
-        $view->headLink()->appendStylesheet($view->assetUrl('vendor/leaflet/leaflet.css', 'Mapping'));
-        $view->headScript()->appendFile($view->assetUrl('vendor/leaflet/leaflet.js', 'Mapping'));
         $view->headScript()->appendFile($view->assetUrl('js/control.default-view.js', 'Mapping'));
-        $view->headScript()->appendFile($view->assetUrl('vendor/leaflet.providers/leaflet-providers.js', 'Mapping'));
+    }
+
+    public function prepareRender(PhpRenderer $view)
+    {
+        $view->headLink()->appendStylesheet($view->assetUrl('css/mapping.css', 'Mapping'));
     }
 
     public function form(PhpRenderer $view, SiteRepresentation $site,
@@ -68,6 +77,16 @@ abstract class AbstractMap extends AbstractBlockLayout
             ->setAttribute('min', 0)
             ->setAttribute('step', 1)
             ->setAttribute('placeholder', '19');
+        $scrollWheelZoom = (new Element\Select('o:block[__blockIndex__][o:data][scroll_wheel_zoom]'))
+            ->setLabel($view->translate('Scroll wheel zoom'))
+            ->setOption('info', $view->translate('Set whether users can zoom with their mouse wheel when hovering over the map, either automatically upon page load or after clicking inside the map.'))
+            ->setValue($data['scroll_wheel_zoom'])
+            ->setValueOptions([
+                '' => $view->translate('Enabled'),
+                'disable' => $view->translate('Disabled'),
+                'click' => $view->translate('Disabled until map click'),
+
+            ]);
         $form = $view->partial(
             'common/block-layout/mapping-block-form',
             [
@@ -76,6 +95,7 @@ abstract class AbstractMap extends AbstractBlockLayout
                 'basemapProviderSelect' => $basemapProviderSelect,
                 'minZoomInput' => $minZoomInput,
                 'maxZoomInput' => $maxZoomInput,
+                'scrollWheelZoom' => $scrollWheelZoom,
             ]
         );
         return $form;
@@ -104,6 +124,10 @@ abstract class AbstractMap extends AbstractBlockLayout
         $maxZoom = null;
         if (isset($data['max_zoom']) && is_numeric($data['max_zoom'])) {
             $maxZoom = $data['max_zoom'];
+        }
+        $scrollWheelZoom = '';
+        if (isset($data['scroll_wheel_zoom'])) {
+            $scrollWheelZoom = $data['scroll_wheel_zoom'];
         }
         $bounds = null;
         if (isset($data['bounds'])
@@ -180,7 +204,7 @@ abstract class AbstractMap extends AbstractBlockLayout
                         if (is_string($dataTypeProperty)) {
                             $dataTypeProperty = explode(':', $dataTypeProperty);
                             if (3 === count($dataTypeProperty)) {
-                                list($namespace, $type, $propertyId) = $dataTypeProperty;
+                                [$namespace, $type, $propertyId] = $dataTypeProperty;
                                 if ('numeric' === $namespace
                                     && in_array($type, ['timestamp', 'interval'])
                                     && is_numeric($propertyId)
@@ -198,6 +222,7 @@ abstract class AbstractMap extends AbstractBlockLayout
             'basemap_provider' => $basemapProvider,
             'max_zoom' => $maxZoom,
             'min_zoom' => $minZoom,
+            'scroll_wheel_zoom' => $scrollWheelZoom,
             'bounds' => $bounds,
             'wms' => $wmsOverlays,
             'timeline' => $timeline,
@@ -302,7 +327,7 @@ abstract class AbstractMap extends AbstractBlockLayout
         $event = [
             'unique_id' => (string) $item->id(), // must cast to string
             'text' => [
-                'headline' => $item->link($item->displayTitle(), null, ['target' => '_blank']),
+                'headline' => $item->link($item->displayTitle(null, $view->lang()), null, ['target' => '_blank']),
                 'text' => $item->displayDescription(),
             ],
         ];
@@ -314,6 +339,7 @@ abstract class AbstractMap extends AbstractBlockLayout
                 'url' => $media->thumbnailUrl('large'),
                 'thumbnail' => $media->thumbnailUrl('medium'),
                 'link' => $item->url(),
+                'alt' => $media->altTextResolved(),
             ];
         }
 
@@ -329,7 +355,7 @@ abstract class AbstractMap extends AbstractBlockLayout
                 'second' => $dateTime['second'],
             ];
         } elseif ('numeric:interval' === $dataType) {
-            list($intervalStart, $intervalEnd) = explode('/', $value->value());
+            [$intervalStart, $intervalEnd] = explode('/', $value->value());
             $dateTimeStart = Timestamp::getDateTimeFromValue($intervalStart);
             $event['start_date'] = [
                 'year' => $dateTimeStart['year'],

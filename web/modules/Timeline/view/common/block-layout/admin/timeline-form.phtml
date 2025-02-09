@@ -1,0 +1,36 @@
+<?php
+/**
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Timeline\Form\TimelineFieldset $fieldset
+ * @var array $data
+ * @var array $query
+ * @var int $itemCount
+ */
+
+$plugins = $this->getHelperPluginManager();
+$url = $plugins->get('url');
+$translate = $plugins->get('translate');
+$hyperlink = $plugins->get('hyperlink');
+
+?>
+
+<div>
+    <p><?php
+        echo $translate('Items can be selected in the whole base or in a limited list via the query below.');
+        echo ' ' . $translate('The default item pool is the current site one.');
+        echo ' ' . $translate('Items without a date are automatically filtered.');
+        echo ' ' . sprintf(
+            $translate('There are currently %s items in this timeline’s pool.'),
+            $hyperlink($itemCount, $url('admin/default', ['controller' => 'item'], ['query' => $query]))
+        );
+        if ($itemCount > 100) {
+            echo ' ' . $translate('There are more than 100 items, so the timeline won’t be usable and may display slowly or causes an overload. It is recommended to limit pool with the query below.');
+        }
+        ?>
+    </p>
+    <p><?= $translate('Warning: Advanced features (eras, groups, etc.) are available only with the layout "Knightlab" that should be set in the config of the block if needed.') ?></p>
+</div>
+<a href="#" class="collapse" aria-label="<?= $translate('collapse') ?>"><h4><?= $translate('Options') ?></h4></a>
+<div class="collapsible">
+    <?= $this->formCollection($fieldset) ?>
+</div>

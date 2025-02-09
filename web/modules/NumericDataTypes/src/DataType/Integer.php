@@ -8,9 +8,10 @@ use Omeka\Api\Adapter\AbstractEntityAdapter;
 use Omeka\Api\Adapter\AdapterInterface;
 use Omeka\Api\Representation\ValueRepresentation;
 use Omeka\Entity\Value;
+use Omeka\DataType\ValueAnnotatingInterface;
 use Laminas\View\Renderer\PhpRenderer;
 
-class Integer extends AbstractDataType
+class Integer extends AbstractDataType implements ValueAnnotatingInterface
 {
     /**
      * Minimum and maximum integers.
@@ -43,7 +44,7 @@ class Integer extends AbstractDataType
         }
         return [
             '@value' => (int) $value->value(),
-            '@type' => 'o-module-numeric-xsd:integer',
+            '@type' => 'http://www.w3.org/2001/XMLSchema#integer',
         ];
     }
 
@@ -69,12 +70,15 @@ class Integer extends AbstractDataType
             && ((int) $valueObject['@value'] >= self::MIN_SAFE_INT);
     }
 
-    public function render(PhpRenderer $view, ValueRepresentation $value)
+    public function render(PhpRenderer $view, ValueRepresentation $value, $options = [])
     {
         if (!$this->isValid(['@value' => $value->value()])) {
             return $value->value();
         }
-        return number_format($value->value());
+        // The last argument is a narrow no-break space.
+        // @see https://www.php.net/manual/en/function.number_format.php#126944
+        // @see https://en.wikipedia.org/wiki/International_System_of_Units#cite_ref-generalrules_105-0
+        return number_format($value->value(), 0, ',', ' ');
     }
 
     public function getEntityClass()
@@ -97,23 +101,17 @@ class Integer extends AbstractDataType
      */
     public function buildQuery(AdapterInterface $adapter, QueryBuilder $qb, array $query)
     {
-        if (isset($query['numeric']['int']['lt']['val'])
-            && isset($query['numeric']['int']['lt']['pid'])
-            && is_numeric($query['numeric']['int']['lt']['pid'])
-        ) {
+        if (isset($query['numeric']['int']['lt']['val'])) {
             $value = $query['numeric']['int']['lt']['val'];
-            $propertyId = $query['numeric']['int']['lt']['pid'];
+            $propertyId = $query['numeric']['int']['lt']['pid'] ?? null;
             if ($this->isValid(['@value' => $value])) {
                 $number = (int) $value;
                 $this->addLessThanQuery($adapter, $qb, $propertyId, $number);
             }
         }
-        if (isset($query['numeric']['int']['gt']['val'])
-            && isset($query['numeric']['int']['gt']['pid'])
-            && is_numeric($query['numeric']['int']['gt']['pid'])
-        ) {
+        if (isset($query['numeric']['int']['gt']['val'])) {
             $value = $query['numeric']['int']['gt']['val'];
-            $propertyId = $query['numeric']['int']['gt']['pid'];
+            $propertyId = $query['numeric']['int']['gt']['pid'] ?? null;
             if ($this->isValid(['@value' => $value])) {
                 $number = (int) $value;
                 $this->addGreaterThanQuery($adapter, $qb, $propertyId, $number);
@@ -135,5 +133,14 @@ class Integer extends AbstractDataType
             );
             $qb->addOrderBy('numeric_value', $query['sort_order']);
         }
+    }
+
+    public function valueAnnotationPrepareForm(PhpRenderer $view)
+    {
+    }
+
+    public function valueAnnotationForm(PhpRenderer $view)
+    {
+        return $this->form($view);
     }
 }

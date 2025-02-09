@@ -1,15 +1,31 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-dom for the canonical source repository
- * @copyright https://github.com/laminas/laminas-dom/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-dom/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
 
 namespace Laminas\Dom\Document;
 
+use DOMNode;
 use Laminas\Dom\Document;
 use Laminas\Dom\DOMXPath;
+
+use function array_merge;
+use function count;
+use function explode;
+use function implode;
+use function is_array;
+use function is_string;
+use function ltrim;
+use function mt_rand;
+use function preg_replace;
+use function preg_replace_callback;
+use function preg_split;
+use function sprintf;
+use function str_replace;
+use function strpos;
+use function strstr;
+use function strtolower;
+use function trim;
+use function uniqid;
 
 /**
  * Query object executable in a Laminas\Dom\Document
@@ -19,8 +35,8 @@ class Query
     /**#@+
      * Query types
      */
-    const TYPE_XPATH  = 'TYPE_XPATH';
-    const TYPE_CSS    = 'TYPE_CSS';
+    public const TYPE_XPATH = 'TYPE_XPATH';
+    public const TYPE_CSS   = 'TYPE_CSS';
     /**#@-*/
 
     /**
@@ -29,14 +45,13 @@ class Query
      * @param  string    $expression CSS selector or XPath query
      * @param  Document  $document   Document to query
      * @param  string    $type       The type of $expression
-     * @param  \DOMNode  $contextNode
      * @return NodeList
      */
     public static function execute(
         $expression,
         Document $document,
         $type = self::TYPE_XPATH,
-        \DOMNode $contextNode = null
+        ?DOMNode $contextNode = null
     ) {
         // Expression check
         if ($type === static::TYPE_CSS) {
@@ -46,7 +61,7 @@ class Query
 
         $xpathNamespaces = $document->getXpathNamespaces();
         foreach ($xpathNamespaces as $prefix => $namespaceUri) {
-            $xpath->registerNamespace($prefix, $namespaceUri);
+            $xpath->registerNamespace((string) $prefix, $namespaceUri);
         }
 
         if ($xpathPhpfunctions = $document->getXpathPhpFunctions()) {
@@ -86,7 +101,7 @@ class Query
         }
 
         do {
-            $placeholder = '{' . uniqid(mt_rand(), true) . '}';
+            $placeholder = '{' . uniqid((string) mt_rand(), true) . '}';
         } while (strpos($path, $placeholder) !== false);
 
         // Arbitrary attribute value contains whitespace
@@ -105,7 +120,7 @@ class Query
 
         foreach ($segments as $key => $segment) {
             $pathSegment = static::_tokenize($segment);
-            if (0 == $key) {
+            if (0 === $key) {
                 if (0 === strpos($pathSegment, '[contains(')) {
                     $paths[0] .= '*' . ltrim($pathSegment, '*');
                 } else {
@@ -116,7 +131,7 @@ class Query
             if (0 === strpos($pathSegment, '[contains(')) {
                 foreach ($paths as $pathKey => $xpath) {
                     $paths[$pathKey] .= '//*' . ltrim($pathSegment, '*');
-                    $paths[]      = $xpath . $pathSegment;
+                    $paths[]          = $xpath . $pathSegment;
                 }
             } else {
                 foreach ($paths as $pathKey => $xpath) {
@@ -125,7 +140,7 @@ class Query
             }
         }
 
-        if (1 == count($paths)) {
+        if (1 === count($paths)) {
             return $paths[0];
         }
         return implode('|', $paths);

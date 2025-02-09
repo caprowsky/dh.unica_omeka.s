@@ -1,11 +1,5 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-mvc for the canonical source repository
- * @copyright https://github.com/laminas/laminas-mvc/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-mvc/blob/master/LICENSE.md New BSD License
- */
-
 namespace Laminas\Mvc\Controller;
 
 use Interop\Container\ContainerInterface;
@@ -43,7 +37,7 @@ class ControllerManager extends AbstractPluginManager
      * Injects an initializer for injecting controllers with an
      * event manager and plugin manager.
      *
-     * @param  ConfigInterface|ContainerInterface $container
+     * @param  ConfigInterface|ContainerInterface $configOrContainerInstance
      * @param  array $config
      */
     public function __construct($configOrContainerInstance, array $config = [])

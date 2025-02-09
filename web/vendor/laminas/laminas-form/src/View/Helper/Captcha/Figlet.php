@@ -1,17 +1,15 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-form for the canonical source repository
- * @copyright https://github.com/laminas/laminas-form/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-form/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
 
 namespace Laminas\Form\View\Helper\Captcha;
 
 use Laminas\Captcha\Figlet as CaptchaAdapter;
+use Laminas\Form\Element\Captcha;
 use Laminas\Form\ElementInterface;
 use Laminas\Form\Exception;
 
+use function assert;
 use function sprintf;
 
 class Figlet extends AbstractWord
@@ -19,12 +17,11 @@ class Figlet extends AbstractWord
     /**
      * Render the captcha
      *
-     * @param  ElementInterface $element
      * @throws Exception\DomainException
-     * @return string
      */
-    public function render(ElementInterface $element)
+    public function render(ElementInterface $element): string
     {
+        assert($element instanceof Captcha);
         $captcha = $element->getCaptcha();
 
         if ($captcha === null || ! $captcha instanceof CaptchaAdapter) {
@@ -46,7 +43,7 @@ class Figlet extends AbstractWord
         $captchaInput = $this->renderCaptchaInputs($element);
 
         $pattern = '%s%s%s';
-        if ($position == self::CAPTCHA_PREPEND) {
+        if ($position === self::CAPTCHA_PREPEND) {
             return sprintf($pattern, $captchaInput, $separator, $figlet);
         }
 

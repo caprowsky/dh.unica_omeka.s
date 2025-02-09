@@ -2,6 +2,8 @@
 
 namespace Timeline\Form;
 
+// TODO Common is not a dependency of the module Timeline.
+use Common\Form\Element as CommonElement;
 use Laminas\Form\Element;
 use Laminas\Form\Fieldset;
 use Omeka\Form\Element as OmekaElement;
@@ -14,14 +16,18 @@ class TimelineFieldset extends Fieldset
 
         $this
             ->add([
-                'name' => 'o:block[__blockIndex__][o:data][heading]',
-                'type' => Element\Text::class,
+                'name' => 'o:block[__blockIndex__][o:data][query]',
+                'type' => OmekaElement\Query::class,
                 'options' => [
-                    'label' => 'Block title', // @translate
+                    'label' => 'Search pool query', // @translate
+                    'info' => 'Restrict timeline to a particular subset of resources, for example a site.', // @translate
+                    'query_resource_type' => null,
+                    'query_partial_excludelist' => [
+                        'common/advanced-search/site',
+                    ],
                 ],
                 'attributes' => [
-                    'id' => 'timeline-heading',
-                    'required' => false,
+                    'id' => 'timeline-query',
                 ],
             ])
             ->add([
@@ -91,6 +97,61 @@ class TimelineFieldset extends Fieldset
                 ],
             ])
             ->add([
+                'name' => 'o:block[__blockIndex__][o:data][item_metadata]',
+                'type' => OmekaElement\PropertySelect::class,
+                'options' => [
+                    'label' => 'Metadata to append for custom timeline', // @translate
+                    'empty_option' => '',
+                    'term_as_value' => true,
+                    'prepend_value_options' => [
+                        'resource_class' => 'Resource class', // @translate
+                        'resource_class_label' => 'Resource class label', // @translate
+                        'resource_template_label' => 'Resource template', // @translate
+                        'owner_name' => 'Owner', // @translate
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'timeline-item-metadata',
+                    'required' => false,
+                    'multiple' => true,
+                    'class' => 'chosen-select',
+                    'data-placeholder' => 'Select a metadata…', // @translate
+                ],
+            ])
+            ->add([
+                'name' => 'o:block[__blockIndex__][o:data][group]',
+                'type' => OmekaElement\PropertySelect::class,
+                'options' => [
+                    'label' => 'Metadata to use as group', // @translate
+                    'empty_option' => '',
+                    'term_as_value' => true,
+                    'prepend_value_options' => [
+                        'resource_class' => 'Resource class', // @translate
+                        'resource_class_label' => 'Resource class label', // @translate
+                        'resource_template_label' => 'Resource template', // @translate
+                        'owner_name' => 'Owner', // @translate
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'timeline-group',
+                    'required' => false,
+                    'multiple' => false,
+                    'class' => 'chosen-select',
+                    'data-placeholder' => 'Select a metadata…', // @translate
+                ],
+            ])
+            ->add([
+                'name' => 'o:block[__blockIndex__][o:data][group_default]',
+                'type' => Element\Text::class,
+                'options' => [
+                    'label' => 'Default group', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'timeline-group-default',
+                    'required' => false,
+                ],
+            ])
+            ->add([
                 'name' => 'o:block[__blockIndex__][o:data][render_year]',
                 // A radio is not possible when there are multiple timeline blocks.
                 'type' => Element\Select::class,
@@ -120,6 +181,39 @@ class TimelineFieldset extends Fieldset
                 ],
                 'attributes' => [
                     'id' => 'timeline-center-date',
+                ],
+            ])
+            ->add([
+                'name' => 'o:block[__blockIndex__][o:data][eras]',
+                'type' => OmekaElement\ArrayTextarea::class,
+                'options' => [
+                    'label' => 'Eras/Periods', // @translate
+                    'info' => 'Write one era by line like "Summer 2024 = 2024-06-20/2024-09-21". Year can be set alone. Require Knightlab.', // @ŧranslate
+                    'as_key_value' => true,
+                ],
+                'attributes' => [
+                    'id' => 'timeline-eras',
+                    'placeholder' => '',
+                    'rows' => 5,
+                ],
+            ])
+            ->add([
+                'name' => 'o:block[__blockIndex__][o:data][markers]',
+                'type' => CommonElement\DataTextarea::class,
+                'options' => [
+                    'label' => 'Markers for well-known or extra events', // @translate
+                    'info' => 'Write one markers by line like "Night of the 4th August = 1789-08-04 = Abolition of feudalism in France". Year can be set alone. Require Knightlab.', // @ŧranslate
+                    // Important: these options should be set in the block layout too.
+                    'data_options' => [
+                        'heading' => null,
+                        'dates' => null,
+                        'body' => null,
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'timeline-markers',
+                    'placeholder' => '',
+                    'rows' => 5,
                 ],
             ])
             ->add([
@@ -154,43 +248,13 @@ class TimelineFieldset extends Fieldset
                 'name' => 'o:block[__blockIndex__][o:data][viewer]',
                 'type' => Element\Textarea::class,
                 'options' => [
-                    'label' => 'Viewer', // @translate
+                    'label' => 'Timeline viewer params', // @translate
                     'info' => 'Set the default params of the viewer as json, or let empty for the included default.', // @translate
                     'documentation' => 'https://gitlab.com/daniel-km/omeka-s-module-timeline#parameters-of-the-viewer',
                 ],
                 'attributes' => [
                     'id' => 'timeline-viewer',
                     'rows' => 5,
-                ],
-            ])
-            ->add([
-                'name' => 'o:block[__blockIndex__][o:data][query]',
-                'type' => OmekaElement\Query::class,
-                'options' => [
-                    'label' => 'Search pool query', // @translate
-                    'info' => 'Restrict timeline to a particular subset of resources, for example a site.', // @translate
-                    'query_resource_type' => null,
-                    'query_partial_excludelist' => ['common/advanced-search/site'],
-                ],
-                'attributes' => [
-                    'id' => 'timeline-query',
-                ],
-            ])
-            ->add([
-                'name' => 'o:block[__blockIndex__][o:data][library]',
-                'type' => Element\Select::class,
-                'options' => [
-                    'label' => 'Timeline library', // @translate
-                    'info' => 'Three libraries are available: the standard open source Simile Timeline, or the online Knightlab Timeline.', // @translate
-                    'value_options' => [
-                        'simile' => 'Simile (use internal assets)', // @translate
-                        'simile_online' => 'Simile online (cannot be used on a https site)', // @translate
-                        'knightlab' => 'Knightlab', // @translate
-                    ],
-                ],
-                'attributes' => [
-                    'id' => 'timeline-library',
-                    'required' => true,
                 ],
             ]);
     }

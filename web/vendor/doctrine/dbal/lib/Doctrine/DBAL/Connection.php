@@ -9,6 +9,7 @@ use Doctrine\DBAL\Cache\CacheException;
 use Doctrine\DBAL\Cache\QueryCacheProfile;
 use Doctrine\DBAL\Cache\ResultCacheStatement;
 use Doctrine\DBAL\Driver\Connection as DriverConnection;
+use Doctrine\DBAL\Driver\PDO\Statement as PDODriverStatement;
 use Doctrine\DBAL\Driver\PingableConnection;
 use Doctrine\DBAL\Driver\ResultStatement;
 use Doctrine\DBAL\Driver\ServerInfoAwareConnection;
@@ -21,6 +22,7 @@ use Doctrine\DBAL\Query\QueryBuilder;
 use Doctrine\DBAL\Schema\AbstractSchemaManager;
 use Doctrine\DBAL\Types\Type;
 use Doctrine\Deprecations\Deprecation;
+use PDO;
 use Throwable;
 use Traversable;
 
@@ -39,6 +41,7 @@ use function key;
  * lazy connecting and more.
  *
  * @psalm-import-type Params from DriverManager
+ * @psalm-consistent-constructor
  */
 class Connection implements DriverConnection
 {
@@ -178,11 +181,10 @@ class Connection implements DriverConnection
      * @param Driver              $driver       The driver to use.
      * @param Configuration|null  $config       The configuration, optional.
      * @param EventManager|null   $eventManager The event manager, optional.
+     * @psalm-param Params $params
+     * @phpstan-param array<string,mixed> $params
      *
      * @throws Exception
-     *
-     * @phpstan-param array<string,mixed> $params
-     * @psalm-param Params $params
      */
     public function __construct(
         array $params,
@@ -194,7 +196,18 @@ class Connection implements DriverConnection
         $this->params  = $params;
 
         if (isset($params['pdo'])) {
+            Deprecation::trigger(
+                'doctrine/dbal',
+                'https://github.com/doctrine/dbal/pull/3554',
+                'Passing a user provided PDO instance directly to Doctrine is deprecated.'
+            );
+
+            if (! $params['pdo'] instanceof PDO) {
+                throw Exception::invalidPdoInstance();
+            }
+
             $this->_conn = $params['pdo'];
+            $this->_conn->setAttribute(PDO::ATTR_STATEMENT_CLASS, [PDODriverStatement::class, []]);
             unset($this->params['pdo']);
         }
 
@@ -229,9 +242,8 @@ class Connection implements DriverConnection
      * @internal
      *
      * @return array<string,mixed>
-     *
-     * @phpstan-return array<string,mixed>
      * @psalm-return Params
+     * @phpstan-return array<string,mixed>
      */
     public function getParams()
     {
@@ -787,7 +799,7 @@ class Connection implements DriverConnection
      * @param array<string, mixed>                                                 $criteria Deletion criteria
      * @param array<int, int|string|Type|null>|array<string, int|string|Type|null> $types    Parameter types
      *
-     * @return int The number of affected rows.
+     * @return int|string The number of affected rows.
      *
      * @throws Exception
      */
@@ -823,7 +835,7 @@ class Connection implements DriverConnection
      *
      * @param int $level The level to set.
      *
-     * @return int
+     * @return int|string
      */
     public function setTransactionIsolation($level)
     {
@@ -856,7 +868,7 @@ class Connection implements DriverConnection
      * @param array<string, mixed>                                                 $criteria Update criteria
      * @param array<int, int|string|Type|null>|array<string, int|string|Type|null> $types    Parameter types
      *
-     * @return int The number of affected rows.
+     * @return int|string The number of affected rows.
      *
      * @throws Exception
      */
@@ -891,7 +903,7 @@ class Connection implements DriverConnection
      * @param array<string, mixed>                                                 $data  Column-value pairs
      * @param array<int, int|string|Type|null>|array<string, int|string|Type|null> $types Parameter types
      *
-     * @return int The number of affected rows.
+     * @return int|string The number of affected rows.
      *
      * @throws Exception
      */
@@ -1460,7 +1472,7 @@ class Connection implements DriverConnection
      * @param array<int, mixed>|array<string, mixed>                               $params Statement parameters
      * @param array<int, int|string|Type|null>|array<string, int|string|Type|null> $types  Parameter types
      *
-     * @return int The number of affected rows.
+     * @return int|string The number of affected rows.
      *
      * @throws Exception
      */
@@ -1491,7 +1503,7 @@ class Connection implements DriverConnection
      * @param array<int, mixed>|array<string, mixed>                               $params Statement parameters
      * @param array<int, int|string|Type|null>|array<string, int|string|Type|null> $types  Parameter types
      *
-     * @return int The number of affected rows.
+     * @return int|string The number of affected rows.
      *
      * @throws Exception
      */
@@ -1544,7 +1556,7 @@ class Connection implements DriverConnection
      *
      * @param string $sql
      *
-     * @return int The number of affected rows.
+     * @return int|string The number of affected rows.
      *
      * @throws Exception
      */
@@ -1630,7 +1642,7 @@ class Connection implements DriverConnection
      *
      * @param string|null $name Name of the sequence object from which the ID should be returned.
      *
-     * @return string A string representation of the last inserted ID.
+     * @return string|int|false A string representation of the last inserted ID.
      */
     public function lastInsertId($name = null)
     {
@@ -2072,9 +2084,9 @@ class Connection implements DriverConnection
      * @param mixed                $value The value to bind.
      * @param int|string|Type|null $type  The type to bind (PDO or DBAL).
      *
-     * @return mixed[] [0] => the (escaped) value, [1] => the binding type.
+     * @return array{mixed, int} [0] => the (escaped) value, [1] => the binding type.
      */
-    private function getBindingInfo($value, $type)
+    private function getBindingInfo($value, $type): array
     {
         if (is_string($type)) {
             $type = Type::getType($type);
@@ -2084,7 +2096,7 @@ class Connection implements DriverConnection
             $value       = $type->convertToDatabaseValue($value, $this->getDatabasePlatform());
             $bindingType = $type->getBindingType();
         } else {
-            $bindingType = $type;
+            $bindingType = $type ?? ParameterType::STRING;
         }
 
         return [$value, $bindingType];
@@ -2200,9 +2212,9 @@ class Connection implements DriverConnection
      * @param array<int, mixed>|array<string, mixed>                               $params
      * @param array<int, int|string|Type|null>|array<string, int|string|Type|null> $types
      *
-     * @throws Exception
-     *
      * @psalm-return never-return
+     *
+     * @throws Exception
      */
     public function handleExceptionDuringQuery(Throwable $e, string $sql, array $params = [], array $types = []): void
     {
@@ -2219,9 +2231,9 @@ class Connection implements DriverConnection
     /**
      * @internal
      *
-     * @throws Exception
-     *
      * @psalm-return never-return
+     *
+     * @throws Exception
      */
     public function handleDriverException(Throwable $e): void
     {
@@ -2236,9 +2248,9 @@ class Connection implements DriverConnection
     /**
      * @internal
      *
-     * @throws Exception
-     *
      * @psalm-return never-return
+     *
+     * @throws Exception
      */
     private function throw(Exception $e): void
     {

@@ -1,34 +1,44 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-hydrator for the canonical source repository
- * @copyright https://github.com/laminas/laminas-hydrator/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-hydrator/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
 
 namespace Laminas\Hydrator;
 
-use Interop\Container\ContainerInterface;
 use Laminas\ServiceManager\Config;
-use Laminas\ServiceManager\FactoryInterface;
-use Laminas\ServiceManager\ServiceLocatorInterface;
+use Psr\Container\ContainerInterface;
 
-class HydratorPluginManagerFactory implements FactoryInterface
+use function class_exists;
+use function is_array;
+use function sprintf;
+
+class HydratorPluginManagerFactory
 {
     /**
-     * laminas-servicemanager v2 support for invocation options.
+     * Create a HydratorPluginManager instance.
      *
-     * @param array
-     */
-    protected $creationOptions;
-
-    /**
-     * {@inheritDoc}
+     * If the `config` service is available, and the top-level key `hydrators`
+     * exists and is an array, that value will be used to configure the plugin
+     * manager. In such cases, the array should follow standard container
+     * configuration.
      *
-     * @return HydratorPluginManager
+     * @see https://docs.mezzio.dev/mezzio/v3/features/container/config/
+     *
+     * @throws Exception\DomainException If laminas-servicemanager is not installed.
      */
-    public function __invoke(ContainerInterface $container, $name, array $options = null)
+    public function __invoke(ContainerInterface $container, string $name, ?array $options = []): HydratorPluginManager
     {
+        if (! class_exists(Config::class)) {
+            throw new Exception\DomainException(sprintf(
+                '%s requires the laminas/laminas-servicemanager package, which is not installed.'
+                . ' If you do not want to install that package, you can use the %s instead;'
+                . ' however, that version does not have support for the "hydrators"'
+                . ' configuration outside of aliases, invokables, and factories. If you'
+                . ' need those features, please install laminas/laminas-servicemanager.',
+                HydratorPluginManager::class,
+                StandaloneHydratorPluginManager::class
+            ));
+        }
+
         $pluginManager = new HydratorPluginManager($container, $options ?: []);
 
         // If this is in a laminas-mvc application, the ServiceListener will inject
@@ -53,26 +63,5 @@ class HydratorPluginManagerFactory implements FactoryInterface
         (new Config($config['hydrators']))->configureServiceManager($pluginManager);
 
         return $pluginManager;
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * @return HydratorPluginManager
-     */
-    public function createService(ServiceLocatorInterface $container, $name = null, $requestedName = null)
-    {
-        return $this($container, $requestedName ?: HydratorPluginManager::class, $this->creationOptions);
-    }
-
-    /**
-     * laminas-servicemanager v2 support for invocation options.
-     *
-     * @param array $options
-     * @return void
-     */
-    public function setCreationOptions(array $options)
-    {
-        $this->creationOptions = $options;
     }
 }

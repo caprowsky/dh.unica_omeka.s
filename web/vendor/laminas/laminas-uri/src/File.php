@@ -1,12 +1,10 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-uri for the canonical source repository
- * @copyright https://github.com/laminas/laminas-uri/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-uri/blob/master/LICENSE.md New BSD License
- */
-
 namespace Laminas\Uri;
+
+use function preg_match;
+use function str_replace;
+use function strpos;
 
 /**
  * File URI handler
@@ -15,6 +13,7 @@ namespace Laminas\Uri;
  */
 class File extends Uri
 {
+    /** @var array<int,string> */
     protected static $validSchemes = ['file'];
 
     /**
@@ -23,8 +22,9 @@ class File extends Uri
      * This applies additional specific validation rules beyond the ones
      * required by the generic URI syntax.
      *
-     * @return bool
      * @see    Uri::isValid()
+     *
+     * @return bool
      */
     public function isValid()
     {
@@ -39,6 +39,7 @@ class File extends Uri
      * User Info part is not used in file URIs
      *
      * @see    Uri::setUserInfo()
+     *
      * @param  string $userInfo
      * @return File
      */
@@ -51,6 +52,7 @@ class File extends Uri
      * Fragment part is not used in file URIs
      *
      * @see    Uri::setFragment()
+     *
      * @param  string $fragment
      * @return File
      */

@@ -6,7 +6,7 @@ use Laminas\Http\Client;
 
 class Sparql implements SuggesterInterface
 {
-    const ENDPOINT = 'http://tesauros.mecd.es/tesauros/sparql';
+    const ENDPOINT = 'http://tesauros.cultura.gob.es/tesauros/sparql';
 
     /**
      * @var Client
@@ -28,7 +28,7 @@ class Sparql implements SuggesterInterface
      * Retrieve suggestions from the Tesauros-Diccionarios del patrimonio
      * cultural de España SPARQL endpoint.
      *
-     * @see http://tesauros.mecd.es/tesauros/tesauros
+     * @see http://tesauros.cultura.gob.es/tesauros/tesauros
      * @param string $query
      * @param string $lang
      * @return array
@@ -48,7 +48,7 @@ WHERE {
 LIMIT 500',
             addslashes($this->scheme),
             addslashes($query),
-            addslashes($lang) ?: 'es' // The defualt lang is spanish
+            addslashes((string) $lang) ?: 'es' // The defualt lang is spanish
         );
 
         $client = $this->client->setUri(self::ENDPOINT)->setParameterGet([
@@ -67,8 +67,7 @@ LIMIT 500',
                 'value' => $result['Label']['value'],
                 'data' => [
                     'uri' => $result['Subject']['value'],
-                    'info' => isset($result['Definition']['value'])
-                        ? $result['Definition']['value'] : null,
+                    'info' => $result['Definition']['value'] ?? null,
                 ],
             ];
         }

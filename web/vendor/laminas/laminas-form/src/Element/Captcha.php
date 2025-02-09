@@ -1,10 +1,6 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-form for the canonical source repository
- * @copyright https://github.com/laminas/laminas-form/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-form/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
 
 namespace Laminas\Form\Element;
 
@@ -23,19 +19,16 @@ use function sprintf;
 
 class Captcha extends Element implements InputProviderInterface
 {
-    /**
-     * @var LaminasCaptcha\AdapterInterface
-     */
+    /** @var null|LaminasCaptcha\AdapterInterface */
     protected $captcha;
 
     /**
      * Accepted options for Captcha:
      * - captcha: a valid Laminas\Captcha\AdapterInterface
      *
-     * @param array|Traversable $options
      * @return $this
      */
-    public function setOptions($options)
+    public function setOptions(iterable $options)
     {
         parent::setOptions($options);
 
@@ -49,7 +42,7 @@ class Captcha extends Element implements InputProviderInterface
     /**
      * Set captcha
      *
-     * @param  array|LaminasCaptcha\AdapterInterface $captcha
+     * @param  array|Traversable|LaminasCaptcha\AdapterInterface $captcha
      * @throws Exception\InvalidArgumentException
      * @return $this
      */
@@ -72,10 +65,8 @@ class Captcha extends Element implements InputProviderInterface
 
     /**
      * Retrieve captcha (if any)
-     *
-     * @return null|LaminasCaptcha\AdapterInterface
      */
-    public function getCaptcha()
+    public function getCaptcha(): ?LaminasCaptcha\AdapterInterface
     {
         return $this->captcha;
     }
@@ -87,12 +78,12 @@ class Captcha extends Element implements InputProviderInterface
      *
      * @return array
      */
-    public function getInputSpecification()
+    public function getInputSpecification(): array
     {
         $spec = [
-            'name' => $this->getName(),
+            'name'     => $this->getName(),
             'required' => true,
-            'filters' => [
+            'filters'  => [
                 ['name' => StringTrim::class],
             ],
         ];

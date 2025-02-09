@@ -1,11 +1,5 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-uri for the canonical source repository
- * @copyright https://github.com/laminas/laminas-uri/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-uri/blob/master/LICENSE.md New BSD License
- */
-
 namespace Laminas\Uri;
 
 /**
@@ -170,8 +164,7 @@ interface UriInterface
      *
      * @param  string $userInfo
      * @return Uri
-     * @throws Exception\InvalidUriPartException If the schema definition
-     * does not have this part
+     * @throws Exception\InvalidUriPartException If the schema definition does not have this part.
      */
     public function setUserInfo($userInfo);
 
@@ -228,8 +221,7 @@ interface UriInterface
      *
      * @param  string $fragment
      * @return Uri
-     * @throws Exception\InvalidUriPartException If the schema definition
-     * does not have this part
+     * @throws Exception\InvalidUriPartException If the schema definition does not have this part.
      */
     public function setFragment($fragment);
 

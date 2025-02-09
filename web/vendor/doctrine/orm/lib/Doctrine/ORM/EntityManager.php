@@ -1,31 +1,23 @@
 <?php
 
-/*
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * This software consists of voluntary contributions made by many individuals
- * and is licensed under the MIT license. For more information, see
- * <http://www.doctrine-project.org>.
- */
+declare(strict_types=1);
 
 namespace Doctrine\ORM;
 
 use BadMethodCallException;
+use Doctrine\Common\Cache\Psr6\CacheAdapter;
 use Doctrine\Common\EventManager;
 use Doctrine\Common\Util\ClassUtils;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\LockMode;
+use Doctrine\Deprecations\Deprecation;
+use Doctrine\ORM\Exception\EntityManagerClosed;
+use Doctrine\ORM\Exception\InvalidHydrationMode;
+use Doctrine\ORM\Exception\MismatchedEventManager;
+use Doctrine\ORM\Exception\MissingIdentifierField;
+use Doctrine\ORM\Exception\MissingMappingDriverImplementation;
+use Doctrine\ORM\Exception\UnrecognizedIdentifierFields;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\Mapping\ClassMetadataFactory;
 use Doctrine\ORM\Proxy\ProxyFactory;
@@ -40,7 +32,7 @@ use Throwable;
 
 use function array_keys;
 use function call_user_func;
-use function get_class;
+use function get_debug_type;
 use function gettype;
 use function is_array;
 use function is_callable;
@@ -48,9 +40,6 @@ use function is_object;
 use function is_string;
 use function ltrim;
 use function sprintf;
-use function trigger_error;
-
-use const E_USER_DEPRECATED;
 
 /**
  * The EntityManager is the central access point to ORM functionality.
@@ -131,7 +120,7 @@ use const E_USER_DEPRECATED;
     /**
      * The expression builder instance used to generate query expressions.
      *
-     * @var Expr
+     * @var Expr|null
      */
     private $expressionBuilder;
 
@@ -145,11 +134,15 @@ use const E_USER_DEPRECATED;
     /**
      * Collection of query filters.
      *
-     * @var FilterCollection
+     * @var FilterCollection|null
      */
     private $filterCollection;
 
-    /** @var Cache The second level cache regions API. */
+    /**
+     * The second level cache regions API.
+     *
+     * @var Cache|null
+     */
     private $cache;
 
     /**
@@ -166,7 +159,8 @@ use const E_USER_DEPRECATED;
 
         $this->metadataFactory = new $metadataFactoryClassName();
         $this->metadataFactory->setEntityManager($this);
-        $this->metadataFactory->setCacheDriver($this->config->getMetadataCacheImpl());
+
+        $this->configureMetadataCache();
 
         $this->repositoryFactory = $config->getRepositoryFactory();
         $this->unitOfWork        = new UnitOfWork($this);
@@ -259,6 +253,28 @@ use const E_USER_DEPRECATED;
     /**
      * {@inheritDoc}
      */
+    public function wrapInTransaction(callable $func)
+    {
+        $this->conn->beginTransaction();
+
+        try {
+            $return = $func($this);
+
+            $this->flush();
+            $this->conn->commit();
+
+            return $return;
+        } catch (Throwable $e) {
+            $this->close();
+            $this->conn->rollBack();
+
+            throw $e;
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     public function commit()
     {
         $this->conn->commit();
@@ -284,9 +300,7 @@ use const E_USER_DEPRECATED;
      *
      * Internal note: Performance-sensitive method.
      *
-     * @param string $className
-     *
-     * @return ClassMetadata
+     * {@inheritDoc}
      */
     public function getClassMetadata($className)
     {
@@ -365,9 +379,11 @@ use const E_USER_DEPRECATED;
     public function flush($entity = null)
     {
         if ($entity !== null) {
-            @trigger_error(
-                'Calling ' . __METHOD__ . '() with any arguments to flush specific entities is deprecated and will not be supported in Doctrine ORM 3.0.',
-                E_USER_DEPRECATED
+            Deprecation::trigger(
+                'doctrine/orm',
+                'https://github.com/doctrine/orm/issues/8459',
+                'Calling %s() with any arguments to flush specific entities is deprecated and will not be supported in Doctrine ORM 3.0.',
+                __METHOD__
             );
         }
 
@@ -386,8 +402,11 @@ use const E_USER_DEPRECATED;
      *    during the search.
      * @param int|null $lockVersion The version of the entity to find when using
      * optimistic locking.
+     * @psalm-param class-string<T> $className
+     * @psalm-param LockMode::*|null $lockMode
      *
      * @return object|null The entity instance or NULL if the entity can not be found.
+     * @psalm-return ?T
      *
      * @throws OptimisticLockException
      * @throws ORMInvalidArgumentException
@@ -395,8 +414,6 @@ use const E_USER_DEPRECATED;
      * @throws ORMException
      *
      * @template T
-     * @psalm-param class-string<T> $className
-     * @psalm-return ?T
      */
     public function find($className, $id, $lockMode = null, $lockVersion = null)
     {
@@ -428,7 +445,7 @@ use const E_USER_DEPRECATED;
 
         foreach ($class->identifier as $identifier) {
             if (! isset($id[$identifier])) {
-                throw ORMException::missingIdentifierField($class->name, $identifier);
+                throw MissingIdentifierField::fromFieldAndClass($identifier, $class->name);
             }
 
             $sortedId[$identifier] = $id[$identifier];
@@ -436,7 +453,7 @@ use const E_USER_DEPRECATED;
         }
 
         if ($id) {
-            throw ORMException::unrecognizedIdentifierFields($class->name, array_keys($id));
+            throw UnrecognizedIdentifierFields::fromClassAndFieldNames($class->name, array_keys($id));
         }
 
         $unitOfWork = $this->getUnitOfWork();
@@ -471,7 +488,9 @@ use const E_USER_DEPRECATED;
             case $lockMode === LockMode::OPTIMISTIC:
                 $entity = $persister->load($sortedId);
 
-                $unitOfWork->lock($entity, $lockMode, $lockVersion);
+                if ($entity !== null) {
+                    $unitOfWork->lock($entity, $lockMode, $lockVersion);
+                }
 
                 return $entity;
 
@@ -499,7 +518,7 @@ use const E_USER_DEPRECATED;
 
         foreach ($class->identifier as $identifier) {
             if (! isset($id[$identifier])) {
-                throw ORMException::missingIdentifierField($class->name, $identifier);
+                throw MissingIdentifierField::fromFieldAndClass($identifier, $class->name);
             }
 
             $sortedId[$identifier] = $id[$identifier];
@@ -507,7 +526,7 @@ use const E_USER_DEPRECATED;
         }
 
         if ($id) {
-            throw ORMException::unrecognizedIdentifierFields($class->name, array_keys($id));
+            throw UnrecognizedIdentifierFields::fromClassAndFieldNames($class->name, array_keys($id));
         }
 
         $entity = $this->unitOfWork->tryGetById($sortedId, $class->rootEntityName);
@@ -575,9 +594,11 @@ use const E_USER_DEPRECATED;
         }
 
         if ($entityName !== null) {
-            @trigger_error(
-                'Calling ' . __METHOD__ . '() with any arguments to clear specific entities is deprecated and will not be supported in Doctrine ORM 3.0.',
-                E_USER_DEPRECATED
+            Deprecation::trigger(
+                'doctrine/orm',
+                'https://github.com/doctrine/orm/issues/8460',
+                'Calling %s() with any arguments to clear specific entities is deprecated and will not be supported in Doctrine ORM 3.0.',
+                __METHOD__
             );
         }
 
@@ -678,8 +699,6 @@ use const E_USER_DEPRECATED;
      * Entities which previously referenced the detached entity will continue to
      * reference it.
      *
-     * @deprecated 2.7 This method is being removed from the ORM and won't have any replacement
-     *
      * @param object $entity The entity to detach.
      *
      * @return void
@@ -688,8 +707,6 @@ use const E_USER_DEPRECATED;
      */
     public function detach($entity)
     {
-        @trigger_error('Method ' . __METHOD__ . '() is deprecated and will be removed in Doctrine ORM 3.0.', E_USER_DEPRECATED);
-
         if (! is_object($entity)) {
             throw ORMInvalidArgumentException::invalidObject('EntityManager#detach()', $entity);
         }
@@ -713,7 +730,12 @@ use const E_USER_DEPRECATED;
      */
     public function merge($entity)
     {
-        @trigger_error('Method ' . __METHOD__ . '() is deprecated and will be removed in Doctrine ORM 3.0.', E_USER_DEPRECATED);
+        Deprecation::trigger(
+            'doctrine/orm',
+            'https://github.com/doctrine/orm/issues/8461',
+            'Method %s() is deprecated and will be removed in Doctrine ORM 3.0.',
+            __METHOD__
+        );
 
         if (! is_object($entity)) {
             throw ORMInvalidArgumentException::invalidObject('EntityManager#merge()', $entity);
@@ -729,7 +751,12 @@ use const E_USER_DEPRECATED;
      */
     public function copy($entity, $deep = false)
     {
-        @trigger_error('Method ' . __METHOD__ . '() is deprecated and will be removed in Doctrine ORM 3.0.', E_USER_DEPRECATED);
+        Deprecation::trigger(
+            'doctrine/orm',
+            'https://github.com/doctrine/orm/issues/8462',
+            'Method %s() is deprecated and will be removed in Doctrine ORM 3.0.',
+            __METHOD__
+        );
 
         throw new BadMethodCallException('Not implemented.');
     }
@@ -746,12 +773,12 @@ use const E_USER_DEPRECATED;
      * Gets the repository for an entity class.
      *
      * @param string $entityName The name of the entity.
+     * @psalm-param class-string<T> $entityName
      *
      * @return ObjectRepository|EntityRepository The repository class.
+     * @psalm-return EntityRepository<T>
      *
      * @template T
-     * @psalm-param class-string<T> $entityName
-     * @psalm-return EntityRepository<T>
      */
     public function getRepository($entityName)
     {
@@ -791,14 +818,12 @@ use const E_USER_DEPRECATED;
     /**
      * Throws an exception if the EntityManager is closed or currently not active.
      *
-     * @return void
-     *
-     * @throws ORMException If the EntityManager is closed.
+     * @throws EntityManagerClosed If the EntityManager is closed.
      */
-    private function errorIfClosed()
+    private function errorIfClosed(): void
     {
         if ($this->closed) {
-            throw ORMException::entityManagerClosed();
+            throw EntityManagerClosed::create();
         }
     }
 
@@ -847,6 +872,9 @@ use const E_USER_DEPRECATED;
             case Query::HYDRATE_SIMPLEOBJECT:
                 return new Internal\Hydration\SimpleObjectHydrator($this);
 
+            case Query::HYDRATE_SCALAR_COLUMN:
+                return new Internal\Hydration\ScalarColumnHydrator($this);
+
             default:
                 $class = $this->config->getCustomHydrationMode($hydrationMode);
 
@@ -855,7 +883,7 @@ use const E_USER_DEPRECATED;
                 }
         }
 
-        throw ORMException::invalidHydrationMode($hydrationMode);
+        throw InvalidHydrationMode::fromMode((string) $hydrationMode);
     }
 
     /**
@@ -877,9 +905,10 @@ use const E_USER_DEPRECATED;
     /**
      * Factory method to create EntityManager instances.
      *
-     * @param array<string, mixed>|Connection $connection   An array with the connection parameters or an existing Connection instance.
-     * @param Configuration                   $config       The Configuration instance to use.
-     * @param EventManager                    $eventManager The EventManager instance to use.
+     * @param mixed[]|Connection $connection   An array with the connection parameters or an existing Connection instance.
+     * @param Configuration      $config       The Configuration instance to use.
+     * @param EventManager|null  $eventManager The EventManager instance to use.
+     * @psalm-param array<string, mixed>|Connection $connection
      *
      * @return EntityManager The created EntityManager.
      *
@@ -889,7 +918,7 @@ use const E_USER_DEPRECATED;
     public static function create($connection, Configuration $config, ?EventManager $eventManager = null)
     {
         if (! $config->getMetadataDriverImpl()) {
-            throw ORMException::missingMappingDriverImpl();
+            throw MissingMappingDriverImplementation::create();
         }
 
         $connection = static::createConnection($connection, $config, $eventManager);
@@ -900,9 +929,10 @@ use const E_USER_DEPRECATED;
     /**
      * Factory method to create Connection instances.
      *
-     * @param array<string, mixed>|Connection $connection   An array with the connection parameters or an existing Connection instance.
-     * @param Configuration                   $config       The Configuration instance to use.
-     * @param EventManager                    $eventManager The EventManager instance to use.
+     * @param mixed[]|Connection $connection   An array with the connection parameters or an existing Connection instance.
+     * @param Configuration      $config       The Configuration instance to use.
+     * @param EventManager|null  $eventManager The EventManager instance to use.
+     * @psalm-param array<string, mixed>|Connection $connection
      *
      * @return Connection
      *
@@ -919,14 +949,14 @@ use const E_USER_DEPRECATED;
             throw new InvalidArgumentException(
                 sprintf(
                     'Invalid $connection argument of type %s given%s.',
-                    is_object($connection) ? get_class($connection) : gettype($connection),
+                    get_debug_type($connection),
                     is_object($connection) ? '' : ': "' . $connection . '"'
                 )
             );
         }
 
         if ($eventManager !== null && $connection->getEventManager() !== $eventManager) {
-            throw ORMException::mismatchedEventManager();
+            throw MismatchedEventManager::create();
         }
 
         return $connection;
@@ -961,6 +991,8 @@ use const E_USER_DEPRECATED;
     }
 
     /**
+     * @psalm-param LockMode::* $lockMode
+     *
      * @throws OptimisticLockException
      * @throws TransactionRequiredException
      */
@@ -979,5 +1011,28 @@ use const E_USER_DEPRECATED;
                     throw TransactionRequiredException::transactionRequired();
                 }
         }
+    }
+
+    private function configureMetadataCache(): void
+    {
+        $metadataCache = $this->config->getMetadataCache();
+        if (! $metadataCache) {
+            $this->configureLegacyMetadataCache();
+
+            return;
+        }
+
+        $this->metadataFactory->setCache($metadataCache);
+    }
+
+    private function configureLegacyMetadataCache(): void
+    {
+        $metadataCache = $this->config->getMetadataCacheImpl();
+        if (! $metadataCache) {
+            return;
+        }
+
+        // Wrap doctrine/cache to provide PSR-6 interface
+        $this->metadataFactory->setCache(CacheAdapter::wrap($metadataCache));
     }
 }

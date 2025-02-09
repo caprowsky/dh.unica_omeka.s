@@ -13,17 +13,18 @@ UriDereferencer.addService({
     },
     getResourceUrl(uri) {
         const match = this.getMatch(uri);
-        return `https://www.wikidata.org/wiki/Special:EntityData/${match[1]}.json`;
+        return `https://www.wikidata.org/wiki/Special:EntityData/${match[2]}.json`;
     },
-    getMarkup(uri, text) {
+    getMarkup(uri, text, lang) {
+        if (!lang) lang = 'en';
         const match = this.getMatch(uri);
         const json = JSON.parse(text);
         const data = new Map();
-        if (UriDereferencer.isset(() => json['entities'][match[1]]['labels']['en']['value'])) {
-            data.set('Label', json['entities'][match[1]]['labels']['en']['value']);
+        if (UriDereferencer.isset(() => json['entities'][match[2]]['labels'][lang]['value'])) {
+            data.set('Label', json['entities'][match[2]]['labels'][lang]['value']);
         }
-        if (UriDereferencer.isset(() => json['entities'][match[1]]['descriptions']['en']['value'])) {
-            data.set('Description', json['entities'][match[1]]['descriptions']['en']['value']);
+        if (UriDereferencer.isset(() => json['entities'][match[2]]['descriptions'][lang]['value'])) {
+            data.set('Description', json['entities'][match[2]]['descriptions'][lang]['value']);
         }
         let dataMarkup = '';
         for (let [key, value] of data) {
@@ -32,7 +33,7 @@ UriDereferencer.addService({
         return `<dl>${dataMarkup}</dl>`;
     },
     getMatch(uri) {
-        return uri.match(/^https?:\/\/www\.wikidata\.org\/wiki\/(Q.+)/);
+        return uri.match(/^https?:\/\/www\.wikidata\.org\/(wiki|entity)\/(Q.+)/);
     }
 });
 UriDereferencer.addService({
@@ -80,21 +81,27 @@ UriDereferencer.addService({
         return 'LC Linked Data Service';
     },
     getOptions() {
-        return {};
+        // Must use the proxy because responses sent from LC don't include an
+        // Access-Control-Allow-Origin header.
+        return {'useProxy': true};
     },
     isMatch(uri) {
         return (null !== this.getMatch(uri));
     },
     getResourceUrl(uri) {
         const match = this.getMatch(uri);
-        return `http://id.loc.gov/${match[1]}/${match[2]}/${match[3]}.json`;
+        return `https://id.loc.gov/${match[1]}/${match[2]}/${match[3]}.json`;
     },
     getMarkup(uri, text) {
         const match = this.getMatch(uri);
         const json = JSON.parse(text);
         const index = json.findIndex(function(element) {
-            // The relevant data is indexed by the URI set on the @id.
-            return uri.replace(/\.html$/, '') == element['@id'];
+            // The relevant data is indexed by the URI set on the @id. Note that
+            // @id is always "http" even when requesting with "https". We have
+            // to account for this by removing both schemes before comparing.
+            const elementNoScheme = element['@id'].split('://').at(-1);
+            const uriNoScheme = uri.split('://').at(-1);
+            return uriNoScheme.replace(/\.html$/, '') == elementNoScheme;
         });
         const data = new Map();
         if (UriDereferencer.isset(() => json[index]['http://www.w3.org/2000/01/rdf-schema#label'][0]['@value'])) {
@@ -110,7 +117,7 @@ UriDereferencer.addService({
                     altLabels.push(altLabel['@value']);
                 }
             }
-            if (altLabels) {
+            if (altLabels.length) {
                 data.set('Alt Label', altLabels.join('; '));
             }
         }
@@ -127,7 +134,7 @@ UriDereferencer.addService({
         return `<dl>${dataMarkup}</dl>`;
     },
     getMatch(uri) {
-        const re = new RegExp(`^http?:\/\/id\.loc\.gov\/(authorities|vocabulary|resources)\/(${this.authorities.join('|')}|${this.vocabularies.join('|')}|${this.resources.join('|')})\/(.+?)(\.html)?$`);
+        const re = new RegExp(`^https?:\/\/id\.loc\.gov\/(authorities|vocabulary|resources)\/(${this.authorities.join('|')}|${this.vocabularies.join('|')}|${this.resources.join('|')})\/(.+?)(\.html)?$`);
         return uri.match(re);
     }
 });
@@ -146,20 +153,21 @@ UriDereferencer.addService({
         const match = this.getMatch(uri);
         return `http://dbpedia.org/data/${match[1]}.json`;
     },
-    getMarkup(uri, text) {
+    getMarkup(uri, text, lang) {
+        if (!lang) lang = 'en';
         const match = this.getMatch(uri);
         const json = JSON.parse(text);
         const data = new Map();
         if (UriDereferencer.isset(() => json[`http://dbpedia.org/resource/${match[1]}`]['http://www.w3.org/2000/01/rdf-schema#label'])) {
             for (let label of json[`http://dbpedia.org/resource/${match[1]}`]['http://www.w3.org/2000/01/rdf-schema#label']) {
-                if ('en' === label['lang']) {
+                if (lang === label['lang']) {
                     data.set('Label', label['value']);
                 }
             }
         }
         if (UriDereferencer.isset(() => json[`http://dbpedia.org/resource/${match[1]}`]['http://www.w3.org/2000/01/rdf-schema#comment'])) {
             for (let comment of json[`http://dbpedia.org/resource/${match[1]}`]['http://www.w3.org/2000/01/rdf-schema#comment']) {
-                if ('en' === comment['lang']) {
+                if (lang === comment['lang']) {
                     data.set('Comment', comment['value']);
                 }
             }
@@ -186,21 +194,24 @@ UriDereferencer.addService({
     isMatch(uri) {
         return (null !== this.getMatch(uri));
     },
-    getResourceUrl(uri) {
+    getResourceUrl(uri, lang) {
+        if (!lang) lang = 'en';
         // Note that Getty doesn't enable cross-origin resource sharing (CORS),
         // so we can't directly fetch the JSON representations. Use the SPARQL
         // endpoint instead.
         const match = this.getMatch(uri);
+        // Do not filter by language when querying names from ULAN.
+        const langFilter = ('ulan' === match[1]) ? '' : `FILTER langMatches(lang(?Term), "${lang}")`;
         const sparql = `
-        SELECT ?Subject ?Term ?ScopeNote {
+        SELECT ?Subject ?Term ?Parents ?ScopeNote ?ScopeNoteEn {
             ?Subject a skos:Concept ;
             skos:inScheme ${match[1]}: ;
             dc:identifier "${match[2]}" ;
             skosxl:prefLabel [xl:literalForm ?Term] .
-            OPTIONAL {?Subject skos:scopeNote [
-                dct:language gvp_lang:en;
-                rdf:value ?ScopeNote]
-            }
+            OPTIONAL {?Subject gvp:parentString ?Parents}
+            OPTIONAL {?Subject skos:scopeNote [dct:language gvp_lang:${lang}; rdf:value ?ScopeNote]}
+            OPTIONAL {?Subject skos:scopeNote [dct:language gvp_lang:en; rdf:value ?ScopeNoteEn]}
+            ${langFilter}
         }`;
         return `http://vocab.getty.edu/sparql.json?query=${encodeURIComponent(sparql)}`;
     },
@@ -213,6 +224,10 @@ UriDereferencer.addService({
         }
         if (UriDereferencer.isset(() => json['results']['bindings'][0]['ScopeNote']['value'])) {
             data.set('Scope note', json['results']['bindings'][0]['ScopeNote']['value']);
+        } else if (UriDereferencer.isset(() => json['results']['bindings'][0]['ScopeNoteEn']['value'])) {
+            data.set('Scope note', json['results']['bindings'][0]['ScopeNoteEn']['value']);
+        } else if (UriDereferencer.isset(() => json['results']['bindings'][0]['Parents']['value'])) {
+            data.set('Scope note', json['results']['bindings'][0]['Parents']['value']);
         }
         let dataMarkup = '';
         for (let [key, value] of data) {
@@ -419,21 +434,22 @@ UriDereferencer.addService({
         const match = this.getMatch(uri);
         return `http://rdaregistry.info/termList/${match[1]}.jsonld`;
     },
-    getMarkup(uri, text) {
+    getMarkup(uri, text, lang) {
+        if (!lang) lang = 'en';
         const match = this.getMatch(uri);
         const canonicalUri = `http://rdaregistry.info/termList/${match[1]}/${match[2]}`;
         const json = JSON.parse(text);
         const data = new Map();
         for (let concept of json['@graph']) {
             if (canonicalUri === concept['@id']) {
-                if (UriDereferencer.isset(() => concept['prefLabel']['en'])) {
-                    data.set('Pref label', concept['prefLabel']['en']);
+                if (UriDereferencer.isset(() => concept['prefLabel'][lang])) {
+                    data.set('Pref label', concept['prefLabel'][lang]);
                 }
-                if (UriDereferencer.isset(() => concept['altLabel']['en'])) {
-                    data.set('Alt label', concept['altLabel']['en']);
+                if (UriDereferencer.isset(() => concept['altLabel'][lang])) {
+                    data.set('Alt label', concept['altLabel'][lang]);
                 }
-                if (UriDereferencer.isset(() => concept['definition']['en'])) {
-                    data.set('Definition', concept['definition']['en']);
+                if (UriDereferencer.isset(() => concept['definition'][lang])) {
+                    data.set('Definition', concept['definition'][lang]);
                 }
                 break;
             }
@@ -468,7 +484,7 @@ UriDereferencer.addService({
     getMarkup(uri, text) {
         const match = this.getMatch(uri);
         const json = JSON.parse(text);
-        const data = new Map();		
+        const data = new Map();
 		Object.keys(json).forEach(function(key) {
 			if (key!="geometries" && key!="uri" && json[key]!="null" && typeof json[key] === 'string') {
 				data.set(key, json[key]);

@@ -5,7 +5,12 @@ $(document).ready(function() {
         var inputLat = mapDiv.siblings('input.collecting-map-lat');
         var inputLng = mapDiv.siblings('input.collecting-map-lng');
 
-        var map = L.map(this);
+        mapDiv.css('cursor', 'crosshair');
+
+        var map = L.map(this, {
+            fullscreenControl: true,
+            worldCopyJump:true
+        });
         var marker;
 
         L.tileLayer('https://{s}.tile.osm.org/{z}/{x}/{y}.png', {

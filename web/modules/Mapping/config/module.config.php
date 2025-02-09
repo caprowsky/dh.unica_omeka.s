@@ -1,11 +1,13 @@
 <?php
 namespace Mapping;
 
+use Osii\Service\ResourceMapper\ResourceMapperFactory;
+
 return [
     'api_adapters' => [
         'invokables' => [
             'mappings' => Api\Adapter\MappingAdapter::class,
-            'mapping_markers' => Api\Adapter\MappingMarkerAdapter::class,
+            'mapping_features' => Api\Adapter\MappingFeatureAdapter::class,
         ],
     ],
     'entity_manager' => [
@@ -14,6 +16,17 @@ return [
         ],
         'proxy_paths' => [
             dirname(__DIR__) . '/data/doctrine-proxies',
+        ],
+        'data_types' => [
+            'geography' => \LongitudeOne\Spatial\DBAL\Types\GeographyType::class,
+        ],
+        'functions' => [
+            'numeric' => [
+                'ST_Buffer' => 'Mapping\Spatial\ORM\Query\AST\Functions\StBuffer',
+                'ST_Intersects' => 'LongitudeOne\Spatial\ORM\Query\AST\Functions\Standard\StIntersects',
+                'ST_GeomFromText' => 'LongitudeOne\Spatial\ORM\Query\AST\Functions\Standard\StGeomFromText',
+                'ST_GeometryType' => 'LongitudeOne\Spatial\ORM\Query\AST\Functions\Standard\StGeometryType',
+            ],
         ],
     ],
     'view_manager' => [
@@ -24,6 +37,19 @@ return [
     'view_helpers' => [
         'invokables' => [
             'formPromptMap' => Collecting\FormPromptMap::class,
+            'formMappingCopyCoordinates' => View\Helper\CopyCoordinates::class,
+            'formMappingUpdateFeatures' => View\Helper\UpdateFeatures::class,
+        ],
+        'delegators' => [
+            'Laminas\Form\View\Helper\FormElement' => [
+                Service\Delegator\FormElementDelegatorFactory::class,
+            ],
+        ],
+    ],
+    'form_elements' => [
+        'factories' => [
+           'Mapping\Form\Element\CopyCoordinates' => Service\Form\Element\CopyCoordinatesFactory::class,
+           'Mapping\Form\Element\UpdateFeatures' => Service\Form\Element\UpdateFeaturesFactory::class,
         ],
     ],
     'csv_import' => [
@@ -33,6 +59,11 @@ return [
     ],
     'omeka2_importer_classes' => [
         Omeka2Importer\GeolocationImporter::class,
+    ],
+    'osii_resource_mappers' => [
+        'factories' => [
+            Osii\ResourceMapper\ItemMapping::class => ResourceMapperFactory::class,
+        ],
     ],
     'block_layouts' => [
         'factories' => [
@@ -82,6 +113,16 @@ return [
                 'pattern' => '%s.mo',
                 'text_domain' => null,
             ],
+        ],
+    ],
+    'resource_page_block_layouts' => [
+        'invokables' => [
+            'mapping' => Site\ResourcePageBlockLayout\Mapping::class,
+        ],
+    ],
+    'resource_page_blocks_default' => [
+        'items' => [
+            'main' => ['mapping'],
         ],
     ],
 ];

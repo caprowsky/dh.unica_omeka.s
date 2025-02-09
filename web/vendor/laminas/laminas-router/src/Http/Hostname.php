@@ -1,17 +1,23 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-router for the canonical source repository
- * @copyright https://github.com/laminas/laminas-router/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-router/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
 
 namespace Laminas\Router\Http;
 
 use Laminas\Router\Exception;
 use Laminas\Stdlib\ArrayUtils;
 use Laminas\Stdlib\RequestInterface as Request;
+use Laminas\Uri\UriInterface;
 use Traversable;
+
+use function array_merge;
+use function count;
+use function is_array;
+use function method_exists;
+use function preg_match;
+use function preg_quote;
+use function sprintf;
+use function strlen;
 
 /**
  * Hostname route.
@@ -71,6 +77,7 @@ class Hostname implements RouteInterface
      * factory(): defined by RouteInterface interface.
      *
      * @see    \Laminas\Router\RouteInterface::factory()
+     *
      * @param  array|Traversable $options
      * @return Hostname
      * @throws Exception\InvalidArgumentException
@@ -128,25 +135,27 @@ class Hostname implements RouteInterface
             }
 
             if ($matches['token'] === ':') {
-                if (! preg_match(
-                    '(\G(?P<name>[^:.{\[\]]+)(?:{(?P<delimiters>[^}]+)})?:?)',
-                    $def,
-                    $matches,
-                    0,
-                    $currentPos
-                )) {
+                if (
+                    ! preg_match(
+                        '(\G(?P<name>[^:.{\[\]]+)(?:{(?P<delimiters>[^}]+)})?:?)',
+                        $def,
+                        $matches,
+                        0,
+                        $currentPos
+                    )
+                ) {
                     throw new Exception\RuntimeException('Found empty parameter name');
                 }
 
                 $levelParts[$level][] = [
                     'parameter',
                     $matches['name'],
-                    isset($matches['delimiters']) ? $matches['delimiters'] : null
+                    $matches['delimiters'] ?? null,
                 ];
 
                 $currentPos += strlen($matches[0]);
             } elseif ($matches['token'] === '[') {
-                $levelParts[$level][] = ['optional', []];
+                $levelParts[$level][]   = ['optional', []];
                 $levelParts[$level + 1] = &$levelParts[$level][count($levelParts[$level]) - 1][1];
 
                 $level++;
@@ -242,7 +251,8 @@ class Hostname implements RouteInterface
                         }
 
                         return '';
-                    } elseif (! $isOptional
+                    } elseif (
+                        ! $isOptional
                         || ! isset($this->defaults[$part[1]])
                         || $this->defaults[$part[1]] !== $mergedParams[$part[1]]
                     ) {
@@ -277,22 +287,23 @@ class Hostname implements RouteInterface
      * match(): defined by RouteInterface interface.
      *
      * @see    \Laminas\Router\RouteInterface::match()
-     * @param  Request $request
+     *
      * @return RouteMatch|null
      */
     public function match(Request $request)
     {
         if (! method_exists($request, 'getUri')) {
-            return;
+            return null;
         }
 
+        /** @var UriInterface $uri */
         $uri  = $request->getUri();
-        $host = $uri->getHost();
+        $host = $uri->getHost() ?? '';
 
         $result = preg_match('(^' . $this->regex . '$)', $host, $matches);
 
         if (! $result) {
-            return;
+            return null;
         }
 
         $params = [];
@@ -310,6 +321,7 @@ class Hostname implements RouteInterface
      * assemble(): Defined by RouteInterface interface.
      *
      * @see    \Laminas\Router\RouteInterface::assemble()
+     *
      * @param  array $params
      * @param  array $options
      * @return mixed
@@ -336,6 +348,7 @@ class Hostname implements RouteInterface
      * getAssembledParams(): defined by RouteInterface interface.
      *
      * @see    RouteInterface::getAssembledParams
+     *
      * @return array
      */
     public function getAssembledParams()

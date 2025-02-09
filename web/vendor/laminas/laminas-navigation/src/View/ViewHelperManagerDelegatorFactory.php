@@ -1,16 +1,13 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-navigation for the canonical source repository
- * @copyright https://github.com/laminas/laminas-navigation/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-navigation/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
 
 namespace Laminas\Navigation\View;
 
 use Interop\Container\ContainerInterface;
 use Laminas\ServiceManager\DelegatorFactoryInterface;
 use Laminas\ServiceManager\ServiceLocatorInterface;
+use Laminas\View\HelperPluginManager;
 
 /**
  * Inject the laminas-view HelperManager with laminas-navigation view helper configuration.
@@ -24,9 +21,9 @@ class ViewHelperManagerDelegatorFactory implements DelegatorFactoryInterface
     /**
      * {@inheritDoc}
      *
-     * @return \Laminas\View\HelperPluginManager
+     * @return HelperPluginManager
      */
-    public function __invoke(ContainerInterface $container, $name, callable $callback, array $options = null)
+    public function __invoke(ContainerInterface $container, $name, callable $callback, ?array $options = null)
     {
         $viewHelpers = $callback();
         (new HelperConfig())->configureServiceManager($viewHelpers);
@@ -36,7 +33,7 @@ class ViewHelperManagerDelegatorFactory implements DelegatorFactoryInterface
     /**
      * {@inheritDoc}
      *
-     * @return \Laminas\View\HelperPluginManager
+     * @return HelperPluginManager
      */
     public function createDelegatorWithName(ServiceLocatorInterface $container, $name, $requestedName, $callback)
     {

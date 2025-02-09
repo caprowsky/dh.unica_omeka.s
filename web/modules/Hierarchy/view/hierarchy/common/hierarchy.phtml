@@ -1,0 +1,25 @@
+<?php
+$translate = $this->plugin('translate');
+$escape = $this->plugin('escapeHtml');
+?>
+
+<div class="hierarchy block value">
+    <div class="block-header collapse">
+        <span class="sortable-handle"></span>
+        <span class="block-type"><?php echo $escape($label); ?></span>
+        <span class="restore-value"><?php echo $translate('Hierarchy to be removed'); ?></span>
+        <ul class="actions">
+            <li><a href="#" class="o-icon-expand collapse" aria-label="<?php echo $translate('Collapse'); ?>" title="<?php echo $translate('Collapse'); ?>"></a></li>
+            <li><a href="#" class="o-icon-delete remove-value" aria-label="<?php echo $translate('Remove hierarchy'); ?>" title="<?php echo $translate('Remove hierarchy'); ?>"></a></li>
+            <li><a href="#" class="o-icon-undo restore-value inactive" aria-label="<?php echo $translate('Restore hierarchy'); ?>" title="<?php echo $translate('Restore hierarchy'); ?>"></a></li>
+        </ul>
+    </div>
+    <div class="block-content collapsible">
+        <input type="hidden" name="hierarchy[__hierarchyIndex__]">
+        <?php echo $hierarchyContent; ?>
+        <button type="button" class="grouping-add"><?php echo $translate('Add grouping'); ?></button>
+        <div id="nav-tree"
+            data-link-form-url="<?php echo $escape($this->url('admin/hierarchy/action', ['action' => 'grouping-form'], true)); ?>"
+            data-jstree-data="<?php echo $escape(json_encode($jsTreeData)); ?>"></div>
+    </div>
+</div>

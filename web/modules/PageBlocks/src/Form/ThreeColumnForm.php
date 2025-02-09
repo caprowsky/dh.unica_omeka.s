@@ -2,9 +2,9 @@
 namespace PageBlocks\Form;
 
 use Laminas\Form\Element;
-use Laminas\Form\Form;
+use Laminas\Form\Fieldset;
 
-class ThreeColumnForm extends Form
+class ThreeColumnForm extends Fieldset
 {
     public function init()
     {

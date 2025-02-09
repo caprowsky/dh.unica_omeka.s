@@ -1,10 +1,6 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-form for the canonical source repository
- * @copyright https://github.com/laminas/laminas-form/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-form/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
 
 namespace Laminas\Form\Element;
 
@@ -24,15 +20,13 @@ class Radio extends MultiCheckbox
 
     /**
      * Get validator
-     *
-     * @return ValidatorInterface
      */
-    protected function getValidator()
+    protected function getValidator(): ?ValidatorInterface
     {
         if (null === $this->validator && ! $this->disableInArrayValidator()) {
             $this->validator = new InArrayValidator([
-                'haystack'  => $this->getValueOptionsValues(),
-                'strict'    => false,
+                'haystack' => $this->getValueOptionsValues(),
+                'strict'   => false,
             ]);
         }
         return $this->validator;

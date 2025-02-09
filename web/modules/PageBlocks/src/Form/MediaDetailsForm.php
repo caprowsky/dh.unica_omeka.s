@@ -2,10 +2,10 @@
 namespace PageBlocks\Form;
 
 use Laminas\Form\Element;
-use Laminas\Form\Form;
+use Laminas\Form\Fieldset;
 use Omeka\Form\Element\PropertySelect;
 
-class MediaDetailsForm extends Form
+class MediaDetailsForm extends Fieldset
 {
     public function init()
     {

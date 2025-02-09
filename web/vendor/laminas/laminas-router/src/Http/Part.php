@@ -1,10 +1,6 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-router for the canonical source repository
- * @copyright https://github.com/laminas/laminas-router/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-router/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
 
 namespace Laminas\Router\Http;
 
@@ -15,6 +11,13 @@ use Laminas\Router\RoutePluginManager;
 use Laminas\Stdlib\ArrayUtils;
 use Laminas\Stdlib\RequestInterface as Request;
 use Traversable;
+
+use function array_diff_key;
+use function array_flip;
+use function is_array;
+use function method_exists;
+use function sprintf;
+use function strlen;
 
 /**
  * Part route.
@@ -43,21 +46,29 @@ class Part extends TreeRouteStack implements RouteInterface
     protected $childRoutes;
 
     /**
+     * Priority.
+     *
+     * @internal For internal classes only. Not designed for general use.
+     * @deprecated Since 3.9.0 This property will be removed or made private in version 4.0
+     *
+     * @var int|null
+     */
+    public $priority;
+
+    /**
      * Create a new part route.
      *
      * @param  mixed              $route
      * @param  bool               $mayTerminate
-     * @param  RoutePluginManager $routePlugins
      * @param  array|null         $childRoutes
-     * @param  ArrayObject|null   $prototypes
      * @throws Exception\InvalidArgumentException
      */
     public function __construct(
         $route,
         $mayTerminate,
         RoutePluginManager $routePlugins,
-        array $childRoutes = null,
-        ArrayObject $prototypes = null
+        ?array $childRoutes = null,
+        ?ArrayObject $prototypes = null
     ) {
         $this->routePluginManager = $routePlugins;
 
@@ -80,6 +91,7 @@ class Part extends TreeRouteStack implements RouteInterface
      * factory(): defined by RouteInterface interface.
      *
      * @see    \Laminas\Router\RouteInterface::factory()
+     *
      * @param  mixed $options
      * @return Part
      * @throws Exception\InvalidArgumentException
@@ -132,7 +144,7 @@ class Part extends TreeRouteStack implements RouteInterface
      * match(): defined by RouteInterface interface.
      *
      * @see    \Laminas\Router\RouteInterface::match()
-     * @param  Request      $request
+     *
      * @param  integer|null $pathOffset
      * @param  array        $options
      * @return RouteMatch|null
@@ -160,7 +172,8 @@ class Part extends TreeRouteStack implements RouteInterface
                 return $match;
             }
 
-            if (isset($options['translator'])
+            if (
+                isset($options['translator'])
                 && ! isset($options['locale'])
                 && null !== ($locale = $match->getParam('locale', null))
             ) {
@@ -176,13 +189,14 @@ class Part extends TreeRouteStack implements RouteInterface
             }
         }
 
-        return;
+        return null;
     }
 
     /**
      * assemble(): Defined by RouteInterface interface.
      *
      * @see    \Laminas\Router\RouteInterface::assemble()
+     *
      * @param  array $params
      * @param  array $options
      * @return mixed
@@ -195,7 +209,7 @@ class Part extends TreeRouteStack implements RouteInterface
             $this->childRoutes = null;
         }
 
-        $options['has_child'] = (isset($options['name']));
+        $options['has_child'] = isset($options['name']);
 
         if (isset($options['translator']) && ! isset($options['locale']) && isset($params['locale'])) {
             $options['locale'] = $params['locale'];
@@ -214,15 +228,14 @@ class Part extends TreeRouteStack implements RouteInterface
 
         unset($options['has_child']);
         $options['only_return_path'] = true;
-        $path .= parent::assemble($params, $options);
-
-        return $path;
+        return $path . parent::assemble($params, $options);
     }
 
     /**
      * getAssembledParams(): defined by RouteInterface interface.
      *
      * @see    RouteInterface::getAssembledParams
+     *
      * @return array
      */
     public function getAssembledParams()

@@ -32,7 +32,7 @@ class NumericPropertySelect extends Select
      *
      * @return array
      */
-    public function getValueOptions()
+    public function getValueOptions() : array
     {
         $dataTypes = $this->getOption('numeric_data_type');
         $disambiguate = $this->getOption('numeric_data_type_disambiguate');
@@ -60,7 +60,7 @@ class NumericPropertySelect extends Select
         foreach ($query->getResult() as $templateProperty) {
             $property = $templateProperty->getProperty();
             $template = $templateProperty->getResourceTemplate();
-            foreach ($templateProperty->getDataType() as $dataType) {
+            foreach ($templateProperty->getDataType() ?? [] as $dataType) {
                 if (!isset($numericDataTypes[$dataType])) {
                     // This is not a requested numeric data type.
                     continue;

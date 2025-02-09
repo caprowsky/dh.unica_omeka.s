@@ -1,20 +1,32 @@
 <?php declare(strict_types=1);
+
 namespace ViewerJs\Form;
 
+use Common\Form\Element as CommonElement;
 use Laminas\Form\Fieldset;
-use Omeka\Form\Element\PropertySelect;
 
 class SettingsFieldset extends Fieldset
 {
     protected $label = 'Viewer JS'; // @translate
 
+    protected $elementGroups = [
+        // "Player" is used instead of viewer, because "viewer" is used for a site
+        // user role and cannot be translated differently (no context).
+        // Player is polysemic too anyway, but less used and more adapted for
+        // non-image viewers.
+        'player' => 'Players', // @translate
+    ];
+
     public function init(): void
     {
         $this
+            ->setAttribute('id', 'viewer-js')
+            ->setOption('element_groups', $this->elementGroups)
             ->add([
                 'name' => 'viewerjs_source_property',
-                'type' => PropertySelect::class,
+                'type' => CommonElement\OptionalPropertySelect::class,
                 'options' => [
+                    'element_group' => 'player',
                     'label' => 'Property used for external file', // @translate
                     'info' => 'The property supplying the file via URL, for example "dcterms:hasFormat" or "dcterms:isFormatOf".', // @translate
                     'empty_option' => '',

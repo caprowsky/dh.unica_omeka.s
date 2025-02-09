@@ -9,9 +9,10 @@ use Omeka\Entity\Value;
 use Omeka\Api\Adapter\AbstractEntityAdapter;
 use Omeka\Api\Adapter\AdapterInterface;
 use Omeka\Api\Representation\ValueRepresentation;
+use Omeka\DataType\ValueAnnotatingInterface;
 use Laminas\View\Renderer\PhpRenderer;
 
-class Duration extends AbstractDataType
+class Duration extends AbstractDataType implements ValueAnnotatingInterface
 {
     /**
      * Seconds in a timespan
@@ -63,7 +64,7 @@ class Duration extends AbstractDataType
         $value->setValueResource(null);
     }
 
-    public function render(PhpRenderer $view, ValueRepresentation $value)
+    public function render(PhpRenderer $view, ValueRepresentation $value, $options = [])
     {
         if (!$this->isValid(['@value' => $value->value()])) {
             return $value->value();
@@ -152,7 +153,7 @@ class Duration extends AbstractDataType
             return self::$durations[$value];
         }
         // @see https://stackoverflow.com/a/32045167
-        $isMatch = preg_match('/^P(?!$)(?:(?<years>\d+)Y)?(?:(?<months>\d+)M)?(?:(?<days>\d+)D)?(T(?=\d)(?:(?<hours>\d+)H)?(?:(?<minutes>\d+)M)?(?:(?<seconds>\d+)S)?)?$/', $value, $matches);
+        $isMatch = preg_match('/^P(?!$)(?:(?<years>\d+)Y)?(?:(?<months>\d+)M)?(?:(?<days>\d+)D)?(T(?=\d)(?:(?<hours>\d+)H)?(?:(?<minutes>\d+)M)?(?:(?<seconds>\d+)S)?)?$/', (string) $value, $matches);
         if (!$isMatch) {
             throw new \InvalidArgumentException('Invalid duration string, must use ISO 8601 without fractions, negatives, or weeks');
         }
@@ -164,12 +165,12 @@ class Duration extends AbstractDataType
             'minutes' => (isset($matches['minutes']) && '' !== $matches['minutes']) ? (int) $matches['minutes'] : null,
             'seconds' => (isset($matches['seconds']) && '' !== $matches['seconds']) ? (int) $matches['seconds'] : null,
         ];
-        $duration['years_normalized'] = isset($duration['years']) ? $duration['years'] : 0;
-        $duration['months_normalized'] = isset($duration['months']) ? $duration['months'] : 0;
-        $duration['days_normalized'] = isset($duration['days']) ? $duration['days'] : 0;
-        $duration['hours_normalized'] = isset($duration['hours']) ? $duration['hours'] : 0;
-        $duration['minutes_normalized'] = isset($duration['minutes']) ? $duration['minutes'] : 0;
-        $duration['seconds_normalized'] = isset($duration['seconds']) ? $duration['seconds'] : 0;
+        $duration['years_normalized'] = $duration['years'] ?? 0;
+        $duration['months_normalized'] = $duration['months'] ?? 0;
+        $duration['days_normalized'] = $duration['days'] ?? 0;
+        $duration['hours_normalized'] = $duration['hours'] ?? 0;
+        $duration['minutes_normalized'] = $duration['minutes'] ?? 0;
+        $duration['seconds_normalized'] = $duration['seconds'] ?? 0;
         // Calculate the total seconds of the duration.
         $totalSeconds =
               ($duration['years_normalized'] * self::SECONDS_YEAR)
@@ -188,24 +189,18 @@ class Duration extends AbstractDataType
 
     public function buildQuery(AdapterInterface $adapter, QueryBuilder $qb, array $query)
     {
-        if (isset($query['numeric']['dur']['lt']['val'])
-            && isset($query['numeric']['dur']['lt']['pid'])
-            && is_numeric($query['numeric']['dur']['lt']['pid'])
-        ) {
+        if (isset($query['numeric']['dur']['lt']['val'])) {
             $value = $query['numeric']['dur']['lt']['val'];
-            $propertyId = $query['numeric']['dur']['lt']['pid'];
+            $propertyId = $query['numeric']['dur']['lt']['pid'] ?? null;
             if ($this->isValid(['@value' => $value])) {
                 $duration = $this->getDurationFromValue($value);
                 $number = $duration['total_seconds'];
                 $this->addLessThanQuery($adapter, $qb, $propertyId, $number);
             }
         }
-        if (isset($query['numeric']['dur']['gt']['val'])
-            && isset($query['numeric']['dur']['gt']['pid'])
-            && is_numeric($query['numeric']['dur']['gt']['pid'])
-        ) {
+        if (isset($query['numeric']['dur']['gt']['val'])) {
             $value = $query['numeric']['dur']['gt']['val'];
-            $propertyId = $query['numeric']['dur']['gt']['pid'];
+            $propertyId = $query['numeric']['dur']['gt']['pid'] ?? null;
             if ($this->isValid(['@value' => $value])) {
                 $duration = $this->getDurationFromValue($value);
                 $number = $duration['total_seconds'];
@@ -228,5 +223,14 @@ class Duration extends AbstractDataType
             );
             $qb->addOrderBy('numeric_value', $query['sort_order']);
         }
+    }
+
+    public function valueAnnotationPrepareForm(PhpRenderer $view)
+    {
+    }
+
+    public function valueAnnotationForm(PhpRenderer $view)
+    {
+        return $this->form($view);
     }
 }

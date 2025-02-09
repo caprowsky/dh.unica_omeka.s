@@ -1,13 +1,19 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-dom for the canonical source repository
- * @copyright https://github.com/laminas/laminas-dom/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-dom/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
+
 namespace Laminas\Dom;
 
+use DOMNode;
+use DOMNodeList;
 use ErrorException;
+
+use function array_pop;
+use function end;
+use function restore_error_handler;
+use function set_error_handler;
+
+use const E_WARNING;
 
 /**
  * Extends DOMXpath to throw ErrorExceptions instead of raising errors.
@@ -26,11 +32,10 @@ class DOMXPath extends \DOMXPath
      * raising an error
      *
      * @param string $expression The XPath expression to evaluate.
-     * @param \DOMNode $contextNode
-     * @return \DOMNodeList
+     * @return DOMNodeList
      * @throws ErrorException
      */
-    public function queryWithErrorException($expression, \DOMNode $contextNode = null)
+    public function queryWithErrorException($expression, ?DOMNode $contextNode = null)
     {
         $this->errors = [null];
 
@@ -38,7 +43,7 @@ class DOMXPath extends \DOMXPath
             $contextNode = $this->document->documentElement;
         }
 
-        set_error_handler([$this, 'addError'], \E_WARNING);
+        set_error_handler([$this, 'addError'], E_WARNING);
         $nodeList = $this->query($expression, $contextNode);
         restore_error_handler();
 
@@ -61,14 +66,14 @@ class DOMXPath extends \DOMXPath
      */
     public function addError($errno, $errstr = '', $errfile = '', $errline = 0)
     {
-        $last_error = end($this->errors);
+        $lastError      = end($this->errors);
         $this->errors[] = new ErrorException(
             $errstr,
             0,
             $errno,
             $errfile,
             $errline,
-            $last_error
+            $lastError
         );
     }
 }

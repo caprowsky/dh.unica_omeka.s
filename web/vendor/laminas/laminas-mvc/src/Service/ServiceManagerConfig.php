@@ -1,11 +1,5 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-mvc for the canonical source repository
- * @copyright https://github.com/laminas/laminas-mvc/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-mvc/blob/master/LICENSE.md New BSD License
- */
-
 namespace Laminas\Mvc\Service;
 
 use Interop\Container\ContainerInterface;
@@ -123,35 +117,6 @@ class ServiceManagerConfig extends Config
     public function configureServiceManager(ServiceManager $services)
     {
         $this->config['services'][ServiceManager::class] = $services;
-
-        /*
-        printf("Configuration prior to configuring servicemanager:\n");
-        foreach ($this->config as $type => $list) {
-            switch ($type) {
-                case 'aliases':
-                case 'delegators':
-                case 'factories':
-                case 'invokables':
-                case 'lazy_services':
-                case 'services':
-                case 'shared':
-                    foreach (array_keys($list) as $name) {
-                        printf("    %s (%s)\n", $name, $type);
-                    }
-                    break;
-
-                case 'initializers':
-                case 'abstract_factories':
-                    foreach ($list as $callable) {
-                        printf("    %s (%s)\n", (is_object($callable) ? get_class($callable) : $callable), $type);
-                    }
-                    break;
-
-                default:
-                    break;
-            }
-        }
-         */
 
         // This is invoked as part of the bootstrapping process, and requires
         // the ability to override services.

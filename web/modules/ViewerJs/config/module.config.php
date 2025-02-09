@@ -66,6 +66,11 @@ return [
             'viewerJs' => Site\BlockLayout\ViewerJs::class,
         ],
     ],
+    'resource_page_block_layouts' => [
+        'invokables' => [
+            'viewerJs' => Site\ResourcePageBlockLayout\ViewerJs::class,
+        ],
+    ],
     'form_elements' => [
         'invokables' => [
             Form\SettingsFieldset::class => Form\SettingsFieldset::class,
@@ -88,7 +93,6 @@ return [
         ],
         'block_settings' => [
             'viewerJs' => [
-                'heading' => '',
                 'source' => '',
             ],
         ],

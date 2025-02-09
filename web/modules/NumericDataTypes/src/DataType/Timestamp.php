@@ -7,10 +7,11 @@ use NumericDataTypes\Form\Element\Timestamp as TimestampElement;
 use Omeka\Api\Adapter\AbstractEntityAdapter;
 use Omeka\Api\Adapter\AdapterInterface;
 use Omeka\Api\Representation\ValueRepresentation;
+use Omeka\DataType\ValueAnnotatingInterface;
 use Omeka\Entity\Value;
 use Laminas\View\Renderer\PhpRenderer;
 
-class Timestamp extends AbstractDateTimeDataType
+class Timestamp extends AbstractDateTimeDataType implements ValueAnnotatingInterface
 {
     public function getName()
     {
@@ -82,14 +83,13 @@ class Timestamp extends AbstractDateTimeDataType
         $value->setValueResource(null);
     }
 
-    public function render(PhpRenderer $view, ValueRepresentation $value)
+    public function render(PhpRenderer $view, ValueRepresentation $value, $options = [])
     {
         if (!$this->isValid(['@value' => $value->value()])) {
             return $value->value();
         }
-        // Render the datetime, allowing for reduced accuracy.
-        $date = $this->getDateTimeFromValue($value->value());
-        return $date['date']->format($date['format_render']);
+        $options['lang'] ??= $view->lang();
+        return $this->getFormattedDateTimeFromValue($value->value(), $options);
     }
 
     public function getFulltextText(PhpRenderer $view, ValueRepresentation $value)
@@ -111,35 +111,47 @@ class Timestamp extends AbstractDateTimeDataType
     /**
      * numeric => [
      *   ts => [
-     *     lt => [val => <date>, pid => <propertyID>],
-     *     gt => [val => <date>, pid => <propertyID>],
+     *     lt/lte => [val => <date>, pid => <propertyID>],
+     *     gt/gte => [val => <date>, pid => <propertyID>],
      *   ],
      * ]
      */
     public function buildQuery(AdapterInterface $adapter, QueryBuilder $qb, array $query)
     {
-        if (isset($query['numeric']['ts']['lt']['val'])
-            && isset($query['numeric']['ts']['lt']['pid'])
-            && is_numeric($query['numeric']['ts']['lt']['pid'])
-        ) {
+        if (isset($query['numeric']['ts']['lt']['val'])) {
             $value = $query['numeric']['ts']['lt']['val'];
-            $propertyId = $query['numeric']['ts']['lt']['pid'];
+            $propertyId = $query['numeric']['ts']['lt']['pid'] ?? null;
             if ($this->isValid(['@value' => $value])) {
                 $date = $this->getDateTimeFromValue($value);
                 $number = $date['date']->getTimestamp();
                 $this->addLessThanQuery($adapter, $qb, $propertyId, $number);
             }
         }
-        if (isset($query['numeric']['ts']['gt']['val'])
-            && isset($query['numeric']['ts']['gt']['pid'])
-            && is_numeric($query['numeric']['ts']['gt']['pid'])
-        ) {
+        if (isset($query['numeric']['ts']['gt']['val'])) {
             $value = $query['numeric']['ts']['gt']['val'];
-            $propertyId = $query['numeric']['ts']['gt']['pid'];
+            $propertyId = $query['numeric']['ts']['gt']['pid'] ?? null;
             if ($this->isValid(['@value' => $value])) {
                 $date = $this->getDateTimeFromValue($value);
                 $number = $date['date']->getTimestamp();
                 $this->addGreaterThanQuery($adapter, $qb, $propertyId, $number);
+            }
+        }
+        if (isset($query['numeric']['ts']['lte']['val'])) {
+            $value = $query['numeric']['ts']['lte']['val'];
+            $propertyId = $query['numeric']['ts']['lte']['pid'] ?? null;
+            if ($this->isValid(['@value' => $value])) {
+                $date = $this->getDateTimeFromValue($value);
+                $number = $date['date']->getTimestamp();
+                $this->addLessThanOrEqualToQuery($adapter, $qb, $propertyId, $number);
+            }
+        }
+        if (isset($query['numeric']['ts']['gte']['val'])) {
+            $value = $query['numeric']['ts']['gte']['val'];
+            $propertyId = $query['numeric']['ts']['gte']['pid'] ?? null;
+            if ($this->isValid(['@value' => $value])) {
+                $date = $this->getDateTimeFromValue($value);
+                $number = $date['date']->getTimestamp();
+                $this->addGreaterThanOrEqualToQuery($adapter, $qb, $propertyId, $number);
             }
         }
     }
@@ -158,5 +170,14 @@ class Timestamp extends AbstractDateTimeDataType
             );
             $qb->addOrderBy('numeric_value', $query['sort_order']);
         }
+    }
+
+    public function valueAnnotationPrepareForm(PhpRenderer $view)
+    {
+    }
+
+    public function valueAnnotationForm(PhpRenderer $view)
+    {
+        return $this->form($view);
     }
 }

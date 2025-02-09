@@ -1,39 +1,27 @@
 <?php declare(strict_types=1);
+
 namespace Timeline\Form;
 
+// TODO Common is not a dependency of the module Timeline.
+use Common\Form\Element as CommonElement;
 use Laminas\Form\Element;
 use Laminas\Form\Fieldset;
 use Laminas\View\Helper\Url as UrlHelper;
-use Omeka\Form\Element\Asset;
-use Omeka\Form\Element\PropertySelect;
-
-// use Omeka\Form\Element\ResourceSelect;
+use Omeka\Form\Element as OmekaElement;
 
 class TimelineExhibitFieldset extends Fieldset
 {
     /**
-     * @var UrlHelper
+     * @var \Laminas\View\Helper\Url
      */
     protected $urlHelper;
 
     public function init(): void
     {
-        // $urlHelper = $this->getUrlHelper();
-
         $this
             ->add([
-                'name' => 'o:block[__blockIndex__][o:data][heading]',
-                'type' => Element\Text::class,
-                'options' => [
-                    'label' => 'Block title', // @translate
-                ],
-                'attributes' => [
-                    'id' => 'timeline-exhibit-heading',
-                ],
-            ])
-            ->add([
                 'name' => 'o:block[__blockIndex__][o:data][start_date_property]',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Start date property', // @translate
                     'info' => 'Date to use from the attachement when no date is set.', // @translate
@@ -49,7 +37,7 @@ class TimelineExhibitFieldset extends Fieldset
             ])
             ->add([
                 'name' => 'o:block[__blockIndex__][o:data][end_date_property]',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'End date property', // @translate
                     'info' => 'End date to use from the attachement when no end date is set.', // @translate
@@ -65,7 +53,7 @@ class TimelineExhibitFieldset extends Fieldset
             ])
             ->add([
                 'name' => 'o:block[__blockIndex__][o:data][credit_property]',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Credit property', // @translate
                     'info' => 'Credit to use from the attachement when no credit is set (generally creator or rights).', // @translate
@@ -77,6 +65,61 @@ class TimelineExhibitFieldset extends Fieldset
                     'class' => 'chosen-select',
                     'data-placeholder' => 'Select a property…', // @translate
                     'value' => 'dcterms:creator',
+                ],
+            ])
+            ->add([
+                'name' => 'o:block[__blockIndex__][o:data][item_metadata]',
+                'type' => OmekaElement\PropertySelect::class,
+                'options' => [
+                    'label' => 'Metadata to append for custom timeline', // @translate
+                    'empty_option' => '',
+                    'term_as_value' => true,
+                    'prepend_value_options' => [
+                        'resource_class' => 'Resource class', // @translate
+                        'resource_class_label' => 'Resource class label', // @translate
+                        'resource_template_label' => 'Resource template', // @translate
+                        'owner_name' => 'Owner', // @translate
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'timeline-item-metadata',
+                    'required' => false,
+                    'multiple' => true,
+                    'class' => 'chosen-select',
+                    'data-placeholder' => 'Select a metadata…', // @translate
+                ],
+            ])
+            ->add([
+                'name' => 'o:block[__blockIndex__][o:data][group]',
+                'type' => OmekaElement\PropertySelect::class,
+                'options' => [
+                    'label' => 'Metadata to use as group', // @translate
+                    'empty_option' => '',
+                    'term_as_value' => true,
+                    'prepend_value_options' => [
+                        'resource_class' => 'Resource class', // @translate
+                        'resource_class_label' => 'Resource class label', // @translate
+                        'resource_template_label' => 'Resource template', // @translate
+                        'owner_name' => 'Owner', // @translate
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'timeline-group',
+                    'required' => false,
+                    'multiple' => false,
+                    'class' => 'chosen-select',
+                    'data-placeholder' => 'Select a metadata…', // @translate
+                ],
+            ])
+            ->add([
+                'name' => 'o:block[__blockIndex__][o:data][group_default]',
+                'type' => Element\Text::class,
+                'options' => [
+                    'label' => 'Default group', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'timeline-group-default',
+                    'required' => false,
                 ],
             ])
             ->add([
@@ -95,6 +138,39 @@ class TimelineExhibitFieldset extends Fieldset
                 ],
             ])
             ->add([
+                'name' => 'o:block[__blockIndex__][o:data][eras]',
+                'type' => OmekaElement\ArrayTextarea::class,
+                'options' => [
+                    'label' => 'Eras/Periods', // @translate
+                    'info' => 'Write one era by line like "Summer 2024 = 2024-06-20/2024-09-21". Year can be set alone. Require Knightlab.', // @ŧranslate
+                    'as_key_value' => true,
+                ],
+                'attributes' => [
+                    'id' => 'timeline-exhibit-eras',
+                    'placeholder' => '',
+                    'rows' => 5,
+                ],
+            ])
+            ->add([
+                'name' => 'o:block[__blockIndex__][o:data][markers]',
+                'type' => CommonElement\DataTextarea::class,
+                'options' => [
+                    'label' => 'Markers for well-known or extra events', // @translate
+                    'info' => 'Write one markers by line like "Night of the 4th August = 1789-08-04 = Abolition of feudalism in France". Year can be set alone. Require Knightlab.', // @ŧranslate
+                    // Important: these options should be set in the block layout too.
+                    'data_options' => [
+                        'heading' => null,
+                        'dates' => null,
+                        'body' => null,
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'timeline-exhibit-markers',
+                    'placeholder' => '',
+                    'rows' => 5,
+                ],
+            ])
+            ->add([
                 'name' => 'o:block[__blockIndex__][o:data][options]',
                 'type' => Element\Textarea::class,
                 'options' => [
@@ -103,6 +179,7 @@ class TimelineExhibitFieldset extends Fieldset
                     'documentation' => 'https://gitlab.com/daniel-km/omeka-s-module-timeline#knightlab-timeline',
                 ],
                 'attributes' => [
+                    'id' => 'timeline-exhibit-options',
                     'rows' => 5,
                 ],
             ])
@@ -250,7 +327,7 @@ class TimelineExhibitFieldset extends Fieldset
             /* // TODO Use attachement or a dynamic resource callback.
             ->add([
                 'name' => 'o:block[__blockIndex__][o:data][slides][__slideIndex__][resource]',
-                'type' => ResourceSelect::class,
+                'type' => OmekaElement\ResourceSelect::class,
                 'options' => [
                     'label' => 'Resource', // @translate
                     'empty_option' => '',
@@ -307,7 +384,7 @@ class TimelineExhibitFieldset extends Fieldset
             ])
             ->add([
                 'name' => 'o:block[__blockIndex__][o:data][slides][__slideIndex__][background]',
-                'type' => Asset::class,
+                'type' => OmekaElement\Asset::class,
                 'options' => [
                     'label' => 'Background', // @translate
                 ],
@@ -366,10 +443,5 @@ class TimelineExhibitFieldset extends Fieldset
     {
         $this->urlHelper = $urlHelper;
         return $this;
-    }
-
-    public function getUrlHelper()
-    {
-        return $this->urlHelper;
     }
 }

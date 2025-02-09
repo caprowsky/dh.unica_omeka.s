@@ -1,0 +1,127 @@
+:root {
+    --hierarchy-border-color: rgba(0,0,0,.2);
+}
+
+#site-hierarchies:not(.empty) .no-resources {
+    display: none;
+}
+
+#site-hierarchies .row {
+    display: flex;
+}
+
+#hierarchy-selector.selector .selectable-list .selector-parent {
+    padding-top: 0;
+}
+
+#hierarchy-selector.selector .selectable-list .selector-parent:hover:before {
+    content: none;
+}
+
+#hierarchy-selector.selector .selectable-list .selector-child {
+    color: #676767;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 12px;
+}
+
+#hierarchy-selector.selector .selectable-list .selector-child:not(:last-of-type) {
+    border-bottom: 1px solid var(--hierarchy-border-color);
+    padding-bottom: 5px;
+    border-color: #dfdfdf;
+}
+
+#hierarchy-selector.selector .selectable-list .selector-child:hover:before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 5px;
+    background-color: var(--hierarchy-border-color);
+}
+
+.hierarchy-module .hierarchy-row {
+    display: flex;
+}
+
+.hierarchy-metadata {
+    width: 30%;
+    padding-right: 30px;
+}
+
+.hierarchy-item-sets {
+    padding-top: 10px;
+}
+
+.hierarchy-items {
+    width: 70%;
+    border-left: 1px solid var(--hierarchy-border-color);
+    padding-left: 30px;
+}
+
+.hierarchies ul.hierarchy-list {
+    margin: 0 0 1rem .5rem;
+}
+
+@media screen and (max-width: 799px) {
+    .hierarchy-module .hierarchy-row { 
+        display: block;
+    }
+
+    .hierarchy-metadata,
+    .hierarchy-items {
+        width: 100%;
+        padding-left: 0;
+        padding-right: 0;
+        border: 0;
+    }
+}
+
+span.hierarchy-label {
+    display: inline-block;
+    font-weight: bold;
+    margin-bottom: .5rem;
+}
+
+.value span.hierarchy-label {
+    font-weight: normal;
+}
+
+ul.hierarchy-list {
+    width: 100%;
+    list-style: none;
+}
+
+.hierarchy-filters ul,
+.hierarchies ul {
+    list-style: none;
+    margin-left: .5rem;
+    padding: 0;
+    margin: 0;
+    border-left: 3px solid var(--hierarchy-border-color);
+}
+
+ul.hierarchy-list li {
+    position: relative;
+}
+
+ul.hierarchy-list li:before {
+    content: "";
+    display: block;
+    position: absolute;
+    width: .75rem;
+    height: 2px;
+    background-color: var(--hierarchy-border-color);
+    top: .75rem;
+    left: 0;
+}
+
+ul.hierarchy-list li {
+    padding: 0 0 0 1rem;
+    margin-top: .5rem;
+}
+
+ul.hierarchy-list > li:first-child {
+    margin-top: 0;
+}

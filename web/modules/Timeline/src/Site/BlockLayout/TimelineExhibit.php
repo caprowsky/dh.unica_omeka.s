@@ -1,4 +1,5 @@
 <?php declare(strict_types=1);
+
 namespace Timeline\Site\BlockLayout;
 
 use Laminas\View\Renderer\PhpRenderer;
@@ -9,10 +10,11 @@ use Omeka\Api\Representation\SitePageRepresentation;
 use Omeka\Api\Representation\SiteRepresentation;
 use Omeka\Entity\SitePageBlock;
 use Omeka\Site\BlockLayout\AbstractBlockLayout;
+use Omeka\Site\BlockLayout\TemplateableBlockLayoutInterface;
 use Omeka\Stdlib\ErrorStore;
 use Omeka\Stdlib\HtmlPurifier;
 
-class TimelineExhibit extends AbstractBlockLayout
+class TimelineExhibit extends AbstractBlockLayout implements TemplateableBlockLayoutInterface
 {
     /**
      * The default partial view script.
@@ -50,10 +52,10 @@ class TimelineExhibit extends AbstractBlockLayout
         $assetUrl = $view->plugin('assetUrl');
         $view->headLink()
             ->appendStylesheet($assetUrl('css/asset-form.css', 'Omeka'))
-            ->appendStylesheet($assetUrl('css/timeline-form.css', 'Timeline'));
+            ->appendStylesheet($assetUrl('css/timeline-admin.css', 'Timeline'));
         $view->headScript()
             ->appendFile($assetUrl('js/asset-form.js', 'Omeka'))
-            ->appendFile($assetUrl('js/timeline-exhibit-form.js', 'Timeline'));
+            ->appendFile($assetUrl('js/timeline-admin.js', 'Timeline'));
     }
 
     public function onHydrate(SitePageBlock $block, ErrorStore $errorStore): void
@@ -65,6 +67,30 @@ class TimelineExhibit extends AbstractBlockLayout
         }
 
         $data['scale'] = $data['scale'] === 'cosmological' ? 'cosmological' : 'human';
+
+        // In some cases, the ArrayTextarray store values as string.
+        $eras = $data['eras'] ?? [];
+        if (empty($eras)) {
+            $data['eras'] = [];
+        } elseif (is_string($eras)) {
+            $arrayTextarea = new \Omeka\Form\Element\ArrayTextarea();
+            $arrayTextarea->setAsKeyValue(true);
+            $data['eras'] = $arrayTextarea->stringToArray($eras);
+        }
+
+        // In some cases, the ArrayTextarray store values as string.
+        $markers = $data['markers'] ?? [];
+        if (empty($markers)) {
+            $data['markers'] = [];
+        } elseif (is_string($markers)) {
+            $dataTextarea = new \Common\Form\Element\DataTextarea();
+            $dataTextarea->setDataOptions([
+                'heading' => null,
+                'dates' => null,
+                'body' => null,
+            ]);
+            $data['markers'] = $dataTextarea->stringToArray($markers);
+        }
 
         // Clean all values.
         $data['slides'] = array_values(
@@ -129,6 +155,7 @@ class TimelineExhibit extends AbstractBlockLayout
             return (bool) array_filter($v);
         });
 
+        // Reorder slides chronologically.
         $this->startDateProperty = $data['start_date_property'];
         usort($data['slides'], [$this, 'sortEvent']);
 
@@ -162,7 +189,8 @@ class TimelineExhibit extends AbstractBlockLayout
         $dataForm = [];
         foreach ($data as $key => $value) {
             // Add fields for repeatable fieldsets with multiple fields.
-            if (is_array($value)) {
+            // But some keys have array as values (ArrayTextarea).
+            if (is_array($value) && !in_array($key, ['eras', 'markers', 'group', 'item_metadata'])) {
                 $subFieldsetName = "o:block[__blockIndex__][o:data][$key]";
                 if (!$fieldset->has($subFieldsetName)) {
                     continue;
@@ -227,20 +255,18 @@ class TimelineExhibit extends AbstractBlockLayout
             ->appendFile('//cdn.knightlab.com/libs/timeline3/latest/js/timeline.js');
     }
 
-    public function render(PhpRenderer $view, SitePageBlockRepresentation $block)
+    public function render(PhpRenderer $view, SitePageBlockRepresentation $block, $templateViewScript = self::PARTIAL_NAME)
     {
-        $vars = [
-            'block' => $block,
-            'heading' => $block->dataValue('heading', ''),
-            'options' => $block->dataValue('options', '{}'),
-        ];
-        return $view->partial(self::PARTIAL_NAME, $vars);
+        $data = $block->data();
+        $data['options'] = $block->dataValue('options', '{}');
+        $vars = ['block' => $block] + $data;
+        return $view->partial($templateViewScript, $vars);
     }
 
     public function getFulltextText(PhpRenderer $view, SitePageBlockRepresentation $block)
     {
         // TODO Add resource title, description, date, etc.?
-        $fulltext = $block->dataValue('heading', '');
+        $fulltext = '';
         foreach ($block->dataValue('slides', []) as $slide) {
             $fulltext .= ' ' . $slide['start_date']
                 . ' ' . $slide['start_display_date']

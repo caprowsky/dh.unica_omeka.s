@@ -35,7 +35,7 @@ class TwoColumn extends AbstractBlockLayout
         $form = $this->formElementManager->get(TwoColumnForm::class);
             
         if ($block && $block->data()) {
-            $form->setData([
+            $form->populateValues([
                 'o:block[__blockIndex__][o:data][html1]' => $block->dataValue('html1'),
                 'o:block[__blockIndex__][o:data][html2]' => $block->dataValue('html2')
             ]);

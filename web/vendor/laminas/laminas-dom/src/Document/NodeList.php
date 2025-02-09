@@ -1,10 +1,6 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-dom for the canonical source repository
- * @copyright https://github.com/laminas/laminas-dom/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-dom/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
 
 namespace Laminas\Dom\Document;
 
@@ -14,27 +10,25 @@ use DOMNode;
 use DOMNodeList;
 use Iterator;
 use Laminas\Dom\Exception;
+use ReturnTypeWillChange;
 
 /**
  * DOMNodeList wrapper for Laminas\Dom\Document\Query results
  */
 class NodeList implements Iterator, Countable, ArrayAccess
 {
-    /**
-     * @var DOMNodeList
-     */
+    /** @var DOMNodeList */
     protected $list;
 
     /**
      * Current iterator position
+     *
      * @var int
      */
     protected $position = 0;
 
     /**
      * Constructor
-     *
-     * @param DOMNodeList  $list
      */
     public function __construct(DOMNodeList $list)
     {
@@ -46,6 +40,7 @@ class NodeList implements Iterator, Countable, ArrayAccess
      *
      * @return DOMNode
      */
+    #[ReturnTypeWillChange]
     public function rewind()
     {
         $this->position = 0;
@@ -58,6 +53,7 @@ class NodeList implements Iterator, Countable, ArrayAccess
      *
      * @return bool
      */
+    #[ReturnTypeWillChange]
     public function valid()
     {
         return $this->offsetExists($this->position);
@@ -68,6 +64,7 @@ class NodeList implements Iterator, Countable, ArrayAccess
      *
      * @return DOMNode
      */
+    #[ReturnTypeWillChange]
     public function current()
     {
         return $this->list->item($this->position);
@@ -78,6 +75,7 @@ class NodeList implements Iterator, Countable, ArrayAccess
      *
      * @return int
      */
+    #[ReturnTypeWillChange]
     public function key()
     {
         return $this->position;
@@ -88,6 +86,7 @@ class NodeList implements Iterator, Countable, ArrayAccess
      *
      * @return DOMNode
      */
+    #[ReturnTypeWillChange]
     public function next()
     {
         ++$this->position;
@@ -100,6 +99,7 @@ class NodeList implements Iterator, Countable, ArrayAccess
      *
      * @return int
      */
+    #[ReturnTypeWillChange]
     public function count()
     {
         return $this->list->length;
@@ -111,10 +111,11 @@ class NodeList implements Iterator, Countable, ArrayAccess
      * @param int $key
      * @return bool
      */
+    #[ReturnTypeWillChange]
     public function offsetExists($key)
     {
         // DOMNodeList return `null` if item not exists.
-        return (null !== $this->list->item($key));
+        return null !== $this->list->item($key);
     }
 
     /**
@@ -123,6 +124,7 @@ class NodeList implements Iterator, Countable, ArrayAccess
      * @param int $key
      * @return mixed
      */
+    #[ReturnTypeWillChange]
     public function offsetGet($key)
     {
         return $this->list->item($key);
@@ -133,8 +135,9 @@ class NodeList implements Iterator, Countable, ArrayAccess
      *
      * @param  mixed $key
      * @param  mixed $value
-     * @throws Exception\BadMethodCallException when attempting to write to a read-only item
+     * @throws Exception\BadMethodCallException When attempting to write to a read-only item.
      */
+    #[ReturnTypeWillChange]
     public function offsetSet($key, $value)
     {
         throw new Exception\BadMethodCallException('Attempting to write to a read-only list');
@@ -144,8 +147,9 @@ class NodeList implements Iterator, Countable, ArrayAccess
      * ArrayAccess: unset offset
      *
      * @param  mixed $key
-     * @throws Exception\BadMethodCallException when attempting to unset a read-only item
+     * @throws Exception\BadMethodCallException When attempting to unset a read-only item.
      */
+    #[ReturnTypeWillChange]
     public function offsetUnset($key)
     {
         throw new Exception\BadMethodCallException('Attempting to unset on a read-only list');

@@ -1,0 +1,26 @@
+{
+    "name": "daniel-km/simple-iso-3166-1",
+    "description": "Convert two and three letters countries codes and names with iso 3166-1.",
+    "type": "library",
+    "license": "CECILL-2.1",
+    "authors": [
+        {
+            "name": "Daniel Berthereau",
+            "email": "daniel.packagist@berthereau.net"
+        }
+    ],
+    "keywords": [
+        "iso 3166",
+        "country code"
+    ],
+    "support": {
+        "email": "daniel.support@berthereau.net",
+        "issues": "https://gitlab.com/Daniel-KM/Simple-ISO-3166-1/-/issues",
+        "source": "https://gitlab.com/Daniel-KM/Simple-ISO-3166-1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Iso3166p1\\": "src"
+        }
+    }
+}

@@ -1,10 +1,6 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-router for the canonical source repository
- * @copyright https://github.com/laminas/laminas-router/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-router/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
 
 namespace Laminas\Router\Http;
 
@@ -13,12 +9,15 @@ use Laminas\Stdlib\ArrayUtils;
 use Laminas\Stdlib\RequestInterface as Request;
 use Traversable;
 
+use function is_array;
+use function sprintf;
+
 /**
  * Placeholder route.
  */
 class Placeholder implements RouteInterface
 {
-    private $defaults;
+    private array $defaults;
 
     public function __construct(array $defaults)
     {
@@ -29,6 +28,7 @@ class Placeholder implements RouteInterface
      * factory(): defined by RouteInterface interface.
      *
      * @see    \Laminas\Router\RouteInterface::factory()
+     *
      * @param  array|Traversable $options
      * @return Placeholder
      * @throws Exception\InvalidArgumentException
@@ -61,7 +61,7 @@ class Placeholder implements RouteInterface
      * match(): defined by RouteInterface interface.
      *
      * @see    \Laminas\Router\RouteInterface::match()
-     * @param  Request      $request
+     *
      * @param  integer|null $pathOffset
      * @return RouteMatch|null
      */
@@ -74,6 +74,7 @@ class Placeholder implements RouteInterface
      * assemble(): Defined by RouteInterface interface.
      *
      * @see    \Laminas\Router\RouteInterface::assemble()
+     *
      * @param  array $params
      * @param  array $options
      * @return mixed
@@ -87,6 +88,7 @@ class Placeholder implements RouteInterface
      * getAssembledParams(): defined by RouteInterface interface.
      *
      * @see    RouteInterface::getAssembledParams
+     *
      * @return array
      */
     public function getAssembledParams()

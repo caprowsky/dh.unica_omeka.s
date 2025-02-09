@@ -1,10 +1,6 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-form for the canonical source repository
- * @copyright https://github.com/laminas/laminas-form/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-form/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
 
 namespace Laminas\Form\View\Helper;
 
@@ -27,6 +23,7 @@ class FormTextarea extends AbstractHelper
         'dirname'      => true,
         'disabled'     => true,
         'form'         => true,
+        'inputmode'    => true,
         'maxlength'    => true,
         'minlength'    => true,
         'name'         => true,
@@ -42,10 +39,12 @@ class FormTextarea extends AbstractHelper
      *
      * Proxies to {@link render()}.
      *
-     * @param  ElementInterface|null $element
+     * @template T as null|ElementInterface
+     * @psalm-param T $element
+     * @psalm-return (T is null ? self : string)
      * @return string|FormTextarea
      */
-    public function __invoke(ElementInterface $element = null)
+    public function __invoke(?ElementInterface $element = null)
     {
         if (! $element) {
             return $this;
@@ -57,14 +56,12 @@ class FormTextarea extends AbstractHelper
     /**
      * Render a form <textarea> element from the provided $element
      *
-     * @param  ElementInterface $element
      * @throws Exception\DomainException
-     * @return string
      */
-    public function render(ElementInterface $element)
+    public function render(ElementInterface $element): string
     {
-        $name   = $element->getName();
-        if (empty($name) && $name !== 0) {
+        $name = $element->getName();
+        if ($name === null || $name === '') {
             throw new Exception\DomainException(sprintf(
                 '%s requires that the element has an assigned name; none discovered',
                 __METHOD__

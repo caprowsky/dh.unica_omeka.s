@@ -4,7 +4,7 @@ $translate = $this->plugin('translate');
 
 <div class="attachment">
     <span class="sortable-handle"></span>
-    <div class="thumbnail fa <?= ($topic['icon']) ? "fa-" . $topic['icon'] : "fa-question unspecified"; ?>"></div>
+    <div class="thumbnail fa <?= ($topic['icon']) ? "fa-" . $topic['icon'] : "fa-question unspecified"; ?>" aria-hidden="true"></div>
     <div class="asset-title"><?= $topic['label'] ?? '' ?></div>
 
     <ul class="actions">

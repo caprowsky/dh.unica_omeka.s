@@ -125,7 +125,6 @@ class Module extends AbstractModule
             'Omeka\Api\Adapter\ItemAdapter',
             'api.preprocess_batch_update',
             function (Event $event) {
-                $adapter = $event->getTarget();
                 $data = $event->getParam('data');
                 $rawData = $event->getParam('request')->getContent();
                 if ($this->convertToNumericDataIsValid($rawData)) {
@@ -281,7 +280,7 @@ class Module extends AbstractModule
         }
         $adapter = $event->getTarget();
         $qb = $event->getParam('queryBuilder');
-        foreach ($this->getNumericDataTypes() as $dataTypeName => $dataType) {
+        foreach ($this->getNumericDataTypes() as $dataType) {
             $dataType->buildQuery($adapter, $qb, $query);
         }
     }
@@ -306,11 +305,11 @@ class Module extends AbstractModule
         if (3 !== count($sortBy)) {
             return;
         }
-        list($namespace, $type, $propertyId) = $sortBy;
+        [$namespace, $type, $propertyId] = $sortBy;
         if ('numeric' !== $namespace || !is_string($type) || !is_numeric($propertyId)) {
             return;
         }
-        foreach ($this->getNumericDataTypes() as $dataTypeName => $dataType) {
+        foreach ($this->getNumericDataTypes() as $dataType) {
             $dataType->sortQuery($adapter, $qb, $query, $type, $propertyId);
         }
     }
@@ -322,36 +321,35 @@ class Module extends AbstractModule
      */
     public function addSortings(Event $event)
     {
-        $numericDataTypes = $this->getNumericDataTypes();
-        $qb = $this->getServiceLocator()->get('Omeka\EntityManager')->createQueryBuilder();
+        $services = $this->getServiceLocator();
+        $translator = $services->get('MvcTranslator');
+        $entityManager = $services->get('Omeka\EntityManager');
+
+        $qb = $entityManager->createQueryBuilder();
         $qb->select(['p.id', 'p.label', 'rtp.dataType'])
             ->from('Omeka\Entity\ResourceTemplateProperty', 'rtp')
             ->innerJoin('rtp.property', 'p');
         $qb->andWhere($qb->expr()->isNotNull('rtp.dataType'));
         $query = $qb->getQuery();
 
+        $numericDataTypes = $this->getNumericDataTypes();
         $numericSortBy = [];
         foreach ($query->getResult() as $templatePropertyData) {
-            $dataTypes = $templatePropertyData['dataType'];
+            $dataTypes = $templatePropertyData['dataType'] ?? [];
             foreach ($dataTypes as $dataType) {
                 if (isset($numericDataTypes[$dataType])) {
                     $value = sprintf('%s:%s', $dataType, $templatePropertyData['id']);
                     if (!isset($numericSortBy[$value])) {
-                        $numericSortBy[$value] = [
-                            'label' => sprintf('%s (%s)', $templatePropertyData['label'], $dataType),
-                            'value' => $value,
-                        ];
+                        $numericSortBy[$value] = sprintf('%s (%s)', $translator->translate($templatePropertyData['label']), $dataType);
                     }
                 }
             }
         }
         // Sort options alphabetically.
-        usort($numericSortBy, function ($a, $b) {
-            return strcasecmp($a['label'], $b['label']);
-        });
-        $sortBy = $event->getParam('sortBy');
-        $sortBy = array_merge($sortBy, $numericSortBy);
-        $event->setParam('sortBy', $sortBy);
+        asort($numericSortBy);
+        $sortConfig = $event->getParam('sortConfig') ?: [];
+        $sortConfig = array_merge($sortConfig, $numericSortBy);
+        $event->setParam('sortConfig', $sortConfig);
     }
 
     /**

@@ -8,24 +8,38 @@ See the [Omeka S user manual](http://omeka.org/s/docs/user-manual/modules/values
 
 See general end user documentation for [Installing a module](http://omeka.org/s/docs/user-manual/modules/#installing-modules)
 
+## Upgrades
+
+### Version 1.15.0
+
+In version 1.15.0, we have removed the [Dutch Digital Heritage Network of Terms](https://termennetwerk.netwerkdigitaalerfgoed.nl/) vocabularies. These are the resource template data types beginning with "NDE: ". If you are currently using these vocabularies, or want to use them in the future, please download and install the [NdeTermennetwerk](https://omeka.org/s/modules/NdeTermennetwerk/) module.
+
 ## Vocabularies
 
 This module includes the following vocabularies:
 
 - Dublin Core
-- Dutch Digital Heritage Network of Terms
+- Gemeinsame Normdatie (GND)
 - GeoNames
 - The Getty Vocabularies
 - Homosaurus
 - IdRef
 - Library of Congress Linked Data Service
+- Nomenclature
+- Nuovo Soggettario
 - OCLC Metadata Services
+- Omeka
+- ORCID (Open Researcher and Contributor ID)
+- PBCore
 - PACTOLS of Frantiq
 - PeriodO
 - RDA Value Vocabularies
 - RightsStatements.org
+- Research Organization Registry (ROR)
 - Tesauros del patrimonio cultural de España
 - UNESCO
+- Les vocabulaires du Ministère de la Culture
+- Thesaurus de la Universitat de Barcelona (THUB)
 
 ### [Dublin Core](https://www.dublincore.org/specifications/dublin-core/dcmi-terms/) (DCMI Metadata Terms)
 
@@ -34,25 +48,6 @@ This module includes the following vocabularies:
 - Terms
 - Types
 
-### [Dutch Digital Heritage Network of Terms: NDE Termennetwerk](https://termennetwerk.netwerkdigitaalerfgoed.nl/)
-
-- Archeologisch Basisregister
-- Brinkman trefwoordenthesaurus
-- Cultuurhistorische Thesaurus
-- GTAA: genres
-- GTAA: onderwerpen
-- Muziek: genres en stijlen
-- Muziek: personen en groepen
-- Muziekschatten: onderwerpen
-- Nederlandse Thesaurus van Auteursnamen
-- RKDartists
-- Thesaurus Nationaal Museum van Wereldculturen
-- Thesaurus Tweede Wereldoorlog Nederland
-- Wikidata: alle entiteiten
-- Wikidata: personen
-- Wikidata: plaatsen in Nederland en België
-- Wikidata: straten in Nederland
-
 ### [Gemeinsame Normdatei (GND)](http://lobid.org/gnd)
 
 - The GND contains standardized entries for persons, corporations, congresses, geographical areas, key words and work titles.
@@ -60,12 +55,15 @@ This module includes the following vocabularies:
 ### [GeoNames](http://www.geonames.org/)
 
 - The GeoNames geographical database
+- GeoNames features
 
 ### [The Getty Vocabularies](http://vocab.getty.edu/)
 
-- The Art & Architecture Thesaurus (AAT)
-- The Getty Thesaurus of Geographic Names (TGN)
-- The Union List of Artist Names (ULAN)
+- Art & Architecture Thesaurus (AAT)
+- Thesaurus of Geographic Names (TGN)
+- Union List of Artist Names (ULAN)
+- Cultural Objects Name Authority (CONA)
+- Getty Iconography Authority (IA)
 
 ### [Homosaurus](http://homosaurus.org/)
 
@@ -106,8 +104,23 @@ This module includes the following vocabularies:
 - MARC Relators
 - Medium of Performance Thesaurus for Music
 - Name Authority File
+- Rare Materials Cataloging
 - Subject Headings
 - Thesaurus for Graphic Materials
+
+### [Nomenclature for Museum Cataloging](https://page.nomenclature.info/apropos-about.app?lang=en)
+
+- All
+- Category 01: Built Environment Objects
+- Category 02: Furnishings
+- Category 03: Personal Objects
+- Category 04: Tools & Equipment for Materials
+- Category 05: Tools & Equipment for Science & Technology
+- Category 06: Tools & Equipment for Communication
+- Category 07: Distribution & Transportation Objects
+- Category 08: Communication Objects
+- Category 09: Recreational Objects
+- Category 10: Unclassifiable Objects
 
 ### [Nuovo Soggettario](https://thes.bncf.firenze.sbn.it/)
 
@@ -130,6 +143,34 @@ This module includes the following vocabularies:
 - Faceted Application of Subject Terminologies (FAST)
 - The Virtual International Authority File (VIAF)
 
+### Omeka
+
+Suggest values that already exist in the working Omeka installation.
+
+- Omeka: Property: suggest values using the current property's values
+- Omeka: Property / Resource template: suggest values using the current property's values and current resource's template
+- Omeka: Property / Resource class: suggest values using the current property's values and current resource's class
+
+### [ORCID](https://info.orcid.org/)
+
+- Open Researcher and Contributor ID
+
+### [PBCore Vocabularies](https://pbcore.org/pbcore-controlled-vocabularies)
+
+- pbcoreAssetType
+- @dateType
+- @titleType
+- @descriptionType
+- pbcoreRelationType
+- instantiationRelationType
+- creatorRole and contributorRole
+- publisherRole
+- instantiationPhysical: Audio
+- instantiationPhysical: Film
+- instantiationPhysical: Video
+- instantiationMediaType
+- instantiationGenerations
+
 ### [PACTOLS of Frantiq](https://pactols.frantiq.fr/)
 
 - The entire pactols thesaurus
@@ -149,9 +190,12 @@ This module includes the following vocabularies:
 - Carrier Extent Unit
 - Carrier Type
 - Cartographic Data Type
+- Collection Accrual Method
+- Collection Accrual Policy
 - Colour Content
 - Configuration of Playback Channels
 - Content Type
+- Extension Plan
 - Conventional Collective Title
 - File Type
 - Font Size
@@ -164,7 +208,9 @@ This module includes the following vocabularies:
 - Groove Pitch of an Analog Cylinder
 - Groove Width of an Analog Disc
 - Illustrative Content
+- Interactivity Mode
 - Layout
+- Linked Data Work
 - Material
 - Media Type
 - Mode of Issuance
@@ -172,6 +218,8 @@ This module includes the following vocabularies:
 - Presentation Format
 - Production Method
 - Recording Medium
+- Recording Methods
+- Recording Sources
 - Reduction Ratio Designation
 - Regional Encoding
 - Scale Designation
@@ -180,7 +228,10 @@ This module includes the following vocabularies:
 - Status of Identification
 - Terms
 - Track Configuration
+- Type Of Binding
 - Type of Recording
+- Unit of Time
+- User Tasks
 - Video Format
 
 #### RDA Local value vocabularies
@@ -208,7 +259,11 @@ This module includes the following vocabularies:
 
 - Provides a set of standardized rights statements for cultural heritage institutions that can be used to communicate the copyright and re-use status of digital objects to the public
 
-### [Tesauros del patrimonio cultural de España](http://tesauros.mecd.es/tesauros)
+### [ROR](https://ror.org/)
+
+- Research Organization Registry
+
+### [Tesauros del patrimonio cultural de España](http://tesauros.cultura.gob.es/tesauros)
 
 - Diccionario de Bienes Culturales
 - Diccionario de Materias
@@ -267,6 +322,10 @@ This module includes the following vocabularies:
 - Vocabulaire des altérations
 - Vocabulaire des domaines d'action ou objets des entités productrices d'archives
 - Vocabulaire pour les techniques photographiques
+
+### [Thesaurus de la Universitat de Barcelona (THUB)](https://vocabularis.crai.ub.edu/ca/thub)
+
+- Thesaurus de la Universitat de Barcelona (THUB)
 
 # Copyright
 

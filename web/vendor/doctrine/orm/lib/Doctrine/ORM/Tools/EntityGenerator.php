@@ -1,27 +1,13 @@
 <?php
 
-/*
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * This software consists of voluntary contributions made by many individuals
- * and is licensed under the MIT license. For more information, see
- * <http://www.doctrine-project.org>.
- */
+declare(strict_types=1);
 
 namespace Doctrine\ORM\Tools;
 
 use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Type;
+use Doctrine\DBAL\Types\Types;
+use Doctrine\Deprecations\Deprecation;
 use Doctrine\Inflector\Inflector;
 use Doctrine\Inflector\InflectorFactory;
 use Doctrine\ORM\Mapping\ClassMetadataInfo;
@@ -64,12 +50,10 @@ use function strrpos;
 use function strtolower;
 use function substr;
 use function token_get_all;
-use function trigger_error;
 use function ucfirst;
 use function var_export;
 
 use const DIRECTORY_SEPARATOR;
-use const E_USER_DEPRECATED;
 use const PHP_EOL;
 use const PHP_VERSION_ID;
 use const T_CLASS;
@@ -206,24 +190,25 @@ class EntityGenerator
     /**
      * Hash-map for handle types.
      *
-     * @psalm-var array<Type::*, string>
+     * @psalm-var array<Types::*|'json_array', string>
      */
     protected $typeAlias = [
-        Type::DATETIMETZ    => '\DateTime',
-        Type::DATETIME      => '\DateTime',
-        Type::DATE          => '\DateTime',
-        Type::TIME          => '\DateTime',
-        Type::OBJECT        => '\stdClass',
-        Type::INTEGER       => 'int',
-        Type::BIGINT        => 'int',
-        Type::SMALLINT      => 'int',
-        Type::TEXT          => 'string',
-        Type::BLOB          => 'string',
-        Type::DECIMAL       => 'string',
-        Type::GUID          => 'string',
-        Type::JSON_ARRAY    => 'array',
-        Type::SIMPLE_ARRAY  => 'array',
-        Type::BOOLEAN       => 'bool',
+        Types::DATETIMETZ_MUTABLE => '\DateTime',
+        Types::DATETIME_MUTABLE   => '\DateTime',
+        Types::DATE_MUTABLE       => '\DateTime',
+        Types::TIME_MUTABLE       => '\DateTime',
+        Types::OBJECT             => '\stdClass',
+        Types::INTEGER            => 'int',
+        Types::BIGINT             => 'int',
+        Types::SMALLINT           => 'int',
+        Types::TEXT               => 'string',
+        Types::BLOB               => 'string',
+        Types::DECIMAL            => 'string',
+        Types::GUID               => 'string',
+        'json_array'              => 'array',
+        Types::JSON               => 'array',
+        Types::SIMPLE_ARRAY       => 'array',
+        Types::BOOLEAN            => 'bool',
     ];
 
     /**
@@ -234,7 +219,6 @@ class EntityGenerator
     protected static $generatorStrategyMap = [
         ClassMetadataInfo::GENERATOR_TYPE_AUTO      => 'AUTO',
         ClassMetadataInfo::GENERATOR_TYPE_SEQUENCE  => 'SEQUENCE',
-        ClassMetadataInfo::GENERATOR_TYPE_TABLE     => 'TABLE',
         ClassMetadataInfo::GENERATOR_TYPE_IDENTITY  => 'IDENTITY',
         ClassMetadataInfo::GENERATOR_TYPE_NONE      => 'NONE',
         ClassMetadataInfo::GENERATOR_TYPE_UUID      => 'UUID',
@@ -374,7 +358,12 @@ public function __construct(<params>)
 
     public function __construct()
     {
-        @trigger_error(self::class . ' is deprecated and will be removed in Doctrine ORM 3.0', E_USER_DEPRECATED);
+        Deprecation::trigger(
+            'doctrine/orm',
+            'https://github.com/doctrine/orm/issues/8458',
+            '%s is deprecated with no replacement',
+            self::class
+        );
 
         $this->annotationsPrefix = 'ORM\\';
         $this->inflector         = InflectorFactory::create()->build();
@@ -384,10 +373,9 @@ public function __construct(<params>)
      * Generates and writes entity classes for the given array of ClassMetadataInfo instances.
      *
      * @param string $outputDirectory
+     * @psalm-param list<ClassMetadataInfo> $metadatas
      *
      * @return void
-     *
-     * @psalm-param list<ClassMetadataInfo> $metadatas
      */
     public function generate(array $metadatas, $outputDirectory)
     {
@@ -539,12 +527,11 @@ public function __construct(<params>)
      * Sets the class fields visibility for the entity (can either be private or protected).
      *
      * @param string $visibility
+     * @psalm-param self::FIELD_VISIBLE_*
      *
      * @return void
      *
      * @throws InvalidArgumentException
-     *
-     * @psalm-param self::FIELD_VISIBLE_*
      */
     public function setFieldVisibility($visibility)
     {
@@ -559,6 +546,8 @@ public function __construct(<params>)
      * Sets whether or not to generate immutable embeddables.
      *
      * @param bool $embeddablesImmutable
+     *
+     * @return void
      */
     public function setEmbeddablesImmutable($embeddablesImmutable)
     {
@@ -743,10 +732,7 @@ public function __construct(<params>)
         return '';
     }
 
-    /**
-     * @return string
-     */
-    private function generateEmbeddableConstructor(ClassMetadataInfo $metadata)
+    private function generateEmbeddableConstructor(ClassMetadataInfo $metadata): string
     {
         $paramTypes     = [];
         $paramVariables = [];
@@ -946,10 +932,9 @@ public function __construct(<params>)
 
     /**
      * @return ReflectionClass[]
+     * @psalm-return array<trait-string, ReflectionClass<object>>
      *
      * @throws ReflectionException
-     *
-     * @psalm-return array<trait-string, ReflectionClass>
      */
     protected function getTraits(ClassMetadataInfo $metadata)
     {
@@ -1115,10 +1100,9 @@ public function __construct(<params>)
 
     /**
      * @param string $constraintName
+     * @psalm-param array<string, array<string, mixed>> $constraints
      *
      * @return string
-     *
-     * @psalm-param array<string, array<string, mixed>> $constraints
      */
     protected function generateTableConstraints($constraintName, array $constraints)
     {
@@ -1156,7 +1140,11 @@ public function __construct(<params>)
             return '';
         }
 
-        $discrColumn      = $metadata->discriminatorColumn;
+        $discrColumn = $metadata->discriminatorColumn;
+        if ($discrColumn === null) {
+            return '';
+        }
+
         $columnDefinition = 'name="' . $discrColumn['name']
             . '", type="' . $discrColumn['type']
             . '", length=' . $discrColumn['length'];
@@ -1286,9 +1274,9 @@ public function __construct(<params>)
     }
 
     /**
-     * @return bool
-     *
      * @psalm-param array<string, mixed> $associationMapping
+     *
+     * @return bool
      */
     protected function isAssociationIsNullable(array $associationMapping)
     {
@@ -1418,7 +1406,7 @@ public function __construct(<params>)
         $methodName   = $type . $this->inflector->classify($fieldName);
         $variableName = $this->inflector->camelize($fieldName);
 
-        if (in_array($type, ['add', 'remove'])) {
+        if (in_array($type, ['add', 'remove'], true)) {
             $methodName   = $this->inflector->singularize($methodName);
             $variableName = $this->inflector->singularize($variableName);
         }
@@ -1432,7 +1420,7 @@ public function __construct(<params>)
         $var      = sprintf('%sMethodTemplate', $type);
         $template = static::$$var;
 
-        $methodTypeHint = null;
+        $methodTypeHint = '';
         $types          = Type::getTypesMap();
         $variableType   = $typeHint ? $this->getType($typeHint) : null;
 
@@ -1490,9 +1478,9 @@ public function __construct(<params>)
     }
 
     /**
-     * @return string
-     *
      * @psalm-param array<string, mixed> $joinColumn
+     *
+     * @return string
      */
     protected function generateJoinColumnAnnotation(array $joinColumn)
     {
@@ -1812,9 +1800,9 @@ public function __construct(<params>)
     }
 
     /**
-     * @return string
-     *
      * @psalm-param array<string, mixed> $embeddedClass
+     *
+     * @return string
      */
     protected function generateEmbeddedPropertyDocBlock(array $embeddedClass)
     {
@@ -1876,7 +1864,7 @@ public function __construct(<params>)
         $lines = explode("\n", $code);
 
         foreach ($lines as $key => $value) {
-            if (! empty($value)) {
+            if ($value !== '') {
                 $lines[$key] = str_repeat($this->spaces, $num) . $lines[$key];
             }
         }

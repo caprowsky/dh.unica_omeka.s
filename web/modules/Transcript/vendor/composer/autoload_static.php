@@ -4,22 +4,22 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit11f0830caf3b021ef48fb96f7dd15b85
+class ComposerStaticInit58bfead22c2848b8dfcf36be62d62b2c
 {
     public static $files = array (
         'a4a119a56e50fbb293281d9a48007e0e' => __DIR__ . '/..' . '/symfony/polyfill-php80/bootstrap.php',
         '0e6d7bf4a5811bfa5cf40c5ccd6fae6a' => __DIR__ . '/..' . '/symfony/polyfill-mbstring/bootstrap.php',
         '6e3fae29631ef280660b3cdad06f25a8' => __DIR__ . '/..' . '/symfony/deprecation-contracts/function.php',
         'e69f7f6ee287b969198c3c9d6777bd38' => __DIR__ . '/..' . '/symfony/polyfill-intl-normalizer/bootstrap.php',
-        '25072dd6e2470089de65ae7bf11d3109' => __DIR__ . '/..' . '/symfony/polyfill-php72/bootstrap.php',
-        'f598d06aa772fa33d905e87be6398fb1' => __DIR__ . '/..' . '/symfony/polyfill-intl-idn/bootstrap.php',
         '320cde22f66dd4f5d3fd621d3e88b98f' => __DIR__ . '/..' . '/symfony/polyfill-ctype/bootstrap.php',
-        '8825ede83f2f289127722d4e842cf7e8' => __DIR__ . '/..' . '/symfony/polyfill-intl-grapheme/bootstrap.php',
-        'b6b991a57620e2fb6b2f66f03fe9ddc2' => __DIR__ . '/..' . '/symfony/string/Resources/functions.php',
-        '0d59ee240a4cd96ddbb4ff164fccea4d' => __DIR__ . '/..' . '/symfony/polyfill-php73/bootstrap.php',
         '7b11c4dc42b3b3023073cb14e519683c' => __DIR__ . '/..' . '/ralouphie/getallheaders/src/getallheaders.php',
+        '8825ede83f2f289127722d4e842cf7e8' => __DIR__ . '/..' . '/symfony/polyfill-intl-grapheme/bootstrap.php',
+        '25072dd6e2470089de65ae7bf11d3109' => __DIR__ . '/..' . '/symfony/polyfill-php72/bootstrap.php',
         '23c18046f52bef3eea034657bafda50f' => __DIR__ . '/..' . '/symfony/polyfill-php81/bootstrap.php',
         'c964ee0ededf28c96ebd9db5099ef910' => __DIR__ . '/..' . '/guzzlehttp/promises/src/functions_include.php',
+        'f598d06aa772fa33d905e87be6398fb1' => __DIR__ . '/..' . '/symfony/polyfill-intl-idn/bootstrap.php',
+        '0d59ee240a4cd96ddbb4ff164fccea4d' => __DIR__ . '/..' . '/symfony/polyfill-php73/bootstrap.php',
+        'b6b991a57620e2fb6b2f66f03fe9ddc2' => __DIR__ . '/..' . '/symfony/string/Resources/functions.php',
         'a1105708a18b76903365ca1c4aa61b02' => __DIR__ . '/..' . '/symfony/translation/Resources/functions.php',
         '37a3dc5111fe8f707ab4c132ef1dbc62' => __DIR__ . '/..' . '/guzzlehttp/guzzle/src/functions_include.php',
         'e39a8b23c42d4e1452234d762b03835a' => __DIR__ . '/..' . '/ramsey/uuid/src/functions.php',
@@ -33,6 +33,7 @@ class ComposerStaticInit11f0830caf3b021ef48fb96f7dd15b85
         'T' => 
         array (
             'TusPhp\\' => 7,
+            'Transcript\\' => 11,
         ),
         'S' => 
         array (
@@ -92,6 +93,10 @@ class ComposerStaticInit11f0830caf3b021ef48fb96f7dd15b85
         'TusPhp\\' => 
         array (
             0 => __DIR__ . '/..' . '/ankitpokhrel/tus-php/src',
+        ),
+        'Transcript\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/src',
         ),
         'Symfony\\Polyfill\\Php81\\' => 
         array (
@@ -175,8 +180,8 @@ class ComposerStaticInit11f0830caf3b021ef48fb96f7dd15b85
         ),
         'Psr\\Http\\Message\\' => 
         array (
-            0 => __DIR__ . '/..' . '/psr/http-message/src',
-            1 => __DIR__ . '/..' . '/psr/http-factory/src',
+            0 => __DIR__ . '/..' . '/psr/http-factory/src',
+            1 => __DIR__ . '/..' . '/psr/http-message/src',
         ),
         'Psr\\Http\\Client\\' => 
         array (
@@ -219,6 +224,12 @@ class ComposerStaticInit11f0830caf3b021ef48fb96f7dd15b85
     public static $classMap = array (
         'Attribute' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/Attribute.php',
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
+        'Generic\\AbstractModule' => __DIR__ . '/..' . '/daniel-km/omeka-s-module-generic/AbstractModule.php',
+        'Generic\\InstallResources' => __DIR__ . '/..' . '/daniel-km/omeka-s-module-generic/InstallResources.php',
+        'Generic\\Module' => __DIR__ . '/..' . '/daniel-km/omeka-s-module-generic/Module.php',
+        'Generic\\ModuleTester' => __DIR__ . '/..' . '/daniel-km/omeka-s-module-generic/test/Generic/ModuleTester.php',
+        'Generic\\TesterTrait' => __DIR__ . '/..' . '/daniel-km/omeka-s-module-generic/test/Generic/TesterTrait.php',
+        'Generic\\TsvFileIterator' => __DIR__ . '/..' . '/daniel-km/omeka-s-module-generic/test/Generic/TsvFileIterator.php',
         'JsonException' => __DIR__ . '/..' . '/symfony/polyfill-php73/Resources/stubs/JsonException.php',
         'Normalizer' => __DIR__ . '/..' . '/symfony/polyfill-intl-normalizer/Resources/stubs/Normalizer.php',
         'ReturnTypeWillChange' => __DIR__ . '/..' . '/symfony/polyfill-php81/Resources/stubs/ReturnTypeWillChange.php',
@@ -230,9 +241,9 @@ class ComposerStaticInit11f0830caf3b021ef48fb96f7dd15b85
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit11f0830caf3b021ef48fb96f7dd15b85::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit11f0830caf3b021ef48fb96f7dd15b85::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInit11f0830caf3b021ef48fb96f7dd15b85::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit58bfead22c2848b8dfcf36be62d62b2c::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit58bfead22c2848b8dfcf36be62d62b2c::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInit58bfead22c2848b8dfcf36be62d62b2c::$classMap;
 
         }, null, ClassLoader::class);
     }

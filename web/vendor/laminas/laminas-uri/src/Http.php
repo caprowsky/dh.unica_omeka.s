@@ -1,12 +1,10 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-uri for the canonical source repository
- * @copyright https://github.com/laminas/laminas-uri/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-uri/blob/master/LICENSE.md New BSD License
- */
-
 namespace Laminas\Uri;
+
+use function array_key_exists;
+use function explode;
+use function strpos;
 
 /**
  * HTTP URI handler
@@ -15,14 +13,18 @@ class Http extends Uri
 {
     /**
      * @see Uri::$validSchemes
+     *
+     * @var array<int,string>
      */
     protected static $validSchemes = [
         'http',
-        'https'
+        'https',
     ];
 
     /**
      * @see Uri::$defaultPorts
+     *
+     * @var array<string,int>
      */
     protected static $defaultPorts = [
         'http'  => 80,
@@ -31,17 +33,21 @@ class Http extends Uri
 
     /**
      * @see Uri::$validHostTypes
+     *
+     * @var int
      */
     protected $validHostTypes = self::HOST_DNS_OR_IPV4_OR_IPV6_OR_REGNAME;
 
     /**
      * User name as provided in authority of URI
+     *
      * @var null|string
      */
     protected $user;
 
     /**
      * Password as provided in authority of URI
+     *
      * @var null|string
      */
     protected $password;
@@ -80,7 +86,6 @@ class Http extends Uri
      * Set the username part (before the ':') of the userInfo URI part
      *
      * @param string|null $user
-     *
      * @return self
      */
     public function setUser($user)
@@ -96,7 +101,6 @@ class Http extends Uri
      * Set the password part (after the ':') of the userInfo URI part
      *
      * @param  string $password
-     *
      * @return self
      */
     public function setPassword($password)
@@ -112,10 +116,8 @@ class Http extends Uri
      * Set the URI User-info part (usually user:password)
      *
      * @param  string|null $userInfo
-     *
      * @return self
-     *
-     * @throws Exception\InvalidUriPartException If the schema definition does not have this part
+     * @throws Exception\InvalidUriPartException If the schema definition does not have this part.
      */
     public function setUserInfo($userInfo)
     {
@@ -167,7 +169,7 @@ class Http extends Uri
         }
 
         // Split on the ':', and set both user and password
-        list($this->user, $this->password) = explode(':', $this->userInfo, 2);
+        [$this->user, $this->password] = explode(':', $this->userInfo, 2);
     }
 
     /**
@@ -191,8 +193,9 @@ class Http extends Uri
      *
      * If no port is set, will return the default port according to the scheme
      *
-     * @return int
      * @see    Laminas\Uri\Uri::getPort()
+     *
+     * @return int
      */
     public function getPort()
     {

@@ -9,15 +9,15 @@ class GeolocationImporter extends AbstractImporter
     public function import($itemData, $resourceJson)
     {
         $logger = $this->getServiceLocator()->get('Omeka\Logger');
-        $geolocationId = $itemData['extended_resources']['geolocations']['id'];
+        $geolocationId = $itemData['extended_resources']['geolocations']['id'] ?? null;
         if (empty($geolocationId)) {
             return $resourceJson;
         }
         $response = $this->client->geolocations->get($geolocationId);
         $geolocationsData = json_decode($response->getBody(), true);
-        $resourceJson['o-module-mapping:marker'][] = [
-            'o-module-mapping:lat' => $geolocationsData['latitude'],
-            'o-module-mapping:lng' => $geolocationsData['longitude'],
+        $resourceJson['o-module-mapping:feature'][] = [
+            'o-module-mapping:geography-type' => 'point',
+            'o-module-mapping:geography-coordinates' => [$geolocationsData['longitude'], $geolocationsData['latitude']],
 
         ];
         return $resourceJson;

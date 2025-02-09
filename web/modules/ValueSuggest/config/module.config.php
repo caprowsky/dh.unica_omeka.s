@@ -36,13 +36,14 @@ return [
 
             /* Geonames */
             'valuesuggest:geonames:geonames' => Service\GeonamesDataTypeFactory::class,
+            'valuesuggestall:geonames:features' => Service\GeonamesDataTypeFactory::class,
 
             /* Getty */
             'valuesuggest:getty:aat' => Service\GettyDataTypeFactory::class,
             'valuesuggest:getty:tgn' => Service\GettyDataTypeFactory::class,
             'valuesuggest:getty:ulan' => Service\GettyDataTypeFactory::class,
-            // @todo Add "The Cultural Objects Name Authority (CONA)" once it's
-            // published (past due, fall 2015)
+            'valuesuggest:getty:cona' => Service\GettyDataTypeFactory::class,
+            'valuesuggest:getty:ia' => Service\GettyDataTypeFactory::class,
 
             /* Homosaurus */
             'valuesuggest:homosaurus:homosaurus' => Service\HomosaurusDataTypeFactory::class,
@@ -82,25 +83,21 @@ return [
             'valuesuggest:lc:iso6391' => Service\LcDataTypeFactory::class,
             'valuesuggest:lc:iso6392' => Service\LcDataTypeFactory::class,
             'valuesuggest:lc:iso6395' => Service\LcDataTypeFactory::class,
+            'valuesuggest:lc:rbmscv' => Service\LcDataTypeFactory::class,
             // @todo Add more LC data types
 
-            /* Network of Terms of the Dutch National Network for Digital Heritage */
-            'valuesuggest:ndeterms:abr' => \ValueSuggest\Service\NdeTermsDataTypeFactory::class,
-            'valuesuggest:ndeterms:btt' => \ValueSuggest\Service\NdeTermsDataTypeFactory::class,
-            'valuesuggest:ndeterms:cht' => \ValueSuggest\Service\NdeTermsDataTypeFactory::class,
-            'valuesuggest:ndeterms:gtaagen' => \ValueSuggest\Service\NdeTermsDataTypeFactory::class,
-            'valuesuggest:ndeterms:gtaaond' => \ValueSuggest\Service\NdeTermsDataTypeFactory::class,
-            'valuesuggest:ndeterms:muzgs' => \ValueSuggest\Service\NdeTermsDataTypeFactory::class,
-            'valuesuggest:ndeterms:muzpp' => \ValueSuggest\Service\NdeTermsDataTypeFactory::class,
-            'valuesuggest:ndeterms:muzsch' => \ValueSuggest\Service\NdeTermsDataTypeFactory::class,
-            'valuesuggest:ndeterms:nta' => \ValueSuggest\Service\NdeTermsDataTypeFactory::class,
-            'valuesuggest:ndeterms:rkdartists' => \ValueSuggest\Service\NdeTermsDataTypeFactory::class,
-            'valuesuggest:ndeterms:tnmw' => \ValueSuggest\Service\NdeTermsDataTypeFactory::class,
-            'valuesuggest:ndeterms:ttwn' => \ValueSuggest\Service\NdeTermsDataTypeFactory::class,
-            'valuesuggest:ndeterms:wikiall' => \ValueSuggest\Service\NdeTermsDataTypeFactory::class,
-            'valuesuggest:ndeterms:wikipers' => \ValueSuggest\Service\NdeTermsDataTypeFactory::class,
-            'valuesuggest:ndeterms:wikiplacenlbe' => \ValueSuggest\Service\NdeTermsDataTypeFactory::class,
-            'valuesuggest:ndeterms:wikistrnl' => \ValueSuggest\Service\NdeTermsDataTypeFactory::class,
+            /* Nomenclature */
+            'valuesuggest:nom:all' => Service\NomDataTypeFactory::class,
+            'valuesuggest:nom:nom2' => Service\NomDataTypeFactory::class,
+            'valuesuggest:nom:nom967' => Service\NomDataTypeFactory::class,
+            'valuesuggest:nom:nom1934' => Service\NomDataTypeFactory::class,
+            'valuesuggest:nom:nom3176' => Service\NomDataTypeFactory::class,
+            'valuesuggest:nom:nom7685' => Service\NomDataTypeFactory::class,
+            'valuesuggest:nom:nom10378' => Service\NomDataTypeFactory::class,
+            'valuesuggest:nom:nom11633' => Service\NomDataTypeFactory::class,
+            'valuesuggest:nom:nom12838' => Service\NomDataTypeFactory::class,
+            'valuesuggest:nom:nom14135' => Service\NomDataTypeFactory::class,
+            'valuesuggest:nom:nom14897' => Service\NomDataTypeFactory::class,
 
             /* Nuovo Soggettario */
             'valuesuggest:ns:ThesCF5' => Service\NsDataTypeFactory::class,
@@ -121,9 +118,32 @@ return [
             'valuesuggest:oclc:viaf' => Service\OclcDataTypeFactory::class,
             'valuesuggest:oclc:fast' => Service\OclcDataTypeFactory::class,
 
+            /* Omeka */
+            'valuesuggest:omeka:property' => Service\OmekaDataTypeFactory::class,
+            'valuesuggest:omeka:propertyResourceTemplate' => Service\OmekaDataTypeFactory::class,
+            'valuesuggest:omeka:propertyResourceClass' => Service\OmekaDataTypeFactory::class,
+
+            /* ORCID */
+            'valuesuggest:orcid:orcid' => Service\OrcidDataTypeFactory::class,
+
             /* Opentheso / Pactols */
             'valuesuggest:pactols:all' => Service\PactolsDataTypeFactory::class,
             'valuesuggest:pactols:sujets' => Service\PactolsDataTypeFactory::class,
+
+            /* PBCore */
+            'valuesuggestall:pbcore:pbcoreAssetType' => Service\PbcoreDataTypeFactory::class,
+            'valuesuggestall:pbcore:dateType' => Service\PbcoreDataTypeFactory::class,
+            'valuesuggestall:pbcore:titleType' => Service\PbcoreDataTypeFactory::class,
+            'valuesuggestall:pbcore:descriptionType' => Service\PbcoreDataTypeFactory::class,
+            'valuesuggestall:pbcore:pbcoreRelationType' => Service\PbcoreDataTypeFactory::class,
+            'valuesuggestall:pbcore:instantiationRelationType' => Service\PbcoreDataTypeFactory::class,
+            'valuesuggestall:pbcore:creatorRoleContributorRole' => Service\PbcoreDataTypeFactory::class,
+            'valuesuggestall:pbcore:publisherRole' => Service\PbcoreDataTypeFactory::class,
+            'valuesuggestall:pbcore:instantiationPhysicalAudio' => Service\PbcoreDataTypeFactory::class,
+            'valuesuggestall:pbcore:instantiationPhysicalFilm' => Service\PbcoreDataTypeFactory::class,
+            'valuesuggestall:pbcore:instantiationPhysicalVideo' => Service\PbcoreDataTypeFactory::class,
+            'valuesuggestall:pbcore:instantiationMediaType' => Service\PbcoreDataTypeFactory::class,
+            'valuesuggestall:pbcore:instantiationGenerations' => Service\PbcoreDataTypeFactory::class,
 
             /* PeriodO */
             'valuesuggest:periodo:periodo' => Service\PeriodoDataTypeFactory::class,
@@ -135,6 +155,8 @@ return [
             'valuesuggestall:rda:RDACarrierEU' => Service\RdaDataTypeFactory::class,
             'valuesuggestall:rda:RDACarrierType' => Service\RdaDataTypeFactory::class,
             'valuesuggestall:rda:RDACartoDT' => Service\RdaDataTypeFactory::class,
+            'valuesuggestall:rda:RDACollectionAccrualMethod' => Service\RdaDataTypeFactory::class,
+            'valuesuggestall:rda:RDACollectionAccrualPolicy' => Service\RdaDataTypeFactory::class,
             'valuesuggestall:rda:RDAColourContent' => Service\RdaDataTypeFactory::class,
             'valuesuggestall:rda:configPlayback' => Service\RdaDataTypeFactory::class,
             'valuesuggestall:rda:RDAContentType' => Service\RdaDataTypeFactory::class,
@@ -186,6 +208,9 @@ return [
 
             /* RightsStatements.org */
             'valuesuggestall:rightsstatements:rightsstatements' => Service\RightsStatementsDataTypeFactory::class,
+
+            /* ROR */
+            'valuesuggest:ror:ror' => Service\RorDataTypeFactory::class,
 
             /* Tesauros-Diccionarios del patrimonio cultural de España */
             'valuesuggest:tesauros:bienesculturales' => Service\TesaurosDataTypeFactory::class,
@@ -243,6 +268,10 @@ return [
             'valuesuggestall:mc:37684874-0820-402d-b53e-f8ab6b9ed8ba' => Service\McDataTypeFactory::class,
             'valuesuggestall:mc:f14e8183-5885-46d6-8fc9-17ebd8f3c27e' => Service\McDataTypeFactory::class,
             'valuesuggestall:mc:2012b973-ddb2-4540-a775-9157c3c1d7fd' => Service\McDataTypeFactory::class,
+
+            /* Thesaurus de la Universitat de Barcelona (THUB) */
+            'valuesuggest:thub:thub' => Service\ThubDataTypeFactory::class,
+
         ],
     ],
     'router' => [

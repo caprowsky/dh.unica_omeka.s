@@ -1,11 +1,5 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-mvc for the canonical source repository
- * @copyright https://github.com/laminas/laminas-mvc/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-mvc/blob/master/LICENSE.md New BSD License
- */
-
 namespace Laminas\Mvc\Controller;
 
 use Interop\Container\ContainerInterface;
@@ -147,28 +141,27 @@ class LazyControllerAbstractFactory implements AbstractFactoryInterface
     private function resolveParameter(ContainerInterface $container, $requestedName)
     {
         /**
-         * @param ReflectionClass $parameter
+         * @param ReflectionParameter $parameter
          * @return mixed
          * @throws ServiceNotFoundException If type-hinted parameter cannot be
          *   resolved to a service in the container.
          */
         return function (ReflectionParameter $parameter) use ($container, $requestedName) {
-            if ($parameter->isArray()
-                && $parameter->getName() === 'config'
-                && $container->has('config')
-            ) {
-                return $container->get('config');
-            }
-
-            if ($parameter->isArray()) {
+            if ($parameter->getType()
+                && $parameter->getType()->getName() === 'array') {
+                if ($parameter->getName() === 'config'
+                    && $container->has('config')
+                ) {
+                    return $container->get('config');
+                }
                 return [];
             }
 
-            if (! $parameter->getClass()) {
+            if (! $parameter->getType() || $parameter->getType()->isBuiltin()) {
                 return;
             }
 
-            $type = $parameter->getClass()->getName();
+            $type = $parameter->getType()->getName();
             $type = isset($this->aliases[$type]) ? $this->aliases[$type] : $type;
 
             if (! $container->has($type)) {

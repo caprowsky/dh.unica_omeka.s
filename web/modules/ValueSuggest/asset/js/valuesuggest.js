@@ -6,9 +6,8 @@ $(document).on('o:prepare-value', function(e, type, value) {
         var labelInput = thisValue.find('input[data-value-key="o:label"]');
         var idInput = thisValue.find('input[data-value-key="@id"]');
         var valueInput = thisValue.find('input[data-value-key="@value"]');
-        var languageLabel = thisValue.find('.value-language.label');
+        var languageLabel = thisValue.find('a.value-language');
         var languageInput = thisValue.find('input[data-value-key="@language"]');
-        var languageRemove = thisValue.find('.value-language.remove');
         var idContainer = thisValue.find('.valuesuggest-id-container');
         var allResults;
 
@@ -58,15 +57,10 @@ $(document).on('o:prepare-value', function(e, type, value) {
 
         languageLabel.on('click', function(e) {
             e.preventDefault();
+            $(this).parent('.valuesuggest-language-container').toggleClass('active');
             if ($(this).hasClass('active')) {
                 return;
             }
-            thisValue.find('.value-language').addClass('active');
-        });
-
-        languageRemove.on('click', function(e) {
-            e.preventDefault();
-            thisValue.find('.value-language.active').removeClass('active');
         });
 
         // Remove the @id from URI type and make it appears like a "Literal" type.
@@ -85,13 +79,16 @@ $(document).on('o:prepare-value', function(e, type, value) {
             // triggered whether the user wants it or not. The user must
             // explicitly select the suggestion.
             triggerSelectOnValidInput: false,
-            // Set the lang paramater in onSearchStart so the "valuesuggest"
-            // type always uses the current language when making a query. Set
-            // the type parameter here as well for consistency.
+            // Set contextual parameters for suggesters that may need them. For
+            // example, we set "lang" so the suggester always uses the current
+            // language when making a query.
             onSearchStart: function(params) {
                 $(this).css('cursor', 'progress');
-                params.lang = languageInput.val();
                 params.type = type;
+                params.lang = languageInput.val();
+                params.property_id = thisValue.closest('.field').data('property-id');
+                params.resource_template_id = $('#resource-template-select').val();
+                params.resource_class_id = $('#resource-class-select').val();
             },
             onSearchComplete: function(query, suggestions) {
                 $(this).css('cursor', 'default');

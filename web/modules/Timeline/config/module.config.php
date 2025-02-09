@@ -3,6 +3,13 @@
 namespace Timeline;
 
 return [
+    'service_manager' => [
+        'factories' => [
+            // Override theme factory to inject module pages and block templates.
+            // Copied in BlockPlus, Reference, Timeline.
+            'Omeka\Site\ThemeManager' => Service\ThemeManagerFactory::class,
+        ],
+    ],
     'view_manager' => [
         'template_path_stack' => [
             dirname(__DIR__) . '/view',
@@ -11,10 +18,25 @@ return [
             'ViewJsonStrategy',
         ],
     ],
+    'page_templates' => [
+    ],
+    'block_templates' => [
+        'timeline' => [
+            'timeline-simile' => 'Simile (use internal assets)', // @translate
+            'timeline-simile-online' => 'Simile online (use online js/css)', // @translate
+            'timeline-knightlab' => 'Knightlab', // @translate
+        ],
+    ],
     'block_layouts' => [
         'factories' => [
             'timeline' => Service\BlockLayout\TimelineFactory::class,
             'timelineExhibit' => Service\BlockLayout\TimelineExhibitFactory::class,
+        ],
+    ],
+    'resource_page_block_layouts' => [
+        'invokables' => [
+            'timeline' => Site\ResourcePageBlockLayout\Timeline::class,
+            'timelineKnightlab' => Site\ResourcePageBlockLayout\TimelineKnightlab::class,
         ],
     ],
     'form_elements' => [
@@ -31,43 +53,29 @@ return [
         ],
     ],
     'controller_plugins' => [
-        'invokables' => [
-            'timelineExhibitData' => Mvc\Controller\Plugin\TimelineExhibitData::class,
-            'timelineKnightlab' => Mvc\Controller\Plugin\TimelineKnightlab::class,
-            'timelineSimile' => Mvc\Controller\Plugin\TimelineSimile::class,
+        'factories' => [
+            'timelineExhibitData' => Service\ControllerPlugin\TimelineExhibitDataFactory::class,
+            'timelineKnightlabData' => Service\ControllerPlugin\TimelineKnightlabDataFactory::class,
+            'timelineSimileData' => Service\ControllerPlugin\TimelineSimileDataFactory::class,
         ],
     ],
     'router' => [
         'routes' => [
             'api' => [
                 'child_routes' => [
+                    // The deprecated route "timeline-block" (for url "/timeline/:block-id/events.json") was removed in 3.4.22.
                     'timeline' => [
                         'type' => \Laminas\Router\Http\Segment::class,
                         'options' => [
+                            // The block id may be an item set id.
                             'route' => '/timeline[/:block-id]',
                             'constraints' => [
-                                'block-id' => '\d+',
+                                'block-id' => '(?:b|r)?\d+',
                             ],
                             'defaults' => [
                                 'controller' => Controller\ApiController::class,
                             ],
                         ],
-                    ],
-                ],
-            ],
-            // @deprecated Use /api/timeline instead.
-            'timeline-block' => [
-                'type' => \Laminas\Router\Http\Segment::class,
-                'options' => [
-                    'route' => '/timeline/:block-id/events.json',
-                    'constraints' => [
-                        'block-id' => '\d+',
-                    ],
-                    'defaults' => [
-//                         '__NAMESPACE__' => 'Timeline\Controller',
-//                         'controller' => 'ApiController',
-                        'controller' => Controller\ApiController::class,
-                        'action' => 'getList',
                     ],
                 ],
             ],
@@ -86,27 +94,34 @@ return [
     'timeline' => [
         'block_settings' => [
             'timeline' => [
-                'heading' => '',
+                'query' => [],
                 'item_title' => 'default',
                 'item_description' => 'default',
                 'item_date' => 'dcterms:date',
-                'item_date_end' => '',
+                'item_date_end' => null,
+                'item_metadata' => [],
+                'group' => null,
+                'group_default' => '',
                 'render_year' => 'january_1',
                 'center_date' => '9999-99-99',
+                'eras' => [],
+                'markers' => [],
                 'thumbnail_type' => 'medium',
                 'thumbnail_resource' => true,
                 'viewer' => '{}',
-                'query' => [],
-                'library' => 'simile',
                 // The id of dcterms:date in the standard install of Omeka S.
                 'item_date_id' => '7',
             ],
             'timelineExhibit' => [
-                'heading' => '',
                 'start_date_property' => 'dcterms:date',
-                'end_date_property' => '',
+                'end_date_property' => null,
                 'credit_property' => 'dcterms:creator',
+                'item_metadata' => [],
+                'group' => null,
+                'group_default' => '',
                 'scale' => 'human',
+                'eras' => [],
+                'markers' => [],
                 'options' => '{}',
                 'slides' => [
                     [

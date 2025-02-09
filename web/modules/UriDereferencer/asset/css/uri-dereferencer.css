@@ -7,24 +7,13 @@ i.loading:before {
     width: 1.2em;
     display: block;
     text-align: center;
+    font-weight: 900;
 }
 
 a.uri-dereferencer-toggle,
 a.uri-dereferencer-fetch {
     width: 1.5em;
-    text-align: center;
     display: inline-flex;
-    justify-content: space-between;
-}
-
-a.uri-dereferencer-toggle:before,
-a.uri-dereferencer-fetch:before {
-    content: "[";
-}
-
-a.uri-dereferencer-toggle:after,
-a.uri-dereferencer-fetch:after {
-    content: "]";
 }
 
 .uri-dereferencer-markup {

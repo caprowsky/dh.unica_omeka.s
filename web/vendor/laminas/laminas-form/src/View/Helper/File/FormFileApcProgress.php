@@ -1,10 +1,6 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-form for the canonical source repository
- * @copyright https://github.com/laminas/laminas-form/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-form/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
 
 namespace Laminas\Form\View\Helper\File;
 
@@ -16,10 +12,7 @@ use function ini_get;
  */
 class FormFileApcProgress extends FormFileUploadProgress
 {
-    /**
-     * @return string
-     */
-    protected function getName()
+    protected function getName(): string
     {
         return ini_get('apc.rfc1867_name');
     }

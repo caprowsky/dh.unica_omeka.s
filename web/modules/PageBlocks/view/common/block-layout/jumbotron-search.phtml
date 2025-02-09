@@ -18,7 +18,7 @@ $searchValue = $this->escapeHtml($this->params()->fromQuery('fulltext_search', '
 ?>
 
 <section class="jumbotron-search">
-    <h1><?= $header ?></h1>
+    <h2><?= $header ?></h2>
     <?php if ($subheader): ?>
         <p><?= $subheader ?></p>
     <?php endif; ?>
@@ -26,7 +26,9 @@ $searchValue = $this->escapeHtml($this->params()->fromQuery('fulltext_search', '
     <form action="<?php echo $this->escapeHtml($searchAction); ?>" role="search">
         <input type="text" name="fulltext_search" value="<?php echo $searchValue; ?>"
             placeholder="<?php echo $translate('Search'); ?>">
-        <button type="submit" title="<?php echo $translate('Submit'); ?>"></button>
+        <button type="submit" title="<?php echo $translate('Submit'); ?>">
+            <span class="fa fa-search" aria-hidden="true"></span>
+        </button>
     </form>
     
     <?php echo $this->hyperlink($translate('Advanced search') . '...', $this->url('site', [], true) . "/item/search", ['class' => 'advanced-search']); ?>

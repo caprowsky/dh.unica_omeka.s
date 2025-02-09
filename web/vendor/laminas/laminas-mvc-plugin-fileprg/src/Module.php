@@ -1,10 +1,6 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-mvc-plugin-fileprg for the canonical source repository
- * @copyright https://github.com/laminas/laminas-mvc-plugin-fileprg/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-mvc-plugin-fileprg/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
 
 namespace Laminas\Mvc\Plugin\FilePrg;
 
@@ -23,16 +19,18 @@ class Module
     {
         return [
             'controller_plugins' => [
-                'aliases' => [
-                    'fileprg'             => FilePostRedirectGet::class,
-                    'FilePostRedirectGet' => FilePostRedirectGet::class,
-                    'filePostRedirectGet' => FilePostRedirectGet::class,
-                    'filepostredirectget' => FilePostRedirectGet::class,
+                'aliases'   => [
+                    'fileprg'                                           => FilePostRedirectGet::class,
+                    'FilePostRedirectGet'                               => FilePostRedirectGet::class,
+                    'filePostRedirectGet'                               => FilePostRedirectGet::class,
+                    'filepostredirectget'                               => FilePostRedirectGet::class,
                     'Laminas\Mvc\Controller\Plugin\FilePostRedirectGet' => FilePostRedirectGet::class,
 
                     // Legacy Zend Framework aliases
-                    'Zend\Mvc\Controller\Plugin\FilePostRedirectGet' => 'Laminas\Mvc\Controller\Plugin\FilePostRedirectGet',
+                    // @codingStandardsIgnoreStart
+                    'Zend\Mvc\Controller\Plugin\FilePostRedirectGet'    => 'Laminas\Mvc\Controller\Plugin\FilePostRedirectGet',
                     \Zend\Mvc\Plugin\FilePrg\FilePostRedirectGet::class => FilePostRedirectGet::class,
+                    // @codingStandardsIgnoreEnd
                 ],
                 'factories' => [
                     FilePostRedirectGet::class => InvokableFactory::class,

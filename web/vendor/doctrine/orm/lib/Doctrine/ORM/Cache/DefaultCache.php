@@ -1,22 +1,6 @@
 <?php
 
-/*
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * This software consists of voluntary contributions made by many individuals
- * and is licensed under the MIT license. For more information, see
- * <http://www.doctrine-project.org>.
- */
+declare(strict_types=1);
 
 namespace Doctrine\ORM\Cache;
 
@@ -48,7 +32,7 @@ class DefaultCache implements Cache
     /** @var QueryCache[] */
     private $queryCaches = [];
 
-    /** @var QueryCache */
+    /** @var QueryCache|null */
     private $defaultQueryCache;
 
     public function __construct(EntityManagerInterface $em)
@@ -275,13 +259,11 @@ class DefaultCache implements Cache
         return $this->queryCaches[$regionName];
     }
 
-     /**
-      * @param ClassMetadata $metadata   The entity metadata.
-      * @param mixed         $identifier The entity identifier.
-      *
-      * @return EntityCacheKey
-      */
-    private function buildEntityCacheKey(ClassMetadata $metadata, $identifier)
+    /**
+     * @param ClassMetadata $metadata   The entity metadata.
+     * @param mixed         $identifier The entity identifier.
+     */
+    private function buildEntityCacheKey(ClassMetadata $metadata, $identifier): EntityCacheKey
     {
         if (! is_array($identifier)) {
             $identifier = $this->toIdentifierArray($metadata, $identifier);
@@ -294,11 +276,12 @@ class DefaultCache implements Cache
      * @param ClassMetadata $metadata        The entity metadata.
      * @param string        $association     The field name that represents the association.
      * @param mixed         $ownerIdentifier The identifier of the owning entity.
-     *
-     * @return CollectionCacheKey
      */
-    private function buildCollectionCacheKey(ClassMetadata $metadata, $association, $ownerIdentifier)
-    {
+    private function buildCollectionCacheKey(
+        ClassMetadata $metadata,
+        string $association,
+        $ownerIdentifier
+    ): CollectionCacheKey {
         if (! is_array($ownerIdentifier)) {
             $ownerIdentifier = $this->toIdentifierArray($metadata, $ownerIdentifier);
         }
@@ -312,7 +295,7 @@ class DefaultCache implements Cache
      *
      * @return array<string, mixed>
      */
-    private function toIdentifierArray(ClassMetadata $metadata, $identifier)
+    private function toIdentifierArray(ClassMetadata $metadata, $identifier): array
     {
         if (is_object($identifier) && $this->em->getMetadataFactory()->hasMetadataFor(ClassUtils::getClass($identifier))) {
             $identifier = $this->uow->getSingleIdentifierValue($identifier);

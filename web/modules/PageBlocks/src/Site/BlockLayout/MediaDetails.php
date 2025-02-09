@@ -40,7 +40,7 @@ class MediaDetails extends AbstractBlockLayout
         $form = $this->formElementManager->get(MediaDetailsForm::class);
             
         if ($block && $block->data()) {
-            $form->setData([
+            $form->populateValues([
                 'o:block[__blockIndex__][o:data][show_heading]' => $block->dataValue('show_heading'),
                 'o:block[__blockIndex__][o:data][properties]' => $block->dataValue('properties')
             ]);

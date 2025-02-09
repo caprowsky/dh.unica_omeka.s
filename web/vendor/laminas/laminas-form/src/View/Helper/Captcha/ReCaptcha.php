@@ -1,18 +1,16 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-form for the canonical source repository
- * @copyright https://github.com/laminas/laminas-form/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-form/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
 
 namespace Laminas\Form\View\Helper\Captcha;
 
 use Laminas\Captcha\ReCaptcha as CaptchaAdapter;
+use Laminas\Form\Element\Captcha;
 use Laminas\Form\ElementInterface;
 use Laminas\Form\Exception;
 use Laminas\Form\View\Helper\FormInput;
 
+use function assert;
 use function sprintf;
 
 class ReCaptcha extends FormInput
@@ -22,10 +20,12 @@ class ReCaptcha extends FormInput
      *
      * Proxies to {@link render()}.
      *
-     * @param  ElementInterface $element
-     * @return string
+     * @template T as null|ElementInterface
+     * @psalm-param T $element
+     * @psalm-return (T is null ? self : string)
+     * @return string|self
      */
-    public function __invoke(ElementInterface $element = null)
+    public function __invoke(?ElementInterface $element = null)
     {
         if (! $element) {
             return $this;
@@ -37,13 +37,11 @@ class ReCaptcha extends FormInput
     /**
      * Render ReCaptcha form elements
      *
-     * @param  ElementInterface $element
      * @throws Exception\DomainException
-     * @return string
      */
-    public function render(ElementInterface $element)
+    public function render(ElementInterface $element): string
     {
-        $attributes = $element->getAttributes();
+        assert($element instanceof Captcha);
         $captcha = $element->getCaptcha();
 
         if ($captcha === null || ! $captcha instanceof CaptchaAdapter) {
@@ -55,8 +53,9 @@ class ReCaptcha extends FormInput
         }
 
         $name = $element->getName();
+        assert($name !== null);
 
-        $markup = $captcha->getService()->getHtml($name);
+        $markup = $captcha->getService()->getHtml();
         $hidden = $this->renderHiddenInput($name);
 
         return $hidden . $markup;
@@ -65,17 +64,8 @@ class ReCaptcha extends FormInput
     /**
      * Render hidden input element if the element's name is not 'g-recaptcha-response'
      * so that required validation works
-     *
-     * Note that only the first parameter is needed, the other three parameters
-     * are deprecated.
-     *
-     * @param  string $name
-     * @param  string $challengeId @deprecated
-     * @param  string $responseName @deprecated
-     * @param  string $responseId @deprecated
-     * @return string
      */
-    protected function renderHiddenInput($name, $challengeId = '', $responseName = '', $responseId = '')
+    protected function renderHiddenInput(string $name): string
     {
         if ($name === 'g-recaptcha-response') {
             return '';
@@ -88,21 +78,6 @@ class ReCaptcha extends FormInput
             'name'  => $name,
             'value' => 'g-recaptcha-response',
         ]);
-        $challenge = sprintf($pattern, $attributes, $closingBracket);
-        return $challenge;
-    }
-
-    /**
-     * No longer used with v2 of Recaptcha API
-     *
-     * @deprecated
-     *
-     * @param  string $challengeId
-     * @param  string $responseId
-     * @return string
-     */
-    protected function renderJsEvents($challengeId, $responseId)
-    {
-        return '';
+        return sprintf($pattern, $attributes, $closingBracket);
     }
 }

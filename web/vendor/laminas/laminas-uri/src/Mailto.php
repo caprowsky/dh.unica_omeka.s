@@ -1,15 +1,11 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-uri for the canonical source repository
- * @copyright https://github.com/laminas/laminas-uri/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-uri/blob/master/LICENSE.md New BSD License
- */
-
 namespace Laminas\Uri;
 
 use Laminas\Validator\EmailAddress as EmailValidator;
 use Laminas\Validator\ValidatorInterface;
+
+use function strpos;
 
 /**
  * "Mailto" URI handler
@@ -18,10 +14,12 @@ use Laminas\Validator\ValidatorInterface;
  */
 class Mailto extends Uri
 {
+    /** @var array<int,string> */
     protected static $validSchemes = ['mailto'];
 
     /**
      * Validator for use when validating email address
+     *
      * @var ValidatorInterface
      */
     protected $emailValidator;
@@ -32,8 +30,9 @@ class Mailto extends Uri
      * This applies additional specific validation rules beyond the ones
      * required by the generic URI syntax
      *
-     * @return bool
      * @see    Uri::isValid()
+     *
+     * @return bool
      */
     public function isValid()
     {
@@ -81,7 +80,6 @@ class Mailto extends Uri
     /**
      * Set validator to use when validating email address
      *
-     * @param  ValidatorInterface $validator
      * @return Mailto
      */
     public function setValidator(ValidatorInterface $validator)

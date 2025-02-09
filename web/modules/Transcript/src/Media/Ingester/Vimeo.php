@@ -13,7 +13,7 @@ use Laminas\Form\FormElementManager;
 use Laminas\Http\Client;
 use Laminas\View\Renderer\PhpRenderer;
 use Transcript\Form\ConfigForm;
-use Transcript\Form\VimeoIngesterForm;
+use Transcript\Form\VimeoIngesterFieldset;
 use Vimeo\Vimeo as VimeoAPI;
 
 class Vimeo implements IngesterInterface
@@ -58,7 +58,7 @@ class Vimeo implements IngesterInterface
     
     public function form(PhpRenderer $view, array $options = [])
     {
-        $form = $this->formElementManager->get(VimeoIngesterForm::class);        
+        $form = $this->formElementManager->get(VimeoIngesterFieldset::class);        
         return $view->formCollection($form, false);
     }
     
@@ -230,16 +230,15 @@ class Vimeo implements IngesterInterface
         {
             foreach ($tracks['body']['data'] as $track)
             {
-                if (!empty($track['link']) || !$track['active'])
+                if (empty($track['link']) || !$track['active']) { continue; }
+                
+                if ($file = $this->downloader->download($track['link']))
                 {
-                    if ($file = $this->downloader->download($track['link']))
-                    {
-                        $data[] = [
-                            "storage" => $file->store('asset', 'vtt'),
-                            "language" => $track['language'],
-                        ];
-                        $file->delete();
-                    }
+                    $data[] = [
+                        "storage" => $file->store('asset', 'vtt'),
+                        "language" => $track['language'],
+                    ];
+                    $file->delete();
                 }
             }
         }

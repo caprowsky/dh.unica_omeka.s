@@ -1,10 +1,11 @@
 <?php declare(strict_types=1);
+
 namespace Timeline\Mvc\Controller\Plugin;
 
-use DateTime;
 use Laminas\Mvc\Controller\Plugin\AbstractPlugin;
 use Laminas\Uri\Http as HttpUri;
 use NumericDataTypes\DataType\Timestamp;
+use Omeka\Api\Manager as ApiManager;
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 
 /**
@@ -14,25 +15,17 @@ use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
  */
 class TimelineExhibitData extends AbstractPlugin
 {
+    use TraitTimelineData;
+
     /**
-     * @var \Omeka\Mvc\Controller\Plugin\Api
+     * @var \Omeka\Api\Manager
      */
     protected $api;
 
     /**
-     * @var \Laminas\View\Helper\EscapeHtmlAttr
+     * @var \Laminas\I18n\View\Helper\Translate
      */
-    protected $escapeHtmlAttr;
-
-    /**
-     * @var string
-     */
-    protected $startDateProperty = 'dcterms:date';
-
-    /**
-     * @var string
-     */
-    protected $endDateProperty = null;
+    protected $translate;
 
     /**
      * @var string
@@ -40,14 +33,34 @@ class TimelineExhibitData extends AbstractPlugin
     protected $creditProperty = 'dcterms:creator';
 
     /**
-     * @var bool
+     * @var string
      */
-    protected $isCosmological = false;
+    protected $endDateProperty = null;
+
+    /**
+     * @var array
+     */
+    protected $fieldsItem = [];
+
+    /**
+     * @var string
+     */
+    protected $fieldGroup = null;
+
+    /**
+     * @var string
+     */
+    protected $groupDefault = null;
 
     /**
      * @var string
      */
     protected $siteSlug;
+
+    /**
+     * @var string
+     */
+    protected $startDateProperty = 'dcterms:date';
 
     /**
      * List of extensions that are managed directly by the viewer.
@@ -67,29 +80,36 @@ class TimelineExhibitData extends AbstractPlugin
         'wav',
     ];
 
+    public function __construct(ApiManager $api)
+    {
+        $this->api = $api;
+    }
+
     /**
      * Extract titles, descriptions and dates from the timeline’s slides.
-     *
-     * @param array $args
-     * @return array
      */
-    public function __invoke(array $args)
+    public function __invoke(array $args): array
     {
         $controller = $this->getController();
-        $this->api = $controller->api();
-        $this->escapeHtmlAttr = $controller->viewHelpers()->get('escapeHtmlAttr');
+        $this->translate = $controller->viewHelpers()->get('translate');
 
         $this->startDateProperty = $args['start_date_property'];
         $this->endDateProperty = $args['end_date_property'];
         $this->creditProperty = $args['credit_property'];
-        $this->isCosmologicial = (bool) $args['scale'] === 'cosmological';
+        $this->isCosmological = (bool) $args['scale'] === 'cosmological';
+        $this->fieldsItem = $args['item_metadata'] ?? [];
+        $this->fieldGroup = $args['group'] ?? null;
+        $this->groupDefault = empty($args['group_default']) ? null : $args['group_default'];
         $this->siteSlug = $args['site_slug'];
 
+        $eras = empty($args['eras']) ? [] : $this->extractEras($args['eras']);
+        $markers = empty($args['markers']) ? [] : $this->extractMarkers($args['markers']);
+
         $timeline = [
-            'scale' => $this->isCosmologicial ? 'cosmological' : 'human',
+            'scale' => $this->isCosmological ? 'cosmological' : 'human',
             'title' => null,
             'events' => [],
-            'eras' => [],
+            'eras' => $eras,
         ];
 
         foreach ($args['slides'] as $key => $slideData) {
@@ -103,6 +123,7 @@ class TimelineExhibitData extends AbstractPlugin
                 'start_display_date' => '',
                 'end_display_date' => '',
                 'display_date' => '',
+                'metadata' => [],
                 'headline' => '',
                 'html' => '',
                 'resource' => null,
@@ -117,7 +138,7 @@ class TimelineExhibitData extends AbstractPlugin
             // Prepare attachments so they will be available in all cases.
             if ($slideData['resource']) {
                 try {
-                    /* @var \Omeka\Api\Representation\AbstractResourceEntityRepresentation $resource */
+                    /** @see \Omeka\Api\Representation\AbstractResourceEntityRepresentation $resource */
                     $slideData['resource'] = $this->api->read('resources', ['id' => $slideData['resource']])->getContent();
                 } catch (\Omeka\Api\Exception\NotFoundException $e) {
                     $slideData['resource'] = null;
@@ -125,7 +146,7 @@ class TimelineExhibitData extends AbstractPlugin
             }
             if ($slideData['background']) {
                 try {
-                    /* @var \Omeka\Api\Representation\AssetRepresentation $background */
+                    /** @see \Omeka\Api\Representation\AssetRepresentation $background */
                     $slideData['background'] = $this->api->read('assets', $slideData['background'])->getContent();
                 } catch (\Omeka\Api\Exception\NotFoundException $e) {
                     $slideData['background'] = null;
@@ -155,25 +176,44 @@ class TimelineExhibitData extends AbstractPlugin
             }
         }
 
+        // Append markers.
+        $groupLabel = $this->translate->__invoke('Events'); // @translate
+        foreach ($markers as $markerData) {
+            $markerData['group'] = $groupLabel;
+            $timeline['events'][] = $markerData;
+        }
+
         return $timeline;
     }
 
     /**
      * Get the slide from the slide data.
-     *
-     * @param array $slideData
-     * @return array|null
      */
-    protected function slide(array $slideData)
+    protected function slide(array $slideData): ?array
     {
         $interval = $this->intervalDate($slideData);
+
+        $group = $this->groupDefault;
+        if (empty($slideData['group'])) {
+            if ($this->fieldGroup
+                && $slideData['resource']
+                && $slideData['type'] !== 'title'
+                && $slideData['type'] !== 'era'
+            ) {
+                $group = $this->resourceMetadataSingle($slideData['resource'], $this->fieldGroup)
+                    ?: $this->groupDefault;
+                $group = $group ? strip_tags($group) : null;
+            }
+        } else {
+            $group = strip_tags($slideData['group']);
+        }
 
         $slide = [
             'start_date' => $interval ? $interval['start_date'] : $this->startDate($slideData),
             'end_date' => $interval ? $interval['end_date'] : $this->endDate($slideData),
             'text' => $this->text($slideData),
             'media' => $this->media($slideData),
-            'group' => empty($slideData['group']) ? null : $slideData['group'],
+            'group' => $group,
             'display_date' => empty($slideData['display_date']) ? null : $slideData['display_date'],
             'background' => $this->background($slideData),
             'autolink' => false,
@@ -188,9 +228,11 @@ class TimelineExhibitData extends AbstractPlugin
             $slide['unique_id'] .= '-asset-' . $slideData['background']->id();
         }
 
-        $slide = array_filter($slide, function ($v) {
-            return !is_null($v);
-        });
+        $slide = array_filter($slide, fn ($v) => !is_null($v));
+
+        if ($this->fieldsItem && !empty($slideData['resource'])) {
+            $slide['metadata'] = $this->resourceMetadata($slideData['resource'], $this->fieldsItem);
+        }
 
         if ($slideData['type'] === 'title') {
             return array_filter($slide)
@@ -205,11 +247,8 @@ class TimelineExhibitData extends AbstractPlugin
 
     /**
      * Get the era from the slide data.
-     *
-     * @param array $slideData
-     * @return array|null
      */
-    protected function era(array $slideData)
+    protected function era(array $slideData): ?array
     {
         $interval = $this->intervalDate($slideData);
         $era = [
@@ -225,11 +264,8 @@ class TimelineExhibitData extends AbstractPlugin
 
     /**
      * Get the text from the slide data.
-     *
-     * @param array $slideData
-     * @return array|null
      */
-    protected function text(array $slideData)
+    protected function text(array $slideData): ?array
     {
         $text = [
             'headline' => null,
@@ -239,7 +275,7 @@ class TimelineExhibitData extends AbstractPlugin
         if ($slideData['headline']) {
             $text['headline'] = $slideData['headline'];
         } elseif ($slideData['resource']) {
-            $text['headline'] = $slideData['resource']->displayTitle();
+            $text['headline'] = (string) $slideData['resource']->displayTitle();
         }
 
         if ($text['headline'] && $slideData['resource']) {
@@ -249,7 +285,7 @@ class TimelineExhibitData extends AbstractPlugin
         if ($slideData['html']) {
             $text['text'] = $slideData['html'];
         } elseif ($slideData['resource']) {
-            $text['text'] = $slideData['resource']->displayDescription();
+            $text['text'] = (string) $slideData['resource']->displayDescription();
         }
 
         return array_filter($text, 'strlen') ?: null;
@@ -257,11 +293,8 @@ class TimelineExhibitData extends AbstractPlugin
 
     /**
      * Get the media from the slide data.
-     *
-     * @param array $slideData
-     * @return array|null
      */
-    protected function media(array $slideData)
+    protected function media(array $slideData): ?array
     {
         if (empty($slideData['resource'])) {
             return $this->mediaContent($slideData);
@@ -303,6 +336,7 @@ class TimelineExhibitData extends AbstractPlugin
                     case 'file':
                         // May use embed.ly for unmanaged formats.
                         $media['url'] = $primaryMedia->originalUrl();
+                        $media['alt'] = $primaryMedia->altText();
                         break;
                     case 'html':
                         $media['url'] = '<blockquote>' . $data['html'] . '</blockquote>';
@@ -368,11 +402,8 @@ class TimelineExhibitData extends AbstractPlugin
 
     /**
      * Get the media content from the slide data.
-     *
-     * @param array $slideData
-     * @return array|null
      */
-    protected function mediaContent(array $slideData)
+    protected function mediaContent(array $slideData): ?array
     {
         if (empty($slideData['content'])) {
             return null;
@@ -401,11 +432,8 @@ class TimelineExhibitData extends AbstractPlugin
 
     /**
      * Get the background from the slide data.
-     *
-     * @param array $slideData
-     * @return array|null
      */
-    protected function background(array $slideData)
+    protected function background(array $slideData): ?array
     {
         $background = [];
         if ($slideData['background']) {
@@ -419,11 +447,8 @@ class TimelineExhibitData extends AbstractPlugin
 
     /**
      * Get the start date from the slide data.
-     *
-     * @param array $slideData
-     * @return array|null
      */
-    protected function startDate(array $slideData)
+    protected function startDate(array $slideData): ?array
     {
         if (empty($slideData['start_date'])) {
             return empty($slideData['resource']) || empty($this->startDateProperty)
@@ -435,11 +460,8 @@ class TimelineExhibitData extends AbstractPlugin
 
     /**
      * Get the end date from the slide data.
-     *
-     * @param array $slideData
-     * @return array|null
      */
-    protected function endDate(array $slideData)
+    protected function endDate(array $slideData): ?array
     {
         if (empty($slideData['end_date'])) {
             return empty($slideData['resource']) || empty($this->endDateProperty)
@@ -451,11 +473,8 @@ class TimelineExhibitData extends AbstractPlugin
 
     /**
      * Get the start and end date from the specified value of a resource.
-     *
-     * @param array $slideData
-     * @return array|null
      */
-    protected function intervalDate(array $slideData)
+    protected function intervalDate(array $slideData): ?array
     {
         if (empty($this->startDateProperty) || empty($slideData['resource'])) {
             return null;
@@ -466,7 +485,7 @@ class TimelineExhibitData extends AbstractPlugin
             return null;
         }
 
-        list($start, $end) = explode('/', $date->value());
+        [$start, $end] = explode('/', $date->value());
 
         $startDate = Timestamp::getDateTimeFromValue($start);
         $interval['start_date'] = [
@@ -504,10 +523,8 @@ class TimelineExhibitData extends AbstractPlugin
      *
      * @param AbstractResourceEntityRepresentation $resource
      * @param string $dateProperty
-     * @param string $displayDate
-     * @return array|null
      */
-    protected function resourceDate(AbstractResourceEntityRepresentation $resource, $dateProperty, $displayDate = null)
+    protected function resourceDate(AbstractResourceEntityRepresentation $resource, $dateProperty, ?string $displayDate = null): ?array
     {
         $dates = $resource->value($dateProperty, ['all' => true]);
         foreach ($dates as $date) {
@@ -517,115 +534,5 @@ class TimelineExhibitData extends AbstractPlugin
             }
         }
         return null;
-    }
-
-    /**
-     * Convert a date from string to array.
-     *
-     * @param string|\Omeka\Api\Representation\ValueRepresentation $date
-     * @param string $displayDate
-     * @return array|null
-     */
-    protected function date($date, $displayDate = null)
-    {
-        $displayDate = strlen($displayDate) ? $displayDate : null;
-        $parts = [
-            'year' => null,
-            'month' => null,
-            'day' => null,
-            'hour' => null,
-            'minute' => null,
-            'second' => null,
-            'millisecond' => null,
-            'display_date' => $displayDate,
-        ];
-
-        $matches = [];
-
-        $dateTime = is_object($date)
-            ? $date->value()
-            : $date;
-
-        // Set the start and end "date" objects.
-        if (is_object($date) && $date->type() === 'numeric:timestamp') {
-            $dateTime = Timestamp::getDateTimeFromValue($date->value());
-            $parts = array_intersect_key($dateTime, $parts);
-            if (!is_null($displayDate)) {
-                $parts['displayDate'] = $displayDate;
-            }
-        }
-        // Simple year (not 0).
-        elseif (preg_match('~^-?[0-9]+$~', $dateTime)) {
-            $parts['year'] = $this->isCosmological ? $date : ((int) $dateTime ?: null);
-        }
-        // TODO Simplify with one regex to manage partial or full iso dates.
-        // Year-month.
-        elseif (preg_match('~^(-?[0-9]+)-(1[0-2]|0[1-9])$~', $dateTime, $matches)) {
-            $parts['year'] = (int) $matches[1];
-            $parts['month'] = (int) $matches[2];
-        }
-        // Year-month-day.
-        elseif (preg_match('~^(-?[0-9]+)-(1[0-2]|0[1-9])-(3[01]|0[1-9]|[12][0-9])$~', $dateTime, $matches)) {
-            $parts['year'] = (int) $matches[1];
-            $parts['month'] = (int) $matches[2];
-            $parts['day'] = (int) $matches[3];
-        }
-        // Year-month-day hour.
-        elseif (preg_match('~^(-?[0-9]+)-(1[0-2]|0[1-9])-(3[01]|0[1-9]|[12][0-9])T(2[0-3]|[01][0-9])$~', $dateTime, $matches)) {
-            $parts['year'] = (int) $matches[1];
-            $parts['month'] = (int) $matches[2];
-            $parts['day'] = (int) $matches[3];
-            $parts['hour'] = (int) $matches[4];
-        }
-        // Year-month-day hour:minute.
-        elseif (preg_match('~^(-?[0-9]+)-(1[0-2]|0[1-9])-(3[01]|0[1-9]|[12][0-9])T(2[0-3]|[01][0-9]):([0-5][0-9])$~', $dateTime, $matches)) {
-            $parts['year'] = (int) $matches[1];
-            $parts['month'] = (int) $matches[2];
-            $parts['day'] = (int) $matches[3];
-            $parts['hour'] = (int) $matches[4];
-            $parts['minute'] = (int) $matches[5];
-        }
-        // Year-month-day hour:minute:second.
-        elseif (preg_match('~^(-?[0-9]+)-(1[0-2]|0[1-9])-(3[01]|0[1-9]|[12][0-9])T(2[0-3]|[01][0-9]):([0-5][0-9]):([0-5][0-9])$~', $dateTime, $matches)) {
-            $parts['year'] = (int) $matches[1];
-            $parts['month'] = (int) $matches[2];
-            $parts['day'] = (int) $matches[3];
-            $parts['hour'] = (int) $matches[4];
-            $parts['minute'] = (int) $matches[5];
-            $parts['second'] = (int) $matches[6];
-        }
-        // Year-month-day hour:minute:second.millisecond
-        elseif (preg_match('~^(-?[0-9]+)-(1[0-2]|0[1-9])-(3[01]|0[1-9]|[12][0-9])T(2[0-3]|[01][0-9]):([0-5][0-9]):([0-5][0-9])(\\.[0-9]+)?~', $dateTime, $matches)) {
-            $parts['year'] = (int) $matches[1];
-            $parts['month'] = (int) $matches[2];
-            $parts['day'] = (int) $matches[3];
-            $parts['hour'] = (int) $matches[4];
-            $parts['minute'] = (int) $matches[5];
-            $parts['second'] = (int) $matches[6];
-            $parts['millisecond'] = (int) $matches[7];
-        }
-        // Else try a string, converted as a timestamp. Only date is returned
-        // for simplicity, according to most common use cases.
-        elseif (($timestamp = strtotime($dateTime)) !== false) {
-            $dateTimeO = new DateTime();
-            $dateTime->setTimestamp($timestamp);
-            $parts['year'] = (int) $dateTimeO->format('Y');
-            $parts['month'] = (int) $dateTimeO->format('m');
-            $parts['day'] = (int) $dateTimeO->format('d');
-        }
-
-        $parts = array_filter($parts, function ($v) {
-            return !is_null($v);
-        });
-
-        if (!isset($parts['year'])) {
-            return null;
-        }
-
-        if ($this->isCosmological) {
-            return array_intersect_key($parts, ['year' => null, 'display_date' => null]);
-        }
-
-        return $parts;
     }
 }

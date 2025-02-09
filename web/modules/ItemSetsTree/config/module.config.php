@@ -6,7 +6,7 @@ return [
     'api_adapters' => [
         'invokables' => [
             'item_sets_tree_edges' => Api\Adapter\ItemSetsTreeEdgeAdapter::class,
-        ]
+        ],
     ],
     'block_layouts' => [
         'invokables' => [
@@ -48,6 +48,11 @@ return [
             'itemSetsTree' => Site\Navigation\Link\ItemSetsTree::class,
         ],
     ],
+    'resource_page_block_layouts' => [
+        'invokables' => [
+            Site\ResourcePageBlockLayout\ItemSetsWithAncestors::class => Site\ResourcePageBlockLayout\ItemSetsWithAncestors::class,
+        ],
+    ],
     'router' => [
         'routes' => [
             'admin' => [
@@ -55,7 +60,7 @@ return [
                     'item-sets-tree' => [
                         'type' => 'Segment',
                         'options' => [
-                            'route' => '/item-sets-tree',
+                            'route' => '/item-sets-tree[/:action]',
                             'defaults' => [
                                 '__NAMESPACE__' => 'ItemSetsTree\Controller',
                                 'controller' => 'Admin\Index',

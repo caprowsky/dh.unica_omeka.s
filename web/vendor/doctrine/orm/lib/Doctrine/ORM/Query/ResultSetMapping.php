@@ -1,22 +1,6 @@
 <?php
 
-/*
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * This software consists of voluntary contributions made by many individuals
- * and is licensed under the MIT license. For more information, see
- * <http://www.doctrine-project.org>.
- */
+declare(strict_types=1);
 
 namespace Doctrine\ORM\Query;
 
@@ -186,7 +170,7 @@ class ResultSetMapping
      * @param string|null $resultAlias The result alias with which the entity result should be
      *                                 placed in the result structure.
      *
-     * @return static This ResultSetMapping instance.
+     * @return $this
      *
      * @todo Rename: addRootEntity
      */
@@ -211,7 +195,7 @@ class ResultSetMapping
      *                            column should be used for.
      * @param string $discrColumn The name of the discriminator column in the SQL result set.
      *
-     * @return static This ResultSetMapping instance.
+     * @return $this
      *
      * @todo Rename: addDiscriminatorColumn
      */
@@ -229,7 +213,7 @@ class ResultSetMapping
      * @param string $alias     The alias of an entity result or joined entity result.
      * @param string $fieldName The name of the field to use for indexing.
      *
-     * @return static This ResultSetMapping instance.
+     * @return $this
      */
     public function addIndexBy($alias, $fieldName)
     {
@@ -266,7 +250,7 @@ class ResultSetMapping
      *
      * @param string $resultColumnName
      *
-     * @return static This ResultSetMapping instance.
+     * @return $this
      */
     public function addIndexByScalar($resultColumnName)
     {
@@ -281,7 +265,7 @@ class ResultSetMapping
      * @param string $alias
      * @param string $resultColumnName
      *
-     * @return static This ResultSetMapping instance.
+     * @return $this
      */
     public function addIndexByColumn($alias, $resultColumnName)
     {
@@ -332,7 +316,7 @@ class ResultSetMapping
      *                                    If not specified, the field is assumed to belong to the class
      *                                    designated by $alias.
      *
-     * @return static This ResultSetMapping instance.
+     * @return $this
      *
      * @todo Rename: addField
      */
@@ -361,7 +345,7 @@ class ResultSetMapping
      * @param string $relation    The association field that connects the parent entity result
      *                            with the joined entity result.
      *
-     * @return static This ResultSetMapping instance.
+     * @return $this
      *
      * @todo Rename: addJoinedEntity
      */
@@ -381,7 +365,7 @@ class ResultSetMapping
      * @param string $alias      The result alias with which the scalar result should be placed in the result structure.
      * @param string $type       The column type
      *
-     * @return static This ResultSetMapping instance.
+     * @return $this
      *
      * @todo Rename: addScalar
      */
@@ -402,6 +386,8 @@ class ResultSetMapping
      *
      * @param mixed  $parameter The parameter name in the SQL result set.
      * @param string $attribute The metadata attribute.
+     *
+     * @return void
      */
     public function addMetadataParameterMapping($parameter, $attribute)
     {
@@ -428,7 +414,7 @@ class ResultSetMapping
      *
      * @param string $alias
      *
-     * @return string
+     * @return class-string
      */
     public function getClassName($alias)
     {
@@ -452,7 +438,7 @@ class ResultSetMapping
      *
      * @param string $columnName
      *
-     * @return string
+     * @return class-string
      */
     public function getDeclaringClass($columnName)
     {
@@ -539,6 +525,7 @@ class ResultSetMapping
      * Gets the number of different entities that appear in the mapped result.
      *
      * @return int
+     * @psalm-return 0|positive-int
      */
     public function getEntityResultCount()
     {
@@ -568,7 +555,7 @@ class ResultSetMapping
      * @param bool   $isIdentifierColumn
      * @param string $type               The column type
      *
-     * @return static This ResultSetMapping instance.
+     * @return $this
      *
      * @todo Make all methods of this class require all parameters and not infer anything
      */

@@ -1,22 +1,6 @@
 <?php
 
-/*
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * This software consists of voluntary contributions made by many individuals
- * and is licensed under the MIT license. For more information, see
- * <http://www.doctrine-project.org>.
- */
+declare(strict_types=1);
 
 namespace Doctrine\ORM;
 
@@ -25,13 +9,12 @@ use InvalidArgumentException;
 
 use function array_map;
 use function count;
-use function get_class;
+use function get_debug_type;
 use function gettype;
 use function implode;
-use function is_object;
 use function method_exists;
 use function reset;
-use function spl_object_hash;
+use function spl_object_id;
 use function sprintf;
 
 /**
@@ -123,10 +106,9 @@ class ORMInvalidArgumentException extends InvalidArgumentException
 
     /**
      * @param object $entry
+     * @psalm-param array<string, string> $associationMapping
      *
      * @return ORMInvalidArgumentException
-     *
-     * @psalm-param array<string, string> $associationMapping
      */
     public static function newEntityFoundThroughRelationship(array $associationMapping, $entry)
     {
@@ -135,10 +117,9 @@ class ORMInvalidArgumentException extends InvalidArgumentException
 
     /**
      * @param object $entry
+     * @psalm-param array<string, string> $assoc
      *
      * @return ORMInvalidArgumentException
-     *
-     * @psalm-param array<string, string> $assoc
      */
     public static function detachedEntityFoundThroughRelationship(array $assoc, $entry)
     {
@@ -236,7 +217,7 @@ class ORMInvalidArgumentException extends InvalidArgumentException
             $expectedType,
             $assoc['sourceEntity'],
             $assoc['fieldName'],
-            is_object($actualValue) ? get_class($actualValue) : gettype($actualValue)
+            get_debug_type($actualValue)
         ));
     }
 
@@ -249,21 +230,24 @@ class ORMInvalidArgumentException extends InvalidArgumentException
      */
     public static function invalidEntityName($entityName)
     {
-        return new self(sprintf('Entity name must be a string, %s given', gettype($entityName)));
+        return new self(sprintf('Entity name must be a string, %s given', get_debug_type($entityName)));
     }
 
     /**
      * Helper method to show an object as string.
+     *
+     * @param object $obj
      */
-    private static function objToStr(object $obj): string
+    private static function objToStr($obj): string
     {
-        return method_exists($obj, '__toString') ? (string) $obj : get_class($obj) . '@' . spl_object_hash($obj);
+        return method_exists($obj, '__toString') ? (string) $obj : get_debug_type($obj) . '@' . spl_object_id($obj);
     }
 
     /**
+     * @param object $entity
      * @psalm-param array<string,string> $associationMapping
      */
-    private static function newEntityFoundThroughRelationshipMessage(array $associationMapping, object $entity): string
+    private static function newEntityFoundThroughRelationshipMessage(array $associationMapping, $entity): string
     {
         return 'A new entity was found through the relationship \''
             . $associationMapping['sourceEntity'] . '#' . $associationMapping['fieldName'] . '\' that was not'

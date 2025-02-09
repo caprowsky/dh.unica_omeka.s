@@ -2,8 +2,8 @@
 
 return [
     'service_manager' => [
-        'invokables' => [
-            'Omeka2Importer\Omeka2Client' => 'Omeka2Importer\Service\Omeka2Client',
+        'factories' => [
+            'Omeka2Importer\Omeka2Client' => 'Omeka2Importer\Service\Omeka2ClientFactory',
         ],
     ],
     'api_adapters' => [
@@ -99,7 +99,7 @@ return [
     'navigation' => [
         'AdminModule' => [
             [
-                'label' => 'Omeka 2 Importer', // @translate
+                'label' => 'Omeka Classic Importer', // @translate
                 'route' => 'admin/omeka2importer',
                 'resource' => 'Omeka2Importer\Controller\Index',
                 'pages' => [

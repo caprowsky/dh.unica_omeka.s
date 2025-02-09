@@ -1,10 +1,6 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-form for the canonical source repository
- * @copyright https://github.com/laminas/laminas-form/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-form/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
 
 namespace Laminas\Form\Element;
 
@@ -27,11 +23,8 @@ class File extends Element implements InputProviderInterface, ElementPrepareAwar
 
     /**
      * Prepare the form element (mostly used for rendering purposes)
-     *
-     * @param  FormInterface $form
-     * @return mixed
      */
-    public function prepareElement(FormInterface $form)
+    public function prepareElement(FormInterface $form): void
     {
         // Ensure the form is using correct enctype
         $form->setAttribute('enctype', 'multipart/form-data');
@@ -43,7 +36,7 @@ class File extends Element implements InputProviderInterface, ElementPrepareAwar
      *
      * @return array
      */
-    public function getInputSpecification()
+    public function getInputSpecification(): array
     {
         return [
             'type'     => FileInput::class,

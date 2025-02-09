@@ -1,11 +1,5 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-mvc for the canonical source repository
- * @copyright https://github.com/laminas/laminas-mvc/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-mvc/blob/master/LICENSE.md New BSD License
- */
-
 namespace Laminas\Mvc\Controller;
 
 use Laminas\EventManager\EventInterface as Event;
@@ -149,13 +143,19 @@ abstract class AbstractController implements
     {
         $className = get_class($this);
 
-        $nsPos = strpos($className, '\\') ?: 0;
+        $identifiers = [
+            __CLASS__,
+            $className,
+        ];
+
+        $rightmostNsPos = strrpos($className, '\\');
+        if ($rightmostNsPos) {
+            $identifiers[] = strstr($className, '\\', true); // top namespace
+            $identifiers[] = substr($className, 0, $rightmostNsPos); // full namespace
+        }
+
         $events->setIdentifiers(array_merge(
-            [
-                __CLASS__,
-                $className,
-                substr($className, 0, $nsPos)
-            ],
+            $identifiers,
             array_values(class_implements($className)),
             (array) $this->eventIdentifier
         ));

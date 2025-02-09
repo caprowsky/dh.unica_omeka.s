@@ -7,10 +7,11 @@ use NumericDataTypes\Form\Element\Interval as IntervalElement;
 use Omeka\Api\Adapter\AbstractEntityAdapter;
 use Omeka\Api\Adapter\AdapterInterface;
 use Omeka\Api\Representation\ValueRepresentation;
+use Omeka\DataType\ValueAnnotatingInterface;
 use Omeka\Entity\Value;
 use Laminas\View\Renderer\PhpRenderer;
 
-class Interval extends AbstractDateTimeDataType
+class Interval extends AbstractDateTimeDataType implements ValueAnnotatingInterface
 {
     public function getName()
     {
@@ -71,7 +72,7 @@ class Interval extends AbstractDateTimeDataType
 
     public function hydrate(array $valueObject, Value $value, AbstractEntityAdapter $adapter)
     {
-        list($intervalStart, $intervalEnd) = explode('/', $valueObject['@value']);
+        [$intervalStart, $intervalEnd] = explode('/', $valueObject['@value']);
         $dateStart = $this->getDateTimeFromValue($intervalStart);
         $dateEnd = $this->getDateTimeFromValue($intervalEnd, false);
         $interval = sprintf(
@@ -85,19 +86,16 @@ class Interval extends AbstractDateTimeDataType
         $value->setValueResource(null);
     }
 
-    public function render(PhpRenderer $view, ValueRepresentation $value)
+    public function render(PhpRenderer $view, ValueRepresentation $value, $options = [])
     {
         if (!$this->isValid(['@value' => $value->value()])) {
             return $value->value();
         }
-        list($intervalStart, $intervalEnd) = explode('/', $value->value());
-        $dateStart = $this->getDateTimeFromValue($intervalStart);
-        $dateEnd = $this->getDateTimeFromValue($intervalEnd, false);
-        return sprintf(
-            '%s – %s',
-            $dateStart['date']->format($dateStart['format_render']),
-            $dateEnd['date']->format($dateEnd['format_render'])
-        );
+        $options['lang'] ??= $view->lang();
+        [$intervalStart, $intervalEnd] = explode('/', $value->value());
+        $dateStart = $this->getFormattedDateTimeFromValue($intervalStart, true, $options);
+        $dateEnd = $this->getFormattedDateTimeFromValue($intervalEnd, false, $options);
+        return sprintf('%s – %s', $dateStart, $dateEnd);
     }
 
     public function getFulltextText(PhpRenderer $view, ValueRepresentation $value)
@@ -112,7 +110,7 @@ class Interval extends AbstractDateTimeDataType
 
     public function setEntityValues(NumericDataTypesNumber $entity, Value $value)
     {
-        list($intervalStart, $intervalEnd) = explode('/', $value->getValue());
+        [$intervalStart, $intervalEnd] = explode('/', $value->getValue());
         $dateStart = $this->getDateTimeFromValue($intervalStart);
         $dateEnd = $this->getDateTimeFromValue($intervalEnd, false);
         $entity->setValue($dateStart['date']->getTimestamp());
@@ -121,12 +119,9 @@ class Interval extends AbstractDateTimeDataType
 
     public function buildQuery(AdapterInterface $adapter, QueryBuilder $qb, array $query)
     {
-        if (isset($query['numeric']['ivl']['val'])
-            && isset($query['numeric']['ivl']['pid'])
-            && is_numeric($query['numeric']['ivl']['pid'])
-        ) {
+        if (isset($query['numeric']['ivl']['val'])) {
             $value = $query['numeric']['ivl']['val'];
-            $propertyId = $query['numeric']['ivl']['pid'];
+            $propertyId = $query['numeric']['ivl']['pid'] ?? null;
             try {
                 $date = $this->getDateTimeFromValue($value);
                 $number = $date['date']->getTimestamp();
@@ -134,13 +129,14 @@ class Interval extends AbstractDateTimeDataType
                 return; // invalid value
             }
             $alias = $adapter->createAlias();
-            $qb->leftJoin(
-                $this->getEntityClass(), $alias, 'WITH',
-                $qb->expr()->andX(
+            $with = $qb->expr()->eq("$alias.resource", 'omeka_root.id');
+            if (is_numeric($propertyId)) {
+                $with = $qb->expr()->andX(
                     $qb->expr()->eq("$alias.resource", 'omeka_root.id'),
                     $qb->expr()->eq("$alias.property", (int) $propertyId)
-                )
-            );
+                );
+            }
+            $qb->leftJoin($this->getEntityClass(), $alias, 'WITH', $with);
             $qb->andWhere($qb->expr()->lte(
                 "$alias.value",
                 $adapter->createNamedParameter($qb, $number)
@@ -150,5 +146,30 @@ class Interval extends AbstractDateTimeDataType
                 $adapter->createNamedParameter($qb, $number)
             ));
         }
+    }
+
+    public function sortQuery(AdapterInterface $adapter, QueryBuilder $qb, array $query, $type, $propertyId)
+    {
+        if ('interval' === $type) {
+            $alias = $adapter->createAlias();
+            $qb->addSelect("MIN($alias.value) as HIDDEN numeric_value");
+            $qb->leftJoin(
+                $this->getEntityClass(), $alias, 'WITH',
+                $qb->expr()->andX(
+                    $qb->expr()->eq("$alias.resource", 'omeka_root.id'),
+                    $qb->expr()->eq("$alias.property", $propertyId)
+                )
+            );
+            $qb->addOrderBy('numeric_value', $query['sort_order']);
+        }
+    }
+
+    public function valueAnnotationPrepareForm(PhpRenderer $view)
+    {
+    }
+
+    public function valueAnnotationForm(PhpRenderer $view)
+    {
+        return $this->form($view);
     }
 }

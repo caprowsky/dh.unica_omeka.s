@@ -1,11 +1,5 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-mvc for the canonical source repository
- * @copyright https://github.com/laminas/laminas-mvc/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-mvc/blob/master/LICENSE.md New BSD License
- */
-
 namespace Laminas\Mvc\Controller;
 
 use Laminas\ServiceManager\AbstractPluginManager;
@@ -106,7 +100,8 @@ class PluginManager extends AbstractPluginManager
      * as the first controller, the reference to the controller inside the
      * plugin is lost.
      *
-     * @param  string $name
+     * @param  string     $name
+     * @param  null|array $options Options to use when creating the instance.
      * @return DispatchableInterface
      */
     public function get($name, array $options = null)

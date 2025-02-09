@@ -8,44 +8,49 @@ class IndexController extends AbstractActionController
 {
     public function browseAction()
     {
-        // Get all markers in this site's item pool and render them on a map.
-        $site = $this->currentSite();
-
-        $query = $this->params()->fromQuery();
-        $query['site_id'] = $site->id();
-        if ($this->siteSettings()->get('browse_attached_items', false)) {
-            $query['site_attachments_only'] = true;
-        }
-
-        // Limit to a reasonable amount of items that have markers to avoid
+        // Limit to a reasonable amount of items that have features to avoid
         // reaching the server memory limit and to improve client performance.
-        $query['limit'] = 5000;
-        $query['has_markers'] = true;
+        $query = $this->getRequest()->getQuery();
+        $query->set('page', $query->get('page', 1));
+        $perPage = $this->siteSettings()->get('mapping_browse_per_page', 5000);
+        $query->set('per_page', $query->get('per_page', $perPage));
 
-        $items = $this->api()->search('items', $query)->getContent();
-        $itemIds = [];
-        foreach ($items as $item) {
-            $itemIds[] = $item->id();
+        $itemsQuery = $this->params()->fromQuery();
+
+        if ($this->siteSettings()->get('browse_attached_items', false)) {
+            // Respect the browse_attached_items setting.
+            $itemsQuery['site_attachments_only'] = true;
         }
-        unset($items);
 
-        // Get all markers for all items that match the query, if any.
-        $markers = [];
+        // Only get items that are in this site's item pool.
+        $itemsQuery['site_id'] = $this->currentSite()->id();
+        // Only get items that have features.
+        $itemsQuery['has_features'] = true;
+        // Do not include geographic location query when searching items.
+        unset(
+            $itemsQuery['mapping_address'],
+            $itemsQuery['mapping_radius'],
+            $itemsQuery['mapping_radius_unit'],
+        );
+        $response = $this->api()->search('items', $itemsQuery, ['returnScalar' => 'id']);
+        $itemIds = $response->getContent();
+        $this->paginator($response->getTotalResults());
+
+        // Get all features for all items that match the query, if any.
+        $features = [];
         if ($itemIds) {
-            $markersQuery = ['item_id' => $itemIds];
-            if (isset($query['mapping_address']) && isset($query['mapping_radius'])) {
-                $markersQuery['address'] = $query['mapping_address'];
-                $markersQuery['radius'] = $query['mapping_radius'];
-                $markersQuery['radius_unit'] = isset($query['mapping_radius_unit'])
-                    ? $query['mapping_radius_unit'] : null;
-            }
-            $response = $this->api()->search('mapping_markers', $markersQuery);
-            $markers = $response->getContent();
+            $featuresQuery = [
+                'item_id' => $itemIds,
+                'address' => $this->params()->fromQuery('mapping_address'),
+                'radius' => $this->params()->fromQuery('mapping_radius'),
+                'radius_unit' => $this->params()->fromQuery('mapping_radius_unit'),
+            ];
+            $features = $this->api()->search('mapping_features', $featuresQuery)->getContent();
         }
 
         $view = new ViewModel;
-        $view->setVariable('query', $query);
-        $view->setVariable('markers', $markers);
+        $view->setVariable('query', $this->params()->fromQuery());
+        $view->setVariable('features', $features);
         return $view;
     }
 }

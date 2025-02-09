@@ -37,17 +37,24 @@ class ItemSetsTree extends AbstractHelper
     /**
      * @return \Omeka\Api\Representation\ItemSetRepresentation[]
      */
-    public function getRootItemSets()
+    public function getRootItemSets(array $options = [])
     {
-        return $this->itemSetsTree->getRootItemSets();
+        return $this->itemSetsTree->getRootItemSets($options);
     }
 
     /**
      * @return \Omeka\Api\Representation\ItemSetRepresentation[]
      */
-    public function getItemSetsTree(int $maxDepth = null)
+    public function getItemSetsTree(int $maxDepth = null, array $options = [])
     {
-        return $this->itemSetsTree->getItemSetsTree($maxDepth);
+        if (!isset($options['site_id'])) {
+            $currentSite = $this->getView()->layout()->site;
+            if ($currentSite) {
+                $options['site_id'] = $currentSite->id();
+            }
+        }
+
+        return $this->itemSetsTree->getItemSetsTree($maxDepth, $options);
     }
 
     /**
@@ -69,16 +76,16 @@ class ItemSetsTree extends AbstractHelper
     /**
      * @return \Omeka\Api\Representation\ItemSetRepresentation[]
      */
-    public function getChildren(ItemSetRepresentation $itemSet)
+    public function getChildren(ItemSetRepresentation $itemSet, array $options = [])
     {
-        return $this->itemSetsTree->getChildren($itemSet);
+        return $this->itemSetsTree->getChildren($itemSet, $options);
     }
 
     /**
      * @return \Omeka\Api\Representation\ItemSetRepresentation[]
      */
-    public function getDescendants(ItemSetRepresentation $itemSet)
+    public function getDescendants(ItemSetRepresentation $itemSet, array $options = [])
     {
-        return $this->itemSetsTree->getDescendants($itemSet);
+        return $this->itemSetsTree->getDescendants($itemSet, $options);
     }
 }

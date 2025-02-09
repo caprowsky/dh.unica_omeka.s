@@ -4,9 +4,28 @@ namespace Timeline\Mvc\Controller\Plugin;
 
 use DateTime;
 use Laminas\Mvc\Controller\Plugin\AbstractPlugin;
+use Omeka\Api\Manager as ApiManager;
+use Omeka\Api\Representation\ItemRepresentation;
 
 abstract class AbstractTimelineData extends AbstractPlugin
 {
+    use TraitTimelineData;
+
+    /**
+     * @var \Omeka\Api\Manager
+     */
+    protected $api;
+
+    /**
+     * @var \Laminas\I18n\View\Helper\Translate
+     */
+    protected $translate;
+
+    /**
+     * @var string "simile" or "knightlab".
+     */
+    protected $timelineJs = null;
+
     public static $renderYears = [
         'january_1' => 'january_1',
         'july_1' => 'july_1',
@@ -20,16 +39,20 @@ abstract class AbstractTimelineData extends AbstractPlugin
 
     protected $renderYear;
 
+    public function __construct(ApiManager $api)
+    {
+        $this->api = $api;
+    }
+
     /**
      * Extract titles, descriptions and dates from the timeline’s pool of items.
-     *
-     * @param array $itemPool
-     * @param array $args
-     * @return array
      */
-    public function __invoke(array $itemPool, array $args)
+    public function __invoke(array $itemPool, array $args): array
     {
         $events = [];
+
+        $controller = $this->getController();
+        $this->translate = $controller->viewHelpers()->get('translate');
 
         $this->renderYear = $args['render_year'] ?? static::$renderYears['default'];
 
@@ -37,77 +60,134 @@ abstract class AbstractTimelineData extends AbstractPlugin
         $propertyItemDescription = $args['item_description'] === 'default' ? '' : $args['item_description'];
         $propertyItemDate = $args['item_date'];
         $propertyItemDateEnd = $args['item_date_end'] ?? null;
+        $fieldsItem = $args['item_metadata'] ?? [];
+        $fieldGroup = $args['group'] ?? null;
+        $groupDefault = empty($args['group_default']) ? null : $args['group_default'];
+
+        $eras = empty($args['eras']) ? [] : $this->extractEras($args['eras']);
+        $markers = empty($args['markers']) ? [] : $this->extractMarkers($args['markers']);
+
         $thumbnailType = empty($args['thumbnail_type']) ? 'medium' : $args['thumbnail_type'];
         $thumbnailResource = !empty($args['thumbnail_resource']);
 
         $params = $itemPool;
         $params['property'][] = ['joiner' => 'and', 'property' => $args['item_date_id'], 'type' => 'ex'];
 
-        $items = $this->getController()->api()
-            ->search('items', $params)
-            ->getContent();
-        /** @var \Omeka\Api\Representation\ItemRepresentation[] $items */
-        foreach ($items as $item) {
+        // To avoid overflow when requesting all items, use a loop with id.
+        $itemIds = $this->api->search('items', $params, ['returnScalar' => 'id'])->getContent();
+
+        /** @var \Omeka\Api\Representation\ItemRepresentation $item */
+        foreach (array_chunk($itemIds, 100) as $idsChunk) foreach ($this->api->search('items', ['id' => $idsChunk])->getContent() as $item) {
             // All items without dates are already automatically removed.
             $itemDates = $item->value($propertyItemDate, ['all' => true]);
             $itemTitle = strip_tags($propertyItemTitle ? (string) $item->value($propertyItemTitle) : $item->displayTitle());
             $itemDescription = $this->snippet($propertyItemDescription ? (string) $item->value($propertyItemDescription) : $item->displayDescription(), 200);
+            $itemGroup = $this->resourceMetadataSingle($item, $fieldGroup) ?: $groupDefault;
+            $itemGroup = $itemGroup ? strip_tags($itemGroup) : null;
             $itemDatesEnd = $propertyItemDateEnd
                 ? $item->value($propertyItemDateEnd, ['all' => true])
                 : [];
             $itemLink = empty($args['site_slug'])
                 ? null
                 : $item->siteUrl($args['site_slug']);
+
             if ($thumbnailResource && $item->thumbnail()) {
                 $thumbnailUrl = $item->thumbnail()->assetUrl();
+                $thumbnailAltText = null;
             } elseif ($media = $item->primaryMedia()) {
                 $thumbnailUrl = $thumbnailResource && $media->thumbnail()
                     ? $media->thumbnail()->assetUrl()
                     : $media->thumbnailUrl($thumbnailType);
+                $thumbnailAltText = $media->altText();
             } else {
                 $thumbnailUrl = null;
+                $thumbnailAltText = null;
             }
             foreach ($itemDates as $key => $valueItemDate) {
                 $event = [];
                 $itemDate = $valueItemDate->value();
                 if (empty($itemDatesEnd[$key])) {
-                    list($dateStart, $dateEnd) = $this->convertAnyDate($itemDate, $this->renderYear);
+                    [$dateStart, $dateEnd] = $this->convertAnyDate($itemDate, $this->renderYear);
                 } else {
-                    list($dateStart, $dateEnd) = $this->convertTwoDates($itemDate, $itemDatesEnd[$key]->value(), $this->renderYear);
+                    [$dateStart, $dateEnd] = $this->convertTwoDates($itemDate, $itemDatesEnd[$key]->value(), $this->renderYear);
                 }
                 if (empty($dateStart)) {
                     continue;
                 }
-                $event['start'] = $dateStart;
-                if (!is_null($dateEnd)) {
-                    $event['end'] = $dateEnd;
+                if ($this->timelineJs === 'knightlab') {
+                    $event['start_date'] = $this->dateToArray($dateStart);
+                    if (!is_null($dateEnd)) {
+                        $event['end_date'] = $this->dateToArray($dateEnd);
+                    }
+                    $event['text'] = [
+                        'headline' => '<a href=' . $itemLink . '>' . $itemTitle . '</a>',
+                    ];
+                    if ($itemDescription) {
+                        $event['text']['text'] = $itemDescription;
+                    }
+                    // If the record has a file attachment, include that.
+                    // Limits based on returned JSON:
+                    // If multiple images are attached to the record, it only
+                    // shows the first.
+                    // If a pdf is attached, it does not show it or indicate it.
+                    // If an mp3 is attached in Files, it does not appear.
+                    if ($thumbnailUrl) {
+                        $event['media']['url'] = $thumbnailUrl;
+                        $event['media']['link'] = $itemLink;
+                        $event['media']['link_target'] = '_blank';
+                        if ($thumbnailAltText) {
+                            $event['media']['alt'] = $thumbnailAltText;
+                        }
+                    }
+                } else {
+                    $event['start'] = $dateStart;
+                    if (!is_null($dateEnd)) {
+                        $event['end'] = $dateEnd;
+                    }
+                    $event['title'] = $itemTitle;
+                    $event['link'] = $itemLink;
+                    if ($itemDescription) {
+                        $event['description'] = $itemDescription;
+                    }
+                    if ($thumbnailUrl) {
+                        $event['image'] = $thumbnailUrl;
+                    }
                 }
-                $event['title'] = $itemTitle;
-                $event['link'] = $itemLink;
+                // Does not work with knighlab.
                 $event['classname'] = $this->itemClass($item);
-                if ($thumbnailUrl) {
-                    $event['image'] = $thumbnailUrl;
+                if ($fieldsItem) {
+                    $event['metadata'] = $this->resourceMetadata($item, $fieldsItem);
                 }
-                $event['description'] = $itemDescription;
+                if ($itemGroup) {
+                    $event['group'] = $itemGroup;
+                }
                 $events[] = $event;
             }
         }
 
-        $data = [];
-        $data['dateTimeFormat'] = 'iso8601';
-        $data['events'] = $events;
+        // Append markers.
+        $groupLabel = $this->translate->__invoke('Events'); // @translate
+        foreach ($markers as $markerData) {
+            $markerData['group'] = $groupLabel;
+            $events[] = $markerData;
+        }
 
-        return $data;
+        $timeline = [];
+        $timeline['dateTimeFormat'] = 'iso8601';
+        if ($eras) {
+            $timeline['eras'] = $eras;
+        }
+        $timeline['events'] = $events;
+
+        return $timeline;
     }
 
     /**
      * Returns a string for timeline_json 'classname' attribute for an item.
      *
      * Default fields included are: 'item', item type name, all DC:Type values.
-     *
-     * @return string
      */
-    protected function itemClass($item)
+    protected function itemClass(ItemRepresentation $item): string
     {
         $classes = ['item'];
 
@@ -125,8 +205,7 @@ abstract class AbstractTimelineData extends AbstractPlugin
             $classes[] = $this->textToId($type->value());
         }
 
-        $classAttribute = implode(' ', $classes);
-        return $classAttribute;
+        return implode(' ', $classes);
     }
 
     /**
@@ -136,7 +215,7 @@ abstract class AbstractTimelineData extends AbstractPlugin
      * @param string renderYear Force the format of a single number as a year.
      * @return string ISO-8601 date
      */
-    protected function convertDate(string $date, $renderYear = null)
+    protected function convertDate(string $date, ?string $renderYear = null): ?string
     {
         if (empty($renderYear)) {
             $renderYear = $this->renderYear;
@@ -150,39 +229,39 @@ abstract class AbstractTimelineData extends AbstractPlugin
                 : str_pad($date, 4, '0', STR_PAD_LEFT);
             switch ($renderYear) {
                 case static::$renderYears['january_1']:
-                    $date_out = $date . '-01-01' . 'T00:00:00+00:00';
+                    $dateOut = $date . '-01-01' . 'T00:00:00+00:00';
                     break;
                 case static::$renderYears['july_1']:
-                    $date_out = $date . '-07-01' . 'T00:00:00+00:00';
+                    $dateOut = $date . '-07-01' . 'T00:00:00+00:00';
                     break;
                 case static::$renderYears['december_31']:
-                    $date_out = $date . '-12-31' . 'T00:00:00+00:00';
+                    $dateOut = $date . '-12-31' . 'T00:00:00+00:00';
                     break;
                 case static::$renderYears['june_30']:
-                    $date_out = $date . '-06-30' . 'T00:00:00+00:00';
+                    $dateOut = $date . '-06-30' . 'T00:00:00+00:00';
                     break;
                 case static::$renderYears['full_year']:
                     // Render a year as a range: use timeline_convert_single_date().
                 case static::$renderYears['skip']:
                 default:
-                    $date_out = false;
+                    $dateOut = false;
                     break;
             }
-            return $date_out;
+            return $dateOut;
         }
 
         try {
             $dateTime = new DateTime($date);
 
-            $date_out = $dateTime->format(DateTime::ISO8601);
-            $date_out = preg_replace('/^(-?)(\d{3}-)/', '${1}0\2', $date_out);
-            $date_out = preg_replace('/^(-?)(\d{2}-)/', '${1}00\2', $date_out);
-            $date_out = preg_replace('/^(-?)(\d{1}-)/', '${1}000\2', $date_out);
+            $dateOut = $dateTime->format(DateTime::ISO8601);
+            $dateOut = preg_replace('/^(-?)(\d{3}-)/', '${1}0\2', $dateOut);
+            $dateOut = preg_replace('/^(-?)(\d{2}-)/', '${1}00\2', $dateOut);
+            $dateOut = preg_replace('/^(-?)(\d{1}-)/', '${1}000\2', $dateOut);
         } catch (\Exception $e) {
-            $date_out = null;
+            $dateOut = null;
         }
 
-        return $date_out;
+        return $dateOut;
     }
 
     /**
@@ -194,7 +273,7 @@ abstract class AbstractTimelineData extends AbstractPlugin
      * @param string renderYear Force the format of a single number as a year.
      * @return array Array of two dates.
      */
-    protected function convertAnyDate(string $date, string $renderYear = null)
+    protected function convertAnyDate(string $date, ?string $renderYear = null): array
     {
         return $this->convertTwoDates($date, '', $renderYear);
     }
@@ -209,7 +288,7 @@ abstract class AbstractTimelineData extends AbstractPlugin
      * @param string renderYear Force the format of a single number as a year.
      * @return array Array of two dates.
      */
-    protected function convertTwoDates($date, $dateEnd, $renderYear = null)
+    protected function convertTwoDates($date, $dateEnd, ?string $renderYear = null): array
     {
         if (empty($renderYear)) {
             $renderYear = $this->renderYear;
@@ -245,7 +324,7 @@ abstract class AbstractTimelineData extends AbstractPlugin
      * @param string renderYear Force the format of a single number as a year.
      * @return array Array of two dates.
      */
-    protected function convertSingleDate($date, $renderYear = null)
+    protected function convertSingleDate($date, ?string $renderYear = null): array
     {
         if (empty($renderYear)) {
             $renderYear = $this->renderYear;
@@ -272,7 +351,7 @@ abstract class AbstractTimelineData extends AbstractPlugin
      * @param string renderYear Force the format of a single number as a year.
      * @return array $dates
      */
-    protected function convertRangeDates($dates, $renderYear = null)
+    protected function convertRangeDates($dates, ?string $renderYear = null): array
     {
         if (!is_array($dates)) {
             return [null, null];
@@ -360,7 +439,7 @@ abstract class AbstractTimelineData extends AbstractPlugin
      * @param int $length
      * @return string
      */
-    protected function snippet($string, $length)
+    protected function snippet($string, $length): string
     {
         $str = strip_tags((string) $string);
         return mb_strlen($str) <= $length ? $str : mb_substr($str, 0, $length - 1) . '&hellip;';
@@ -383,12 +462,12 @@ abstract class AbstractTimelineData extends AbstractPlugin
      * @param string $delimiter The delimiter to use (- by default)
      * @return string
      */
-    protected function textToId($text, $prepend = null, $delimiter = '-')
+    protected function textToId($text, ?string $prepend = null, string $delimiter = '-'): string
     {
         $text = mb_strtolower((string) $text);
         $id = preg_replace('/\s/', $delimiter, $text);
         $id = preg_replace('/[^\w\-]/', '', $id);
         $id = trim($id, $delimiter);
-        return $prepend ? $prepend . $delimiter . $id : $id;
+        return strlen((string) $prepend) ? $prepend . $delimiter . $id : $id;
     }
 }

@@ -15,16 +15,6 @@ class Omeka2Client
     protected $httpClient;
 
     /**
-     * @var array
-     */
-    protected $methods = ['get', 'post', 'put', 'delete'];
-
-    /**
-     * @var array
-     */
-    protected $callbacks = [];
-
-    /**
      * @var string
      */
     protected $key;
@@ -45,6 +35,17 @@ class Omeka2Client
     protected $id;
 
     /**
+     * Create the client
+     *
+     * @param Client $httpClient
+     */
+    public function __construct(Client $httpClient)
+    {
+        $this->httpClient = $httpClient;
+        $this->httpClient->setOptions(['timeout' => 30]);
+    }
+
+    /**
      * Proxy resources.
      *
      * @param string $resource
@@ -59,56 +60,12 @@ class Omeka2Client
     }
 
     /**
-     * Method overloading.
-     *
-     * @param string $method
-     * @param array  $args
-     *
-     * @return mixed
-     */
-    public function __call($method, $args)
-    {
-        if (!in_array($method, $this->methods)) {
-            throw new \Exception('Invalid method.');
-        }
-        // Check for a callback.
-        if (array_key_exists($this->resource, $this->callbacks)
-            && array_key_exists($method, $this->callbacks[$this->resource])
-        ) {
-            $callback = $this->callbacks[$this->resource][$method];
-            // Prepend this Omeka client to the argument list.
-            array_unshift($args, $this);
-
-            return call_user_func_array($callback, $args);
-        }
-
-        return call_user_func_array([$this, $method], $args);
-    }
-
-    /**
-     * Set custom behavior for a resource/method.
-     *
-     * @param string   $resource
-     * @param string   $method
-     * @param \Closure $callback
-     */
-    public function setCallback($resource, $method, \Closure $callback)
-    {
-        $this->callbacks[$resource][$method] = $callback;
-    }
-
-    /**
      * Get the HTTP client.
      *
      * @return Http\Client
      */
     public function getHttpClient()
     {
-        if (null === $this->httpClient) {
-            $this->httpClient = new Client();
-            $this->httpClient->setOptions(['timeout' => 30]);
-        }
-
         return $this->httpClient;
     }
 
@@ -159,7 +116,7 @@ class Omeka2Client
      *
      * @return Laminas\Http\Response
      */
-    protected function get($id = null, array $params = [])
+    public function get($id = null, array $params = [])
     {
         if (is_array($id)) {
             $params = $id;
@@ -168,57 +125,6 @@ class Omeka2Client
             $this->id = $id;
         }
         $client = $this->prepare(Request::METHOD_GET, $params);
-
-        return $client->send();
-    }
-
-    /**
-     * Make a POST request.
-     *
-     * @param string $data
-     * @param array  $params
-     *
-     * @return Laminas\Http\Response
-     */
-    protected function post($data, array $params = [])
-    {
-        $client = $this->prepare(Http\Request::METHOD_POST, $params)
-            ->setRawBody($data);
-
-        return $client->send();
-    }
-
-    /**
-     * Make a PUT request.
-     *
-     * @param int    $id
-     * @param string $data
-     * @param array  $params
-     *
-     * @return Laminas\Http\Response
-     */
-    protected function put($id, $data, array $params = [])
-    {
-        $this->id = $id;
-        $client = $this->prepare(Http\Request::METHOD_PUT, $params)
-            ->setRawBody($data);
-
-        return $client->send();
-    }
-
-    /**
-     * Make a DELETE request.
-     *
-     * @param int    $id
-     * @param string $data
-     * @param array  $params
-     *
-     * @return Laminas\Http\Response
-     */
-    protected function delete($id, array $params = [])
-    {
-        $this->id = $id;
-        $client = $this->prepare(Http\Request::METHOD_DELETE, $params);
 
         return $client->send();
     }

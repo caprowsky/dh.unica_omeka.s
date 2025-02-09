@@ -1,27 +1,22 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-navigation for the canonical source repository
- * @copyright https://github.com/laminas/laminas-navigation/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-navigation/blob/master/LICENSE.md New BSD License
- */
+declare(strict_types=1);
 
 namespace Laminas\Navigation\Service;
 
 use Interop\Container\ContainerInterface;
+use Laminas\Config\Config;
 
 /**
  * Constructed factory to set pages during construction.
  */
 class ConstructedNavigationFactory extends AbstractNavigationFactory
 {
-    /**
-     * @var string|\Laminas\Config\Config|array
-     */
+    /** @var string|Config|array */
     protected $config;
 
     /**
-     * @param string|\Laminas\Config\Config|array $config
+     * @param string|Config|array $config
      */
     public function __construct($config)
     {
@@ -29,8 +24,7 @@ class ConstructedNavigationFactory extends AbstractNavigationFactory
     }
 
     /**
-     * @param ContainerInterface $container
-     * @return array|null|\Laminas\Config\Config
+     * @return array|null|Config
      */
     public function getPages(ContainerInterface $container)
     {

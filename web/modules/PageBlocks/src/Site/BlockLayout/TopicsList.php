@@ -46,7 +46,7 @@ class TopicsList extends AbstractBlockLayout
         $form = $this->formElementManager->get(TopicsListForm::class);
             
         if ($block && $block->data()) {
-            $form->setData([
+            $form->populateValues([
                 'o:block[__blockIndex__][o:data][header]' => $block->dataValue('header'),
                 'o:block[__blockIndex__][o:data][button_color]' => $block->dataValue('button_color'),
                 'o:block[__blockIndex__][o:data][text_color]' => $block->dataValue('text_color')

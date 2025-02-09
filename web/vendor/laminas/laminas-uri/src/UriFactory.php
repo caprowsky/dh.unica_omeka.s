@@ -1,12 +1,18 @@
 <?php
 
-/**
- * @see       https://github.com/laminas/laminas-uri for the canonical source repository
- * @copyright https://github.com/laminas/laminas-uri/blob/master/COPYRIGHT.md
- * @license   https://github.com/laminas/laminas-uri/blob/master/LICENSE.md New BSD License
- */
-
 namespace Laminas\Uri;
+
+use Laminas\Uri\File;
+use Laminas\Uri\Http;
+use Laminas\Uri\Mailto;
+use Laminas\Uri\Uri;
+
+use function get_class;
+use function gettype;
+use function is_object;
+use function is_string;
+use function sprintf;
+use function strtolower;
 
 /**
  * URI Factory Class
@@ -18,6 +24,7 @@ namespace Laminas\Uri;
  * Note that this class contains only static methods and should not be
  * instantiated
  */
+// phpcs:ignore WebimpressCodingStandard.NamingConventions.AbstractClass.Prefix
 abstract class UriFactory
 {
     /**
@@ -26,12 +33,12 @@ abstract class UriFactory
      * @var array
      */
     protected static $schemeClasses = [
-        'http'   => 'Laminas\Uri\Http',
-        'https'  => 'Laminas\Uri\Http',
-        'mailto' => 'Laminas\Uri\Mailto',
-        'file'   => 'Laminas\Uri\File',
-        'urn'    => 'Laminas\Uri\Uri',
-        'tag'    => 'Laminas\Uri\Uri',
+        'http'   => Http::class,
+        'https'  => Http::class,
+        'mailto' => Mailto::class,
+        'file'   => File::class,
+        'urn'    => Uri::class,
+        'tag'    => Uri::class,
     ];
 
     /**
@@ -42,7 +49,7 @@ abstract class UriFactory
      */
     public static function registerScheme($scheme, $class)
     {
-        $scheme = strtolower($scheme);
+        $scheme                         = strtolower($scheme);
         static::$schemeClasses[$scheme] = $class;
     }
 
@@ -69,11 +76,11 @@ abstract class UriFactory
      */
     public static function getRegisteredSchemeClass($scheme)
     {
-        if (isset(static::$schemeClasses[$scheme])) {
-            return static::$schemeClasses[$scheme];
+        if (! isset(static::$schemeClasses[$scheme])) {
+            return null;
         }
 
-        return;
+        return static::$schemeClasses[$scheme];
     }
 
     /**
@@ -82,19 +89,19 @@ abstract class UriFactory
      * @param  string $uriString
      * @param  string $defaultScheme
      * @throws Exception\InvalidArgumentException
-     * @return \Laminas\Uri\Uri
+     * @return Uri
      */
     public static function factory($uriString, $defaultScheme = null)
     {
         if (! is_string($uriString)) {
             throw new Exception\InvalidArgumentException(sprintf(
                 'Expecting a string, received "%s"',
-                (is_object($uriString) ? get_class($uriString) : gettype($uriString))
+                is_object($uriString) ? get_class($uriString) : gettype($uriString)
             ));
         }
 
         $uri    = new Uri($uriString);
-        $scheme = strtolower($uri->getScheme());
+        $scheme = strtolower($uri->getScheme() ?? '');
         if (! $scheme && $defaultScheme) {
             $scheme = $defaultScheme;
         }
@@ -107,7 +114,7 @@ abstract class UriFactory
         }
         if ($scheme && isset(static::$schemeClasses[$scheme])) {
             $class = static::$schemeClasses[$scheme];
-            $uri = new $class($uri);
+            $uri   = new $class($uri);
             if (! $uri instanceof UriInterface) {
                 throw new Exception\InvalidArgumentException(
                     sprintf(

@@ -1,0 +1,59 @@
+<?php
+use Omeka\Api\Exception\NotFoundException;
+$this->headLink()->appendStylesheet($this->assetUrl('css/hierarchy.css', 'Hierarchy'));
+?>
+<div class="hierarchy-filters">
+    <?php
+    $filterLocale = (bool) $this->siteSetting('filter_locale_values');
+    $lang = $this->lang();
+    $valueLang = $filterLocale ? [$lang, ''] : null;
+
+    // Show label if hierarchy_show_label checked in config and hierarchy label exists
+    if ($this->siteSetting('hierarchy_show_label') && $hierarchy->getLabel()) {
+        echo '<span class="hierarchy-label">' . $hierarchy->getLabel() . '</span>';
+    }
+    ?>
+    <ul class="hierarchy-list">
+        <?php $iterate = function ($groupings) use (&$iterate, $allGroupings, $valueLang) {
+            foreach ($groupings as $grouping) {
+                $groupingName = $grouping['data']['label'] ?: $this->translate('[Untitled]');
+                $groupingSet = $grouping['data']['itemSet'];
+                $groupingID = $grouping['data']['groupingID'];
+                if (empty($groupingSet)) {
+                    // Show (combined child) itemSet count if hierarchy_show_count checked in config
+                    $groupingObject = $this->api()->read('hierarchy_grouping', $groupingID)->getContent();
+                    $itemSetCount = $this->siteSetting('hierarchy_show_count') ? $this->hierarchyHelper()->itemSetCount($groupingObject, $allGroupings) : '';
+                    if ($itemSetCount != null) {
+                        echo '<li>' . $this->hyperlink($groupingName, $this->url('site/hierarchy', ['site-slug' => $this->currentSite()->slug(), 'grouping-id' => $groupingID])) . $itemSetCount;
+                    } else if (!empty($groupingName)) {
+                        // Print groupings without assigned itemSet
+                        echo '<li>' . $groupingName;
+                    }
+                } else {
+                    try {
+                        $itemSet = $this->api()->read('item_sets', $groupingSet)->getContent();
+                        // Show itemSet count if hierarchy_show_count checked in config
+                        $groupingObject = $this->api()->read('hierarchy_grouping', $groupingID)->getContent();
+                        $itemSetCount = $this->siteSetting('hierarchy_show_count') ? $this->hierarchyHelper()->itemSetCount($groupingObject, $allGroupings) : '';
+                        // If no grouping label, show itemSet title as grouping heading
+                        $groupingName = $grouping['data']['label'] ?: $itemSet->displayTitle(null, $valueLang);
+                        if (!empty($groupingName)) {
+                            echo '<li>' . $this->hyperlink($groupingName, $this->url('site/hierarchy', ['site-slug' => $this->currentSite()->slug(), 'grouping-id' => $groupingID])) . $itemSetCount;
+                        }
+                    } catch (NotFoundException $e) {
+                        // Print groupings without assigned itemSet
+                        if (!empty($groupingName)) {
+                            echo '<li>' . $groupingName . '</li>';
+                        }
+                    }
+                }
+                if (isset($grouping['children'])) {
+                    echo '<ul>';
+                    $iterate($grouping['children']);
+                    echo '</ul>';
+                }
+            }
+        };
+        $iterate($hierarchyData); ?>
+    </ul>
+</div>

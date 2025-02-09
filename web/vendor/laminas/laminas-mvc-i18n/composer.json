@@ -17,36 +17,37 @@
         "forum": "https://discourse.laminas.dev"
     },
     "config": {
-        "sort-packages": true
+        "sort-packages": true,
+        "platform": {
+            "php": "7.3.99"
+        }
     },
     "extra": {
-        "branch-alias": {
-            "dev-master": "1.1.x-dev",
-            "dev-develop": "1.2.x-dev"
-        },
         "laminas": {
             "component": "Laminas\\Mvc\\I18n",
             "config-provider": "Laminas\\Mvc\\I18n\\ConfigProvider"
         }
     },
     "require": {
-        "php": "^5.6 || ^7.0",
+        "php": "^7.3 || ~8.0.0 || ~8.1.0",
         "container-interop/container-interop": "^1.1",
-        "laminas/laminas-i18n": "^2.7",
+        "laminas/laminas-i18n": "^2.11",
         "laminas/laminas-router": "^3.0",
-        "laminas/laminas-servicemanager": "^2.7.10 || ^3.0.3",
-        "laminas/laminas-stdlib": "^2.7.6 || ^3.0",
-        "laminas/laminas-validator": "^2.6",
-        "laminas/laminas-zendframework-bridge": "^1.0"
+        "laminas/laminas-servicemanager": "^3.6",
+        "laminas/laminas-stdlib": "^3.3",
+        "laminas/laminas-validator": "^2.14"
     },
     "require-dev": {
-        "laminas/laminas-cache": "^2.6.1",
         "laminas/laminas-coding-standard": "~1.0.0",
-        "phpunit/phpunit": "^5.7.27 || ^6.5.8 || ^7.1.5"
+        "phpspec/prophecy-phpunit": "^2.0",
+        "phpunit/phpunit": "^9.5",
+        "psalm/plugin-phpunit": "^0.15.1",
+        "vimeo/psalm": "^4.7"
     },
     "conflict": {
         "laminas/laminas-mvc": "<3.0.0",
-        "phpspec/prophecy": "<1.8.0"
+        "phpspec/prophecy": "<1.8.0",
+        "zendframework/zend-mvc-i18n": "*"
     },
     "suggest": {
         "laminas/laminas-cache": "To enable caching of translation strings"
@@ -64,14 +65,13 @@
     "scripts": {
         "check": [
             "@cs-check",
-            "@test"
+            "@test",
+            "@static-analysis"
         ],
         "cs-check": "phpcs",
         "cs-fix": "phpcbf",
+        "static-analysis": "psalm --shepherd --stats",
         "test": "phpunit --colors=always",
         "test-coverage": "phpunit --colors=always --coverage-clover clover.xml"
-    },
-    "replace": {
-        "zendframework/zend-mvc-i18n": "self.version"
     }
 }

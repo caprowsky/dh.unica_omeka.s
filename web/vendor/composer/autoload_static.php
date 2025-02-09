@@ -4,16 +4,22 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
+class ComposerStaticInitfb977c63fce19985a5644422fbf63ce9
 {
     public static $files = array (
-        '7e9bd612cc444b3eed788ebbe46263a0' => __DIR__ . '/..' . '/laminas/laminas-zendframework-bridge/src/autoload.php',
-        '78d47739fff607f33066e6259f091845' => __DIR__ . '/..' . '/laminas/laminas-cache/autoload/patternPluginManagerPolyfill.php',
-        '0e6d7bf4a5811bfa5cf40c5ccd6fae6a' => __DIR__ . '/..' . '/symfony/polyfill-mbstring/bootstrap.php',
+        'c9d07b32a2e02bc0fc582d4f0c1b56cc' => __DIR__ . '/..' . '/laminas/laminas-servicemanager/src/autoload.php',
+        '320cde22f66dd4f5d3fd621d3e88b98f' => __DIR__ . '/..' . '/symfony/polyfill-ctype/bootstrap.php',
         'a4a119a56e50fbb293281d9a48007e0e' => __DIR__ . '/..' . '/symfony/polyfill-php80/bootstrap.php',
+        '0e6d7bf4a5811bfa5cf40c5ccd6fae6a' => __DIR__ . '/..' . '/symfony/polyfill-mbstring/bootstrap.php',
+        '6e3fae29631ef280660b3cdad06f25a8' => __DIR__ . '/..' . '/symfony/deprecation-contracts/function.php',
+        'e69f7f6ee287b969198c3c9d6777bd38' => __DIR__ . '/..' . '/symfony/polyfill-intl-normalizer/bootstrap.php',
+        '8825ede83f2f289127722d4e842cf7e8' => __DIR__ . '/..' . '/symfony/polyfill-intl-grapheme/bootstrap.php',
+        '25072dd6e2470089de65ae7bf11d3109' => __DIR__ . '/..' . '/symfony/polyfill-php72/bootstrap.php',
         '0d59ee240a4cd96ddbb4ff164fccea4d' => __DIR__ . '/..' . '/symfony/polyfill-php73/bootstrap.php',
-        '6f1be17691391caba4a7cfee00157acb' => __DIR__ . '/..' . '/laminas/laminas-form/autoload/formElementManagerPolyfill.php',
+        'b6b991a57620e2fb6b2f66f03fe9ddc2' => __DIR__ . '/..' . '/symfony/string/Resources/functions.php',
+        'f598d06aa772fa33d905e87be6398fb1' => __DIR__ . '/..' . '/symfony/polyfill-intl-idn/bootstrap.php',
         '2cffec82183ee1cea088009cef9a6fc3' => __DIR__ . '/..' . '/ezyang/htmlpurifier/library/HTMLPurifier.composer.php',
+        '7e9bd612cc444b3eed788ebbe46263a0' => __DIR__ . '/..' . '/laminas/laminas-zendframework-bridge/src/autoload.php',
     );
 
     public static $prefixLengthsPsr4 = array (
@@ -23,27 +29,29 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
         ),
         'W' => 
         array (
+            'Webmozart\\Assert\\' => 17,
             'Webimpress\\SafeWriter\\' => 22,
-        ),
-        'T' => 
-        array (
-            'TrueBV\\' => 7,
         ),
         'S' => 
         array (
             'Symfony\\Polyfill\\Php80\\' => 23,
             'Symfony\\Polyfill\\Php73\\' => 23,
+            'Symfony\\Polyfill\\Php72\\' => 23,
             'Symfony\\Polyfill\\Mbstring\\' => 26,
+            'Symfony\\Polyfill\\Intl\\Normalizer\\' => 33,
+            'Symfony\\Polyfill\\Intl\\Idn\\' => 26,
+            'Symfony\\Polyfill\\Intl\\Grapheme\\' => 31,
+            'Symfony\\Polyfill\\Ctype\\' => 23,
             'Symfony\\Contracts\\Service\\' => 26,
+            'Symfony\\Component\\String\\' => 25,
             'Symfony\\Component\\Console\\' => 26,
         ),
         'P' => 
         array (
-            'Psr\\SimpleCache\\' => 16,
             'Psr\\Log\\' => 8,
             'Psr\\Container\\' => 14,
             'Psr\\Cache\\' => 10,
-            'PackageVersions\\' => 16,
+            'PhpParser\\' => 10,
         ),
         'O' => 
         array (
@@ -57,23 +65,14 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
         'L' => 
         array (
             'Laminas\\ZendFrameworkBridge\\' => 28,
-            'Laminas\\Xml\\' => 12,
-            'Laminas\\XmlRpc\\' => 15,
             'Laminas\\View\\' => 13,
             'Laminas\\Validator\\' => 18,
             'Laminas\\Uri\\' => 12,
-            'Laminas\\Text\\' => 13,
-            'Laminas\\Tag\\' => 12,
             'Laminas\\Stdlib\\' => 15,
             'Laminas\\Session\\' => 16,
             'Laminas\\ServiceManager\\' => 23,
-            'Laminas\\Server\\' => 15,
-            'Laminas\\Serializer\\' => 19,
             'Laminas\\Router\\' => 15,
-            'Laminas\\ProgressBar\\' => 20,
-            'Laminas\\Permissions\\Rbac\\' => 25,
             'Laminas\\Permissions\\Acl\\' => 24,
-            'Laminas\\Paginator\\' => 18,
             'Laminas\\Navigation\\' => 19,
             'Laminas\\Mvc\\Plugin\\Prg\\' => 23,
             'Laminas\\Mvc\\Plugin\\Identity\\' => 28,
@@ -83,7 +82,6 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
             'Laminas\\Mvc\\' => 12,
             'Laminas\\ModuleManager\\' => 22,
             'Laminas\\Mime\\' => 13,
-            'Laminas\\Memory\\' => 15,
             'Laminas\\Math\\' => 13,
             'Laminas\\Mail\\' => 13,
             'Laminas\\Log\\' => 12,
@@ -95,25 +93,11 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
             'Laminas\\Http\\' => 13,
             'Laminas\\Form\\' => 13,
             'Laminas\\Filter\\' => 15,
-            'Laminas\\File\\' => 13,
-            'Laminas\\Feed\\' => 13,
             'Laminas\\EventManager\\' => 21,
             'Laminas\\Escaper\\' => 16,
             'Laminas\\Dom\\' => 12,
-            'Laminas\\Di\\' => 11,
-            'Laminas\\Db\\' => 11,
-            'Laminas\\Crypt\\' => 14,
             'Laminas\\Config\\' => 15,
-            'Laminas\\Code\\' => 13,
-            'Laminas\\Captcha\\' => 16,
-            'Laminas\\Cache\\Storage\\Adapter\\' => 30,
-            'Laminas\\Cache\\' => 14,
-            'Laminas\\Barcode\\' => 16,
             'Laminas\\Authentication\\' => 23,
-        ),
-        'I' => 
-        array (
-            'Interop\\Container\\' => 18,
         ),
         'E' => 
         array (
@@ -138,6 +122,10 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
         array (
             'Composer\\Semver\\' => 16,
         ),
+        'B' => 
+        array (
+            'Brick\\VarExporter\\' => 18,
+        ),
     );
 
     public static $prefixDirsPsr4 = array (
@@ -145,13 +133,13 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
         array (
             0 => __DIR__ . '/..' . '/lsolesen/pel/src',
         ),
+        'Webmozart\\Assert\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/webmozart/assert/src',
+        ),
         'Webimpress\\SafeWriter\\' => 
         array (
             0 => __DIR__ . '/..' . '/webimpress/safe-writer/src',
-        ),
-        'TrueBV\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/true/punycode/src',
         ),
         'Symfony\\Polyfill\\Php80\\' => 
         array (
@@ -161,21 +149,41 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
         array (
             0 => __DIR__ . '/..' . '/symfony/polyfill-php73',
         ),
+        'Symfony\\Polyfill\\Php72\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/symfony/polyfill-php72',
+        ),
         'Symfony\\Polyfill\\Mbstring\\' => 
         array (
             0 => __DIR__ . '/..' . '/symfony/polyfill-mbstring',
+        ),
+        'Symfony\\Polyfill\\Intl\\Normalizer\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/symfony/polyfill-intl-normalizer',
+        ),
+        'Symfony\\Polyfill\\Intl\\Idn\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/symfony/polyfill-intl-idn',
+        ),
+        'Symfony\\Polyfill\\Intl\\Grapheme\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/symfony/polyfill-intl-grapheme',
+        ),
+        'Symfony\\Polyfill\\Ctype\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/symfony/polyfill-ctype',
         ),
         'Symfony\\Contracts\\Service\\' => 
         array (
             0 => __DIR__ . '/..' . '/symfony/service-contracts',
         ),
+        'Symfony\\Component\\String\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/symfony/string',
+        ),
         'Symfony\\Component\\Console\\' => 
         array (
             0 => __DIR__ . '/..' . '/symfony/console',
-        ),
-        'Psr\\SimpleCache\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/psr/simple-cache/src',
         ),
         'Psr\\Log\\' => 
         array (
@@ -189,9 +197,9 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
         array (
             0 => __DIR__ . '/..' . '/psr/cache/src',
         ),
-        'PackageVersions\\' => 
+        'PhpParser\\' => 
         array (
-            0 => __DIR__ . '/..' . '/composer/package-versions-deprecated/src/PackageVersions',
+            0 => __DIR__ . '/..' . '/nikic/php-parser/lib/PhpParser',
         ),
         'Omeka\\Composer\\' => 
         array (
@@ -209,14 +217,6 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
         array (
             0 => __DIR__ . '/..' . '/laminas/laminas-zendframework-bridge/src',
         ),
-        'Laminas\\Xml\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-xml/src',
-        ),
-        'Laminas\\XmlRpc\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-xmlrpc/src',
-        ),
         'Laminas\\View\\' => 
         array (
             0 => __DIR__ . '/..' . '/laminas/laminas-view/src',
@@ -228,14 +228,6 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
         'Laminas\\Uri\\' => 
         array (
             0 => __DIR__ . '/..' . '/laminas/laminas-uri/src',
-        ),
-        'Laminas\\Text\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-text/src',
-        ),
-        'Laminas\\Tag\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-tag/src',
         ),
         'Laminas\\Stdlib\\' => 
         array (
@@ -249,33 +241,13 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
         array (
             0 => __DIR__ . '/..' . '/laminas/laminas-servicemanager/src',
         ),
-        'Laminas\\Server\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-server/src',
-        ),
-        'Laminas\\Serializer\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-serializer/src',
-        ),
         'Laminas\\Router\\' => 
         array (
             0 => __DIR__ . '/..' . '/laminas/laminas-router/src',
         ),
-        'Laminas\\ProgressBar\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-progressbar/src',
-        ),
-        'Laminas\\Permissions\\Rbac\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-permissions-rbac/src',
-        ),
         'Laminas\\Permissions\\Acl\\' => 
         array (
             0 => __DIR__ . '/..' . '/laminas/laminas-permissions-acl/src',
-        ),
-        'Laminas\\Paginator\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-paginator/src',
         ),
         'Laminas\\Navigation\\' => 
         array (
@@ -312,10 +284,6 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
         'Laminas\\Mime\\' => 
         array (
             0 => __DIR__ . '/..' . '/laminas/laminas-mime/src',
-        ),
-        'Laminas\\Memory\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-memory/src',
         ),
         'Laminas\\Math\\' => 
         array (
@@ -361,14 +329,6 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
         array (
             0 => __DIR__ . '/..' . '/laminas/laminas-filter/src',
         ),
-        'Laminas\\File\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-file/src',
-        ),
-        'Laminas\\Feed\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-feed/src',
-        ),
         'Laminas\\EventManager\\' => 
         array (
             0 => __DIR__ . '/..' . '/laminas/laminas-eventmanager/src',
@@ -381,71 +341,21 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
         array (
             0 => __DIR__ . '/..' . '/laminas/laminas-dom/src',
         ),
-        'Laminas\\Di\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-di/src',
-        ),
-        'Laminas\\Db\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-db/src',
-        ),
-        'Laminas\\Crypt\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-crypt/src',
-        ),
         'Laminas\\Config\\' => 
         array (
             0 => __DIR__ . '/..' . '/laminas/laminas-config/src',
-        ),
-        'Laminas\\Code\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-code/src',
-        ),
-        'Laminas\\Captcha\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-captcha/src',
-        ),
-        'Laminas\\Cache\\Storage\\Adapter\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-cache-storage-adapter-zend-server/src',
-            1 => __DIR__ . '/..' . '/laminas/laminas-cache-storage-adapter-xcache/src',
-            2 => __DIR__ . '/..' . '/laminas/laminas-cache-storage-adapter-wincache/src',
-            3 => __DIR__ . '/..' . '/laminas/laminas-cache-storage-adapter-session/src',
-            4 => __DIR__ . '/..' . '/laminas/laminas-cache-storage-adapter-redis/src',
-            5 => __DIR__ . '/..' . '/laminas/laminas-cache-storage-adapter-mongodb/src',
-            6 => __DIR__ . '/..' . '/laminas/laminas-cache-storage-adapter-memory/src',
-            7 => __DIR__ . '/..' . '/laminas/laminas-cache-storage-adapter-memcached/src',
-            8 => __DIR__ . '/..' . '/laminas/laminas-cache-storage-adapter-memcache/src',
-            9 => __DIR__ . '/..' . '/laminas/laminas-cache-storage-adapter-filesystem/src',
-            10 => __DIR__ . '/..' . '/laminas/laminas-cache-storage-adapter-ext-mongodb/src',
-            11 => __DIR__ . '/..' . '/laminas/laminas-cache-storage-adapter-dba/src',
-            12 => __DIR__ . '/..' . '/laminas/laminas-cache-storage-adapter-blackhole/src',
-            13 => __DIR__ . '/..' . '/laminas/laminas-cache-storage-adapter-apcu/src',
-            14 => __DIR__ . '/..' . '/laminas/laminas-cache-storage-adapter-apc/src',
-        ),
-        'Laminas\\Cache\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-cache/src',
-        ),
-        'Laminas\\Barcode\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/laminas/laminas-barcode/src',
         ),
         'Laminas\\Authentication\\' => 
         array (
             0 => __DIR__ . '/..' . '/laminas/laminas-authentication/src',
         ),
-        'Interop\\Container\\' => 
-        array (
-            0 => __DIR__ . '/..' . '/container-interop/container-interop/src/Interop/Container',
-        ),
         'EasyRdf\\' => 
         array (
-            0 => __DIR__ . '/..' . '/easyrdf/easyrdf/lib',
+            0 => __DIR__ . '/..' . '/sweetrdf/easyrdf/lib',
         ),
         'Doctrine\\Persistence\\' => 
         array (
-            0 => __DIR__ . '/..' . '/doctrine/persistence/lib/Doctrine/Persistence',
+            0 => __DIR__ . '/..' . '/doctrine/persistence/src/Persistence',
         ),
         'Doctrine\\ORM\\' => 
         array (
@@ -486,7 +396,7 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
         'Doctrine\\Common\\' => 
         array (
             0 => __DIR__ . '/..' . '/doctrine/event-manager/lib/Doctrine/Common',
-            1 => __DIR__ . '/..' . '/doctrine/persistence/lib/Doctrine/Common',
+            1 => __DIR__ . '/..' . '/doctrine/persistence/src/Common',
             2 => __DIR__ . '/..' . '/doctrine/common/lib/Doctrine/Common',
         ),
         'DoctrineExtensions\\' => 
@@ -496,6 +406,10 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
         'Composer\\Semver\\' => 
         array (
             0 => __DIR__ . '/..' . '/composer/semver/src',
+        ),
+        'Brick\\VarExporter\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/brick/varexporter/src',
         ),
     );
 
@@ -518,8 +432,11 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
 
     public static $classMap = array (
         'Attribute' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/Attribute.php',
+        'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
         'JsonException' => __DIR__ . '/..' . '/symfony/polyfill-php73/Resources/stubs/JsonException.php',
         'Laminas\\I18n\\Translator\\Resources' => __DIR__ . '/..' . '/laminas/laminas-i18n-resources/src/Resources.php',
+        'Normalizer' => __DIR__ . '/..' . '/symfony/polyfill-intl-normalizer/Resources/stubs/Normalizer.php',
+        'PhpToken' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/PhpToken.php',
         'Stringable' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/Stringable.php',
         'UnhandledMatchError' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/UnhandledMatchError.php',
         'ValueError' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/ValueError.php',
@@ -528,10 +445,10 @@ class ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04::$prefixDirsPsr4;
-            $loader->prefixesPsr0 = ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04::$prefixesPsr0;
-            $loader->classMap = ComposerStaticInit3b5d701347342754dfcb766bbb1fbc04::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInitfb977c63fce19985a5644422fbf63ce9::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInitfb977c63fce19985a5644422fbf63ce9::$prefixDirsPsr4;
+            $loader->prefixesPsr0 = ComposerStaticInitfb977c63fce19985a5644422fbf63ce9::$prefixesPsr0;
+            $loader->classMap = ComposerStaticInitfb977c63fce19985a5644422fbf63ce9::$classMap;
 
         }, null, ClassLoader::class);
     }

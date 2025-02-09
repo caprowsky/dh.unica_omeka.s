@@ -1,22 +1,6 @@
 <?php
 
-/*
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * This software consists of voluntary contributions made by many individuals
- * and is licensed under the MIT license. For more information, see
- * <http://www.doctrine-project.org>.
- */
+declare(strict_types=1);
 
 namespace Doctrine\ORM\Proxy;
 
@@ -109,17 +93,15 @@ class ProxyFactory extends AbstractProxyFactory
     /**
      * Creates a closure capable of initializing a proxy
      *
-     * @return Closure
+     * @psalm-return Closure(BaseProxy):void
      *
      * @throws EntityNotFoundException
-     *
-     * @psalm-return Closure(BaseProxy ): void
      */
-    private function createInitializer(ClassMetadata $classMetadata, EntityPersister $entityPersister)
+    private function createInitializer(ClassMetadata $classMetadata, EntityPersister $entityPersister): Closure
     {
         $wakeupProxy = $classMetadata->getReflectionClass()->hasMethod('__wakeup');
 
-        return function (BaseProxy $proxy) use ($entityPersister, $classMetadata, $wakeupProxy) {
+        return function (BaseProxy $proxy) use ($entityPersister, $classMetadata, $wakeupProxy): void {
             $initializer = $proxy->__getInitializer();
             $cloner      = $proxy->__getCloner();
 
@@ -162,15 +144,13 @@ class ProxyFactory extends AbstractProxyFactory
     /**
      * Creates a closure capable of finalizing state a cloned proxy
      *
-     * @return Closure
+     * @psalm-return Closure(BaseProxy):void
      *
      * @throws EntityNotFoundException
-     *
-     * @psalm-return Closure(BaseProxy ): void
      */
-    private function createCloner(ClassMetadata $classMetadata, EntityPersister $entityPersister)
+    private function createCloner(ClassMetadata $classMetadata, EntityPersister $entityPersister): Closure
     {
-        return function (BaseProxy $proxy) use ($entityPersister, $classMetadata) {
+        return function (BaseProxy $proxy) use ($entityPersister, $classMetadata): void {
             if ($proxy->__isInitialized()) {
                 return;
             }

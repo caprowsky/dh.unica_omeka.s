@@ -26,7 +26,7 @@ class TopicsListSidebarForm extends Fieldset
             'options' => [
                 'label' => 'Icon name', // @translate
                 'info' => 'Font Awesome 5 icon class name', // @translate
-                'documentation' => 'https://fontawesome.com/v5/search?m=free'
+                'documentation' => 'https://fontawesome.com/v5/search?m=free&s=solid'
             ],
             'attributes' => [
                 'data-sidebar-id' => 'topic-data-icon'

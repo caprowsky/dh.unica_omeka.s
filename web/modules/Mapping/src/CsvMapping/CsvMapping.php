@@ -11,60 +11,70 @@ class CsvMapping extends AbstractMapping
 
     public function getSidebar(PhpRenderer $view)
     {
-        return $view->partial('admin/csv-mapping');
+        return $view->partial('common/csv-import/mapping');
     }
 
     public function processRow(array $row)
     {
         // Reset the data and the map between rows.
         $this->setHasErr(false);
-        $json = [
-            'o-module-mapping:marker' => [],
-            'o-module-mapping:mapping' => [],
-        ];
+        $json = [];
 
         // Set columns.
         $latMap = isset($this->args['column-map-lat']) ? array_keys($this->args['column-map-lat']) : [];
         $lngMap = isset($this->args['column-map-lng']) ? array_keys($this->args['column-map-lng']) : [];
         $latLngMap = isset($this->args['column-map-latlng']) ? array_keys($this->args['column-map-latlng']) : [];
+        $boundsMap = isset($this->args['column-map-bounds']) ? array_keys($this->args['column-map-bounds']) : [];
 
-        $defaultLatMap = isset($this->args['column-default-lat']) ? array_keys($this->args['column-default-lat']) : [];
-        $defaultLngMap = isset($this->args['column-default-lng']) ? array_keys($this->args['column-default-lng']) : [];
-        $defaultZoomMap = isset($this->args['column-default-zoom']) ? array_keys($this->args['column-default-zoom']) : [];
+        $multivalueMap = $this->args['column-multivalue'] ?? [];
+        $multivalueSeparator = $this->args['multivalue_separator'];
 
         // Set default values.
-        $markerJson = [];
-        $mappingJson = ['o-module-mapping:default_zoom' => 1];
+        $lat = null;
+        $lng = null;
+        $mappingJson = [];
 
         foreach ($row as $index => $value) {
+            if (trim($value) === '') {
+                continue;
+            }
             if (in_array($index, $latMap)) {
-                $markerJson['o-module-mapping:lat'] = $value;
+                $lat = $value;
             }
             if (in_array($index, $lngMap)) {
-                $markerJson['o-module-mapping:lng'] = $value;
+                $lng = $value;
             }
             if (in_array($index, $latLngMap)) {
-                $latLng = array_map('trim', explode('/', $value));
-                $markerJson['o-module-mapping:lat'] = $latLng[0];
-                $markerJson['o-module-mapping:lng'] = $latLng[1];
+                if (empty($multivalueMap[$index])) {
+                    $latLngs = [$value];
+                } else {
+                    $latLngs = explode($multivalueSeparator, $value);
+                }
+                foreach ($latLngs as $latLngString) {
+                    $latLng = array_map('trim', explode('/', $latLngString));
+                    if (count($latLng) !== 2) {
+                        continue;
+                    }
+                    $json['o-module-mapping:feature'][] = [
+                        'o-module-mapping:geography-type' => 'point',
+                        'o-module-mapping:geography-coordinates' => [$latLng[1], $latLng[0]],
+                    ];
+                }
             }
-
-            if (in_array($index, $defaultLatMap)) {
-                $mappingJson['o-module-mapping:default_lat'] = $value;
-            }
-            if (in_array($index, $defaultLngMap)) {
-                $mappingJson['o-module-mapping:default_lng'] = $value;
-            }
-            if (in_array($index, $defaultZoomMap)) {
-                $mappingJson['o-module-mapping:default_zoom'] = $value;
+            if (in_array($index, $boundsMap)) {
+                $mappingJson['o-module-mapping:bounds'] = $value;
             }
         }
 
-        if (isset($markerJson['o-module-mapping:lat']) && isset($markerJson['o-module-mapping:lng'])) {
-            $json['o-module-mapping:marker'][] = $markerJson;
+        if ($lat && $lng) {
+            $json['o-module-mapping:feature'][] = [
+                'o-module-mapping:geography-type' => 'point',
+                'o-module-mapping:geography-coordinates' => [$lng, $lat],
+            ];
         }
-
-        $json['o-module-mapping:mapping'] = $mappingJson;
+        if (isset($mappingJson['o-module-mapping:bounds'])) {
+            $json['o-module-mapping:mapping'] = $mappingJson;
+        }
         return $json;
     }
 }
