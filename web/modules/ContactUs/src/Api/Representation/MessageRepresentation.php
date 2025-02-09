@@ -58,6 +58,14 @@ class MessageRepresentation extends AbstractEntityRepresentation
             '@type' => 'http://www.w3.org/2001/XMLSchema#dateTime',
         ];
 
+        $modified = $this->modified();
+        if ($modified) {
+            $modified = [
+                '@value' => $this->getDateTime($modified),
+                '@type' => 'http://www.w3.org/2001/XMLSchema#dateTime',
+            ];
+        }
+
         return [
             'o:id' => $this->id(),
             'o:owner' => $owner,
@@ -65,6 +73,7 @@ class MessageRepresentation extends AbstractEntityRepresentation
             'o:name' => $this->name(),
             'o-module-contact:subject' => $this->subject(),
             'o-module-contact:body' => $this->body(),
+            'o-module-contact:fields' => $this->fields(),
         ]
         + $fileData
         + $linked
@@ -79,6 +88,7 @@ class MessageRepresentation extends AbstractEntityRepresentation
             'o-module-contact:is_spam' => $this->isSpam(),
             'o-module-contact:to_author' => $this->isToAuthor(),
             'o:created' => $created,
+            'o:modified' => $modified,
         ];
     }
 
@@ -111,6 +121,11 @@ class MessageRepresentation extends AbstractEntityRepresentation
     public function body(): ?string
     {
         return $this->resource->getBody();
+    }
+
+    public function fields(): ?array
+    {
+        return $this->resource->getFields();
     }
 
     public function source(): ?string
@@ -185,9 +200,39 @@ class MessageRepresentation extends AbstractEntityRepresentation
         return $this->resource->isToAuthor();
     }
 
+    public function hasZip(): bool
+    {
+        $filepath = $this->zipFilepath();
+        return file_exists($filepath) && is_readable($filepath) && !is_dir($filepath);
+    }
+
+    public function zipFilename(): string
+    {
+        return $this->resource->getId() . '.' . $this->token() . '.zip';
+    }
+
+    public function zipFilepath(): string
+    {
+        // TODO Use Omeka storage.
+        $config = $this->getServiceLocator()->get('Config');
+        $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+        return $basePath . '/contactus/' . $this->zipFilename();
+    }
+
+    public function zipUrl(): string
+    {
+        $url = $this->getViewHelper('Url');
+        return $url('contact-us', ['id' => $this->resource->getId() . '.' . $this->token()], ['force_canonical' => true]);
+    }
+
     public function created(): DateTime
     {
         return $this->resource->getCreated();
+    }
+
+    public function modified(): ?DateTime
+    {
+        return $this->resource->getModified();
     }
 
     public function assetUrl(): ?string
@@ -207,5 +252,23 @@ class MessageRepresentation extends AbstractEntityRepresentation
     public function thumbnail(): ?self
     {
         return $this->filename() ? $this : null;
+    }
+
+    /**
+     * Get all resource ids (main resource and field "id").
+     */
+    public function resourceIds(): array
+    {
+        $result = $this->resource();
+        $result = $result ? [$result->id()] : [];
+        $fields = $this->fields();
+        $fields = $fields && !empty($fields['id']) ? (is_array($fields['id']) ? $fields['id'] : [$fields['id']]) : [];
+        return array_values(array_unique(array_merge($result, $fields)));
+    }
+
+    public function token(): ?string
+    {
+        $string = $this->id() . '/' . $this->email() . '/' . $this->ip() . '/' . $this->userAgent() . '/' . $this->created()->format('Y-m-d H:i:s');
+        return substr(str_replace(['+', '/', '='], '', base64_encode(hash('sha256', $string))), 0, 12);
     }
 }

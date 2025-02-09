@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -29,7 +29,6 @@
 
 namespace IiifServer\Iiif;
 
-use ArrayObject;
 use JsonSerializable;
 use Omeka\Api\Representation\ValueRepresentation;
 
@@ -56,7 +55,7 @@ class ValueLanguage implements JsonSerializable
     protected $multipleValues;
 
     /**
-     * @var ArrayObject
+     * @var array
      */
     protected $output;
 
@@ -90,10 +89,16 @@ class ValueLanguage implements JsonSerializable
         $this->prepareOutput();
     }
 
+    public static function output($values, bool $allowHtml = false, ?string $fallback = null, bool $multipleValues = false): ?array
+    {
+        return (new ValueLanguage($values, $allowHtml, $fallback, $multipleValues))
+            ->jsonSerialize();
+    }
+
     /**
      * Get all the data as array.
      */
-    public function data(): ArrayObject
+    public function data(): array
     {
         return $this->output;
     }
@@ -103,24 +108,24 @@ class ValueLanguage implements JsonSerializable
      */
     public function langs(): array
     {
-        return array_keys($this->output->getArrayCopy());
+        return array_keys($this->output);
     }
 
     public function count(): int
     {
-        return $this->output->count();
+        return count($this->output);
     }
 
-    public function jsonSerialize()
+    public function jsonSerialize(): ?array
     {
-        return $this->output->count()
-            ? (object) $this->output
+        return count($this->output)
+            ? $this->output
             : null;
     }
 
-    protected function prepareOutput(): ArrayObject
+    protected function prepareOutput(): array
     {
-        $this->output = new ArrayObject;
+        $this->output = [];
 
         if (count($this->values)) {
             $first = reset($this->values);
@@ -148,7 +153,7 @@ class ValueLanguage implements JsonSerializable
                         $lang = $value->lang() ?: 'none';
                         if ($this->multipleValues || empty($this->output[$lang])) {
                             $this->output[$lang][] = $value->type() === 'uri'
-                                ? $value->uri()
+                                ? (string) $value->uri()
                                 : strip_tags((string) $value);
                         }
                     }
@@ -157,11 +162,11 @@ class ValueLanguage implements JsonSerializable
                 // This check is normally useless.
                 if (!$this->multipleValues) {
                     foreach ($this->values as $lang => &$v) {
-                        $v = [reset($v)];
+                        $v = [is_array($v) ? (string) reset($v) : (string) $v];
                     }
                     unset($v);
                 }
-                $this->output->exchangeArray($this->values);
+                $this->output = $this->values;
             }
 
             // Keep none at last.

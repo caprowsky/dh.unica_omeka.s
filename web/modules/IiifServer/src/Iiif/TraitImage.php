@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -31,7 +31,12 @@ namespace IiifServer\Iiif;
 
 trait TraitImage
 {
-    use TraitThumbnail;
+    use TraitDescriptiveThumbnail;
+
+    /**
+     * @var \IiifServer\View\Helper\IiifMediaUrl
+     */
+    protected $iiifMediaUrl;
 
     /**
      * @var \IiifServer\Mvc\Controller\Plugin\ImageSize
@@ -39,16 +44,9 @@ trait TraitImage
     protected $imageSize;
 
     /**
-     * @var \IiifServer\View\Helper\IiifMediaUrl
+     * @var array
      */
-    protected $iiifMediaUrl;
-
-    protected function initImage(): void
-    {
-        $services = $this->resource->getServiceLocator();
-        $this->imageSize = $services->get('ControllerPluginManager')->get('imageSize');
-        $this->iiifMediaUrl = $services->get('ViewHelperManager')->get('iiifMediaUrl');
-    }
+    protected $imageSizesByType = [];
 
     public function isImage(): bool
     {
@@ -67,20 +65,16 @@ trait TraitImage
         return $size ? (int) $size['height'] : null;
     }
 
-    protected function imageSize($type = 'original'): ?array
+    protected function imageSize(string $type = 'original'): ?array
     {
         if (!$this->isImage()) {
             return null;
         }
 
-        if (!array_key_exists('image_sizes', $this->_storage)) {
-            $this->_storage['image_sizes'] = [];
+        if (!array_key_exists($type, $this->imageSizesByType)) {
+            $this->imageSizesByType[$type] = $this->imageSize->__invoke($this->resource->primaryMedia(), $type);
         }
 
-        if (!array_key_exists($type, $this->_storage['image_sizes'])) {
-            $this->_storage['image_sizes'][$type] = $this->imageSize->__invoke($this->resource->primaryMedia(), $type);
-        }
-
-        return $this->_storage['image_sizes'][$type];
+        return $this->imageSizesByType[$type];
     }
 }

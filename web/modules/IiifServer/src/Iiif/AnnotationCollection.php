@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -36,7 +36,7 @@ class AnnotationCollection extends AbstractResourceType
 {
     protected $type = 'AnnotationCollection';
 
-    protected $keys = [
+    protected $propertyRequirements = [
         '@context' => self::NOT_ALLOWED,
 
         'id' => self::REQUIRED,
@@ -71,6 +71,7 @@ class AnnotationCollection extends AbstractResourceType
         'seeAlso' => self::OPTIONAL,
         'service' => self::OPTIONAL,
         'homepage' => self::OPTIONAL,
+        'logo' => self::OPTIONAL,
         'rendering' => self::OPTIONAL,
         'partOf' => self::OPTIONAL,
         'start' => self::NOT_ALLOWED,
@@ -84,11 +85,32 @@ class AnnotationCollection extends AbstractResourceType
     ];
 
     protected $behaviors = [
+        // // Temporal behaviors.
+        // 'auto-advance' => self::NOT_ALLOWED,
+        // 'no-auto-advance' => self::NOT_ALLOWED,
+        // 'repeat' => self::NOT_ALLOWED,
+        // 'no-repeat' => self::NOT_ALLOWED,
+        // // Layout behaviors.
+        // 'unordered' => self::NOT_ALLOWED,
+        // 'individuals' => self::NOT_ALLOWED,
+        // 'continuous' => self::NOT_ALLOWED,
+        // 'paged' => self::NOT_ALLOWED,
+        // 'facing-pages' => self::NOT_ALLOWED,
+        // 'non-paged' => self::NOT_ALLOWED,
+        // // Collection behaviors.
+        // 'multi-part' => self::NOT_ALLOWED,
+        // 'together' => self::NOT_ALLOWED,
+        // // Range behaviors.
+        // 'sequence' => self::NOT_ALLOWED,
+        // 'thumbnail-nav' => self::NOT_ALLOWED,
+        // 'no-nav' => self::NOT_ALLOWED,
+        // Miscellaneous behaviors.
         'hidden' => self::OPTIONAL,
     ];
 
     public function id(): ?string
     {
+        // Here, resource is a media.
         return $this->iiifUrl->__invoke($this->resource->item(), 'iiifserver/uri', '3', [
             'type' => 'annotation-collection',
             'name' => $this->resource->id(),

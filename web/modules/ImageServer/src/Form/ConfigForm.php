@@ -2,20 +2,15 @@
 
 namespace ImageServer\Form;
 
-use IiifServer\Form\Element\OptionalUrl;
 use ImageServer\Form\Element\Note;
 use ImageServer\ImageServer\ImageServer;
 use Laminas\Form\Element;
 use Laminas\Form\Fieldset;
 use Laminas\Form\Form;
-use Laminas\I18n\Translator\TranslatorAwareInterface;
-use Laminas\I18n\Translator\TranslatorAwareTrait;
-use Omeka\Form\Element\PropertySelect;
+use Omeka\Form\Element as OmekaElement;
 
-class ConfigForm extends Form implements TranslatorAwareInterface
+class ConfigForm extends Form
 {
-    use TranslatorAwareTrait;
-
     /**
      * @var array
      */
@@ -39,7 +34,7 @@ class ConfigForm extends Form implements TranslatorAwareInterface
         $this
             ->add([
                 'name' => 'fieldset_media_api',
-                'type' => \Laminas\Form\Fieldset::class,
+                'type' => Fieldset::class,
                 'options' => [
                     'label' => 'Image server', // @translate
                 ],
@@ -111,8 +106,8 @@ class ConfigForm extends Form implements TranslatorAwareInterface
                 'name' => 'iiifserver_media_api_prefix',
                 'type' => Element\Text::class,
                 'options' => [
-                    'label' => 'Append a prefix to the url (to be set inside module.config.php currently)', // @translate
-                    'info' => 'If set, the prefix will be added after the version: "iiif/3/xxx".', // @translate
+                    'label' => 'Append a prefix to the url (to be set inside module.config.php currently)', // @ translate
+                    'info' => 'If set, the prefix will be added after the version: "iiif/3/xxx".', // @ translate
                 ],
                 'attributes' => [
                     'id' => 'iiifserver_media_api_prefix',
@@ -125,23 +120,24 @@ class ConfigForm extends Form implements TranslatorAwareInterface
                 'type' => Element\Radio::class,
                 'options' => [
                     'label' => 'Media identifier', // @translate
-                    'info' => 'Using the full filename allows to use an image server like Cantaloupe sharing the Omeka original files directory.', // @translate
+                    'info' => 'Using the full filename with extension for images allows to use an image server like Cantaloupe sharing the Omeka original files directory. In other cases, this option is not recommended because the identifier should not have an extension.', // @translate
                     'value_options' => [
                         'default' => 'Default', // @translate
                         'media_id' => 'Media id', // @translate
                         'storage_id' => 'Filename', // @translate
-                        'filename' => 'Filename with extension', // @translate
+                        'filename' => 'Filename with extension (all)', // @translate
+                        'filename_image' => 'Filename with extension (image only)', // @translate
                     ],
                 ],
                 'attributes' => [
                     'id' => 'iiifserver_media_api_identifier',
-                    'required' =>  true,
+                    'required' => true,
                 ],
             ])
 
             ->add([
                 'name' => 'fieldset_media_infojson',
-                'type' => \Laminas\Form\Fieldset::class,
+                'type' => Fieldset::class,
                 'options' => [
                     'label' => 'Content of media info.json', // @translate
                 ],
@@ -170,7 +166,7 @@ class ConfigForm extends Form implements TranslatorAwareInterface
             ])
             ->add([
                 'name' => 'imageserver_info_rights_property',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Property to use for rights (license)', // @translate
                     'empty_option' => '',
@@ -183,11 +179,74 @@ class ConfigForm extends Form implements TranslatorAwareInterface
                 ],
             ])
             ->add([
+                'name' => 'imageserver_info_rights_uri',
+                'type' => Element\Select::class,
+                'options' => [
+                    'label' => 'Uri of the license or rights', // @translate
+                    'value_options' => [
+                        '' => 'Uri below', // @translate
+                        // CreativeCommons.
+                        'creative-commons-0' => [
+                            'label' => 'Creative Commons 0', // @translate
+                            'options' => [
+                                'https://creativecommons.org/publicdomain/zero/1.0/' => 'Creative Commons CC0 Universal Public Domain Dedication', // @translate
+                            ],
+                        ],
+                        // v3 international
+                        'creative-commons-3' => [
+                            'label' => 'Creative Commons 3.0 International', // @translate
+                            'options' => [
+                                'https://creativecommons.org/licenses/by/3.0/' => 'Creative Commons Attribution 3.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-sa/3.0/' => 'Creative Commons Attribution-ShareAlike 3.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-nc/3.0' => 'Creative Commons Attribution-NonCommercial 3.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-nc-sa/3.0' => 'Creative Commons Attribution-NonCommercial-ShareAlike 3.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-nc-nd/3.0' => 'Creative Commons Attribution-NonCommercial-NoDerivatives 3.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-nd/3.0' => 'Creative Commons Attribution-NoDerivatives 3.0 International', // @translate
+                            ],
+                        ],
+                        // v4 international
+                        'creative-commons-4' => [
+                            'label' => 'Creative Commons 4.0 International', // @translate
+                            'options' => [
+                                'https://creativecommons.org/licenses/by/4.0/' => 'Creative Commons Attribution 4.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-sa/4.0/' => 'Creative Commons Attribution-ShareAlike 4.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-nc/4.0' => 'Creative Commons Attribution-NonCommercial 4.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-nc-sa/4.0' => 'Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-nc-nd/4.0' => 'Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-nd/4.0' => 'Creative Commons Attribution-NoDerivatives 4.0 International', // @translate
+                            ],
+                        ],
+                        // RigthsStatements.
+                        'rigths-statements' => [
+                            'label' => 'Rigths Statements', // @translate
+                            'options' => [
+                                'https://rightsstatements.org/vocab/InC/1.0/' => 'In Copyright', // @translate
+                                'https://rightsstatements.org/vocab/InC-RUU/1.0/' => 'In Copyright - Rights-holder(s) Unlocatable or Unidentifiable', // @translate
+                                'https://rightsstatements.org/vocab/InC-NC/1.0/' => 'In Copyright - Non-Commercial Use Permitted', // @translate
+                                'https://rightsstatements.org/vocab/InC-EDU/1.0/' => 'In Copyright - Educational Use Permitted', // @translate
+                                'https://rightsstatements.org/vocab/InC-OW-EU/1.0/' => 'In Copyright - EU Orphan Work', // @translate
+                                'https://rightsstatements.org/vocab/NoC-OKLR/1.0/' => 'No Copyright - Other Known Legal Restrictions', // @translate
+                                'https://rightsstatements.org/vocab/NoC-CR/1.0/' => 'No Copyright - Contractual Restrictions', // @translate
+                                'https://rightsstatements.org/vocab/NoC-NC/1.0/' => 'No Copyright - Non-Commercial Use Only', // @translate
+                                'https://rightsstatements.org/vocab/NoC-US/1.0/' => 'No Copyright - United States', // @translate
+                                'https://rightsstatements.org/vocab/NKC/1.0/' => 'No Known Copyright', // @translate
+                                'https://rightsstatements.org/vocab/UND/1.0/' => 'Copyright Undetermined', // @translate
+                                'https://rightsstatements.org/vocab/CNE/1.0/' => 'Copyright Not Evaluated', // @translate
+                            ],
+                        ],
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'imageserver_info_rights_uri',
+                    'class' => 'chosen-select',
+                ],
+            ])
+            ->add([
                 'name' => 'imageserver_info_rights_url',
                 'type' => Element\Url::class,
                 'options' => [
-                    'label' => 'Url of the license of the media', // @translate
-                    'info' => 'The license for the media must be an url from https://creativecommons.org or https://rightsstatements.org.', // @translate
+                    'label' => 'Uri of the rights/license of the media when unselected above', // @translate
+                    'info' => 'For IIIF v3, the license of the item must be an url from https://creativecommons.org or https://rightsstatements.org.', // @translate
                 ],
                 'attributes' => [
                     'id' => 'imageserver_info_rights_url',
@@ -215,14 +274,19 @@ class ConfigForm extends Form implements TranslatorAwareInterface
                 ],
             ])
             ->add([
-                'name' => 'imageserver_auto_tile',
-                'type' => Element\Checkbox::class,
+                'name' => 'imageserver_tile_mode',
+                'type' => Element\Radio::class,
                 'options' => [
-                    'label' => 'Tile images automatically when saved (important: enable it only when all existing images are already tiled)', // @translate
-                    'info' => 'If set, any action on items will create tiles if they are not present, so it can overload the server. So bulk tile all items first below.', // @translate
+                    'label' => 'Tile processing mode', // @translate
+                    'info' => 'If set manual, to run the task below will be required to create tiles. Unless in the case of an external server, it is recommended to set automatic tiling once all existing items are tiled to avoid to overload the server. So bulk tile all items first below.', // @translate
+                    'value_options' => [
+                        'auto' => 'Create tiles automatically on save (recommended without external server)', // @translate
+                        'manual' => 'Create tiles manually', // @translate
+                        'external' => 'Use an external image server', // @translate
+                    ],
                 ],
                 'attributes' => [
-                    'id' => 'imageserver_auto_tile',
+                    'id' => 'imageserver_tile_mode',
                 ],
             ])
             ->add([
@@ -230,8 +294,8 @@ class ConfigForm extends Form implements TranslatorAwareInterface
                 'type' => Element\Select::class,
                 'options' => [
                     'label' => 'Image processor', // @translate
-                    'info' => $this->translate('Vips is the quickest in all cases, then GD is a little faster than ImageMagick, but ImageMagick manages more formats.') // @translate
-                        . ' ' . $this->translate('Nevertheless, the performance depends on your installation and your server.'), // @translate
+                    'info' => 'Vips is the quickest in all cases, then GD is a little faster than ImageMagick, but ImageMagick manages more formats.
+Nevertheless, the performance depends on your installation and your server.', // @translate
                     'value_options' => $this->getImagers(),
                 ],
                 'attributes' => [
@@ -244,10 +308,10 @@ class ConfigForm extends Form implements TranslatorAwareInterface
                 'type' => Element\Text::class,
                 'options' => [
                     'label' => 'Max dynamic size for images', // @translate
-                    'info' => $this->translate('Set the maximum size in bytes for the dynamic processing of images.') // @translate
-                        . ' ' . $this->translate('Beyond this limit, the plugin will require a tiled image.') // @translate
-                        . ' ' . $this->translate('Let empty to allow processing of any image.') // @translate
-                        . ' ' . $this->translate('With vips, this option is bypassed.'), // @translate
+                    'info' => 'Set the maximum size in bytes for the dynamic processing of images.
+Beyond this limit, the plugin will require a tiled image.
+Let empty to allow processing of any image.
+With vips, this option is bypassed.', // @translate
                 ],
                 'attributes' => [
                     'id' => 'imageserver-image-max-size',
@@ -258,10 +322,10 @@ class ConfigForm extends Form implements TranslatorAwareInterface
                 'type' => Element\Radio::class,
                 'options' => [
                     'label' => 'Tiling type', // @translate
-                    'info' => $this->translate('If vips is available, the recommended processor strategy is "Tiled tiff". If jpeg2000 is available, use "Jpeg 2000". Else, use Deepzoom or Zoomify.') // @translate
-                        . ' ' . $this->translate('Deep Zoom Image is a free proprietary format from Microsoft largely supported.') // @translate
-                        . ' ' . $this->translate('Zoomify is an old format that was largely supported by proprietary softwares and free viewers.') // @translate
-                        . ' ' . $this->translate('All formats are served as native by default, but may be served as IIIF too when a viewer request it.'), // @translate
+                    'info' => 'If vips is available, the recommended processor strategy is "Tiled tiff". If jpeg2000 is available, use "Jpeg 2000". Else, use Deepzoom or Zoomify.
+Deep Zoom Image is a free proprietary format from Microsoft largely supported.
+Zoomify is an old format that was largely supported by proprietary softwares and free viewers.
+All formats are served as native by default, but may be served as IIIF too when a viewer request it.', // @translate
                     'documentation' => 'https://gitlab.com/Daniel-KM/Omeka-S-module-ImageServer#image-server',
                     'value_options' => [
                         'deepzoom' => [
@@ -292,7 +356,10 @@ class ConfigForm extends Form implements TranslatorAwareInterface
                     'id' => 'imageserver-image-tile-type',
                 ],
             ])
+        ;
 
+        // Tasks.
+        $this
             ->add([
                 'name' => 'imageserver_bulk_prepare',
                 'type' => Fieldset::class,
@@ -302,10 +369,9 @@ class ConfigForm extends Form implements TranslatorAwareInterface
                 'attributes' => [
                     'id' => 'imageserver_bulk_prepare',
                 ],
-            ])
-        ;
-
+            ]);
         $bulkFieldset = $this->get('imageserver_bulk_prepare');
+        // TODO Remove Element Note.
         $bulkFieldset
             ->add([
                 'name' => 'note',
@@ -335,6 +401,7 @@ To save the height and the width of all images and derivatives allows to speed u
                     'value_options' => [
                         'tile' => 'Tiling', // @translate
                         'size' => 'Sizing', // @translate
+                        'tile_clean' => 'Remove tiles and associated metadata', // @translate
                     ],
                 ],
                 'attributes' => [
@@ -409,11 +476,15 @@ To save the height and the width of all images and derivatives allows to speed u
                 'required' => false,
             ])
             ->add([
-                'name' => 'imageserver_info_rights_url',
+                'name' => 'imageserver_info_rights_property',
                 'required' => false,
             ])
             ->add([
-                'name' => 'imageserver_info_rights_property',
+                'name' => 'imageserver_info_rights_uri',
+                'required' => false,
+            ])
+            ->add([
+                'name' => 'imageserver_info_rights_url',
                 'required' => false,
             ])
             ->add([
@@ -445,12 +516,6 @@ To save the height and the width of all images and derivatives allows to speed u
                 'required' => false,
             ])
         ;
-    }
-
-    protected function translate($args): string
-    {
-        $translator = $this->getTranslator();
-        return $translator->translate($args);
     }
 
     /**

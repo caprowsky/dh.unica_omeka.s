@@ -7,9 +7,14 @@
 $plugins = $this->getHelperPluginManager();
 $url = $plugins->get('url');
 $i18n = $plugins->get('i18n');
+$setting = $plugins->get('setting');
 $escape = $plugins->get('escapeHtml');
 $translate = $plugins->get('translate');
 $hyperlink = $plugins->get('hyperlink');
+$escapeAttr = $plugins->get('escapeHtmlAttr');
+
+$fields = $resource->fields() ?: [];
+$site = $resource->site();
 ?>
 
 <?php $message = $resource; ?>
@@ -38,10 +43,22 @@ $hyperlink = $plugins->get('hyperlink');
             <span class="o-icon-private" aria-label="<?= $translate('Private') ?>"></span>
             <?php endif; ?>
         </div>
+        <?php elseif (!empty($fields['id'])): ?>
+        <h4><?= $escape($translate('Multiple resources')) ?></h4>
+        <div class="value">
+            <a class="resource-name" href="<?= $escapeAttr($url('admin/default', ['controller' => 'item', 'action' => 'browse'], ['query' => ['id' => $fields['id']]])) ?>"><?= sprintf($translate('%d items (admin)'), count($fields['id'])) ?></a>
+            <?php if ($site): ?>
+            <div>
+                <a class="resource-name" href="<?= $escapeAttr($url('site/resource', ['controller' => 'item', 'action' => 'browse', 'site-slug' => $site->slug()], ['query' => ['id' => $fields['id']]])) ?>"><?= sprintf($translate('%d items (public)'), count($fields['id'])) ?></a>
+            </div>
+            <?php endif; ?>
+        </div>
         <?php endif; ?>
+        <div class="value">
+            <a download="download" href="<?= $message->zipUrl() ?>"><?= $translate('Link to the zipped files when created') ?></a>
+        </div>
     </div>
     <div class="meta-group">
-        <?php $site = $message->site(); ?>
         <?php if ($site): ?>
         <h4><?= $escape($translate('Site')) ?></h4>
         <div class="value">
@@ -55,13 +72,18 @@ $hyperlink = $plugins->get('hyperlink');
     <div class="meta-group">
         <h4><?= $translate('Date Created') ?></h4>
         <div class="value"><?= $escape($i18n->dateFormat($message->created(), 'medium', 'medium')) ?></div>
+        <?php if ($modified = $message->modified()): ?>
+        <h4><?= $translate('Last modified') ?></h4>
+        <div class="value"><?= $escape($i18n->dateFormat($modified, 'medium', 'medium')) ?></div>
+        <?php endif; ?>
     </div>
     <div class="meta-group">
         <h4><?= $translate('Infos') ?></h4>
         <div class="value">
             <div class="to-author"><?= $message->isToAuthor() ? $translate('Message to author') : $translate('Message to us') ?></div>
-            <div class="is-read"><?= sprintf('Is read: %s', $message->isRead() ? $translate('yes') : $translate('no')) ?></div>
-            <div class="is-spam"><?= sprintf('Is spam: %s', $message->isSpam() ? $translate('yes') : $translate('no')) ?></div>
+            <div class="is-read"><?= sprintf($translate('Is read: %s'), $message->isRead() ? $translate('yes') : $translate('no')) ?></div>
+            <div class="is-spam"><?= sprintf($translate('Is spam: %s'), $message->isSpam() ? $translate('yes') : $translate('no')) ?></div>
+            <div class="has-zip"><?= sprintf($translate('Has zip: %s'), $message->hasZip() ? $translate('yes') : $translate('no')) ?></div>
         </div>
     </div>
     <div class="meta-group">
@@ -72,6 +94,13 @@ $hyperlink = $plugins->get('hyperlink');
         <h4><?= $translate('Body') ?></h4>
         <div class="value"><?= $escape($message->body()) ?></div>
     </div>
+    <?php foreach ($fields as $key => $value):
+        if ($key === 'id') continue; ?>
+    <div class="meta-group">
+        <h4><?= $key ?></h4>
+        <div class="value"><?= $escape($value) ?></div>
+    </div>
+    <?php endforeach; ?>
     <?php if ($fileUrl = $message->assetUrl()): ?>
     <div class="meta-group">
         <h4><?= $translate('Attached file') ?></h4>

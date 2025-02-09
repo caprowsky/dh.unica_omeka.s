@@ -2,14 +2,14 @@
 
 namespace BulkImport\Reader;
 
-use Box\Spout\Common\Type;
-use Box\Spout\Reader\Common\Creator\ReaderEntityFactory;
-use Box\Spout\Reader\ReaderInterface;
 use BulkImport\Entry\Entry;
 use BulkImport\Entry\SpreadsheetEntry;
 use BulkImport\Form\Reader\OpenDocumentSpreadsheetReaderConfigForm;
 use BulkImport\Form\Reader\OpenDocumentSpreadsheetReaderParamsForm;
 use Log\Stdlib\PsrMessage;
+use OpenSpout\Common\Type;
+use OpenSpout\Reader\Common\Creator\ReaderEntityFactory;
+use OpenSpout\Reader\ReaderInterface;
 
 class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
 {
@@ -17,6 +17,7 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
     protected $mediaType = 'application/vnd.oasis.opendocument.spreadsheet';
     protected $configFormClass = OpenDocumentSpreadsheetReaderConfigForm::class;
     protected $paramsFormClass = OpenDocumentSpreadsheetReaderParamsForm::class;
+    protected $entryClass = SpreadsheetEntry::class;
 
     protected $configKeys = [
         'url',
@@ -34,10 +35,10 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
     /**
      * @var bool
      */
-    protected $isMultiSheet = false;
+    protected $processAllSheets = false;
 
     /**
-     * @var \Box\Spout\Reader\IteratorInterface
+     * @var \OpenSpout\Reader\IteratorInterface
      */
     protected $sheetIterator;
 
@@ -64,7 +65,7 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
     protected $sheetsRowCount = [];
 
     /**
-     * @var \Box\Spout\Reader\ODS\Reader
+     * @var \OpenSpout\Reader\ODS\Reader
      */
     protected $iterator;
 
@@ -76,22 +77,25 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
     protected $spreadsheetType = Type::ODS;
 
     /**
-     * @var bool
-     */
-    protected $isOldBoxSpout = false;
-
-    /**
      * @var ReaderInterface
      */
     protected $spreadsheetReader;
 
     public function isValid(): bool
     {
-        if (!extension_loaded('zip') || !extension_loaded('xml')) {
+        if (!extension_loaded('zip')) {
             $this->lastErrorMessage = new PsrMessage(
-                'To process import of "{label}", the php extensions "zip" and "xml" are required.', // @translate
-                ['label' => $this->getLabel()]
+                'To process import of "{label}", the php extension "{extension}" is required.', // @translate
+                ['label' => $this->getLabel(), 'extension' => 'zip']
             );
+        }
+        if (!extension_loaded('xml')) {
+            $this->lastErrorMessage = new PsrMessage(
+                'To process import of "{label}", the php extension "{extension}" is required.', // @translate
+                ['label' => $this->getLabel(), 'extension' => 'xml']
+            );
+        }
+        if (!extension_loaded('zip') || !extension_loaded('xml')) {
             return false;
         }
         return parent::isValid();
@@ -101,11 +105,11 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
     {
         return new SpreadsheetEntry(
             $this->currentData,
-            $this->key() + $this->isZeroBased,
+            $this->key(),
             $this->processAllSheets
                 ? $this->availableFieldsMultiSheets[$this->sheetIndex]
                 : $this->availableFields,
-            $this->getParams()
+            $this->getParams() + ['metaMapper' => $this->metaMapper]
         );
     }
 
@@ -181,9 +185,9 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
             if (!$this->sheetIterator->valid()) {
                 return false;
             }
-            /** @var \Box\Spout\Reader\SheetInterface $sheet */
+            /** @var \OpenSpout\Reader\SheetInterface $sheet */
             $sheet = $this->sheetIterator->current();
-            if (!$this->isOldBoxSpout && !$sheet->isVisible()) {
+            if (!$sheet->isVisible()) {
                 continue;
             }
 
@@ -255,7 +259,7 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
         return $this->sheetsRowCount[$this->sheetIndex];
     }
 
-    protected function reset(): \BulkImport\Reader\Reader
+    protected function reset(): self
     {
         parent::reset();
         if ($this->spreadsheetReader) {
@@ -264,7 +268,7 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
         return $this;
     }
 
-    protected function prepareIterator(): \BulkImport\Reader\Reader
+    protected function prepareIterator(): self
     {
         parent::prepareIterator();
         // Skip headers, already stored.
@@ -272,35 +276,21 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
         return $this;
     }
 
-    protected function initializeReader(): \BulkImport\Reader\Reader
+    protected function initializeReader(): self
     {
         if ($this->spreadsheetReader) {
             $this->spreadsheetReader->close();
         }
 
-        // TODO Remove when patch https://github.com/omeka-s-modules/CSVImport/pull/182 will be included [in version 2.3.0, 2022-02-17].
-        // Manage compatibility with old version of CSV Import.
-        // For now, it should be first checked.
-        if (class_exists(\Box\Spout\Reader\ReaderFactory::class)) {
-            $this->spreadsheetReader = \Box\Spout\Reader\ReaderFactory::create($this->spreadsheetType);
-            $this->isOldBoxSpout = true;
-        } elseif (class_exists(ReaderEntityFactory::class)) {
-            $this->spreadsheetReader = ReaderEntityFactory::createODSReader();
-            // Important, else next rows will be skipped.
-            // Nevertheless, the count should remove all last empty rows.
-            $this->spreadsheetReader->setShouldPreserveEmptyRows(true);
-        } else {
-            throw new \Omeka\Service\Exception\RuntimeException(
-                (string) new PsrMessage(
-                    'The library to manage OpenDocument spreadsheet is not available.' // @translate
-                )
-            );
-        }
+        $this->spreadsheetReader = ReaderEntityFactory::createODSReader();
+        // Important, else next rows will be skipped.
+        // Nevertheless, the count should remove all last empty rows.
+        $this->spreadsheetReader->setShouldPreserveEmptyRows(true);
 
         $filepath = $this->getParam('filename');
         try {
             $this->spreadsheetReader->open($filepath);
-        } catch (\Box\Spout\Common\Exception\IOException $e) {
+        } catch (\OpenSpout\Common\Exception\IOException $e) {
             throw new \Omeka\Service\Exception\RuntimeException(
                 (string) new PsrMessage(
                     'File "{filename}" cannot be open.', // @translate
@@ -319,20 +309,20 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
         $this->sheetIterator = $this->spreadsheetReader->getSheetIterator();
         $this->sheetIterator->rewind();
         $sheet = null;
-        $multisheet = $this->getParam('multisheet', 'active');
-        $this->processAllSheets = $multisheet === 'all';
-        if ($multisheet === 'active') {
-            /** @var \Box\Spout\Reader\ODS\Sheet $currentSheet */
+        $processMultisheet = $this->getParam('multisheet', 'active');
+        $this->processAllSheets = $processMultisheet === 'all';
+        if ($processMultisheet === 'active') {
+            /** @var \OpenSpout\Reader\ODS\Sheet $currentSheet */
             foreach ($this->sheetIterator as $currentSheet) {
-                if ($currentSheet->isActive() && ($this->isOldBoxSpout || $currentSheet->isVisible())) {
+                if ($currentSheet->isActive() && $currentSheet->isVisible()) {
                     $sheet = $currentSheet;
                     break;
                 }
             }
-        } elseif ($multisheet === 'first') {
-            /** @var \Box\Spout\Reader\ODS\Sheet $currentSheet */
+        } elseif ($processMultisheet === 'first') {
+            /** @var \OpenSpout\Reader\ODS\Sheet $currentSheet */
             foreach ($this->sheetIterator as $currentSheet) {
-                if ($this->isOldBoxSpout || $currentSheet->isVisible()) {
+                if ($currentSheet->isVisible()) {
                     $sheet = $currentSheet;
                     break;
                 }
@@ -340,16 +330,16 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
         } else {
             // Multisheet.
             if (is_null($this->sheetIndex)) {
-                /** @var \Box\Spout\Reader\ODS\Sheet $currentSheet */
+                /** @var \OpenSpout\Reader\ODS\Sheet $currentSheet */
                 foreach ($this->sheetIterator as $currentSheet) {
-                    if ($this->isOldBoxSpout || $currentSheet->isVisible()) {
+                    if ($currentSheet->isVisible()) {
                         $sheet = $currentSheet;
                         break;
                     }
                 }
             } else {
                 // Set the current sheet when iterating all sheets.
-                /** @var \Box\Spout\Reader\ODS\Sheet $currentSheet */
+                /** @var \OpenSpout\Reader\ODS\Sheet $currentSheet */
                 foreach ($this->sheetIterator as $currentSheet) {
                     if ($currentSheet->getIndex() === $this->sheetIndex) {
                         $sheet = $currentSheet;
@@ -371,7 +361,7 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
         return $this;
     }
 
-    protected function finalizePrepareIterator(): \BulkImport\Reader\Reader
+    protected function finalizePrepareIterator(): self
     {
         if ($this->processAllSheets) {
             return $this->finalizePrepareIteratorMultiSheets();
@@ -386,13 +376,13 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
         return $this;
     }
 
-    protected function finalizePrepareIteratorMultiSheets(): \BulkImport\Reader\Reader
+    protected function finalizePrepareIteratorMultiSheets(): self
     {
         $this->totalEntries = 0;
         $this->sheetsRowCount = [];
-        /** @var \Box\Spout\Reader\ODS\Sheet $sheet */
+        /** @var \OpenSpout\Reader\ODS\Sheet $sheet */
         foreach ($this->sheetIterator as $sheet) {
-            if (!$this->isOldBoxSpout && !$sheet->isVisible()) {
+            if (!$sheet->isVisible()) {
                 continue;
             }
             // Don't count the header.
@@ -418,7 +408,7 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
         // @link https://github.com/omeka-s-modules/CSVImport/pull/190
         // So simply remove all empty last empty rows.
         // Do it manually, because row method "isEmptyRow()" is not public.
-        /** @see \Box\Spout\Reader\ODS\RowIterator::isEmptyRow() */
+        /** @see \OpenSpout\Reader\ODS\RowIterator::isEmptyRow() */
 
         // $this->totalEntries = iterator_count($this->iterator) - 1;
         $total = 0;
@@ -428,7 +418,7 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
             if (is_null($firstIndexIsOneBased)) {
                 $firstIndexIsOneBased = (int) empty($index);
             }
-            $data = array_filter($row->getCells(), function (\Box\Spout\Common\Entity\Cell $cell) {
+            $data = array_filter($row->getCells(), function (\OpenSpout\Common\Entity\Cell $cell) {
                 return $cell->getValue() !== '';
             });
             if (count($data)) {
@@ -439,18 +429,13 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
         return $total;
     }
 
-    protected function prepareAvailableFields(): \BulkImport\Reader\Reader
+    protected function prepareAvailableFields(): self
     {
-        if ($this->isOldBoxSpout) {
-            $this->prepareAvailableFieldsOld();
-            return $this;
-        }
-
         if ($this->processAllSheets) {
             return $this->prepareAvailableFieldsMultiSheets();
         }
 
-        /** @var \Box\Spout\Common\Entity\Row $row */
+        /** @var \OpenSpout\Common\Entity\Row $row */
         foreach ($this->iterator as $row) {
             break;
         }
@@ -464,16 +449,16 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
         return $this;
     }
 
-    protected function prepareAvailableFieldsMultiSheets(): \BulkImport\Reader\Reader
+    protected function prepareAvailableFieldsMultiSheets(): self
     {
         $this->availableFields = [];
         $this->availableFieldsMultiSheets = [];
-        /** @var \Box\Spout\Reader\ODS\Sheet $sheet */
+        /** @var \OpenSpout\Reader\ODS\Sheet $sheet */
         foreach ($this->sheetIterator as $sheet) {
-            if (!$this->isOldBoxSpout && !$sheet->isVisible()) {
+            if (!$sheet->isVisible()) {
                 continue;
             }
-            /** @var \Box\Spout\Common\Entity\Row $row */
+            /** @var \OpenSpout\Common\Entity\Row $row */
             foreach ($sheet->getRowIterator() as $row) {
                 break;
             }
@@ -485,7 +470,7 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
             $index = $sheet->getIndex();
             $this->availableFieldsMultiSheets[$index] = $this->cleanData($row->toArray());
         }
-        $this->availableFields = array_values(array_unique(array_merge(...$this->availableFieldsMultiSheets)));
+        $this->availableFields = array_values(array_unique(array_merge(...array_values($this->availableFieldsMultiSheets))));
         $this->initializeReader();
         return $this;
     }
@@ -493,13 +478,13 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
     /**
      * @todo Remove support of old CSV Import when patch https://github.com/omeka-s-modules/CSVImport/pull/182 will be included.
      */
-    protected function prepareAvailableFieldsOld(): \BulkImport\Reader\Reader
+    protected function prepareAvailableFieldsOld(): self
     {
         if ($this->processAllSheets) {
             return $this->prepareAvailableFieldsMultiSheetsOld();
         }
 
-        /** @var \Box\Spout\Common\Entity\Row $fields */
+        /** @var \OpenSpout\Common\Entity\Row $fields */
         foreach ($this->iterator as $fields) {
             break;
         }
@@ -516,17 +501,17 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
     /**
      * @todo Remove support of old CSV Import when patch https://github.com/omeka-s-modules/CSVImport/pull/182 will be included.
      */
-    protected function prepareAvailableFieldsMultiSheetsOld(): \BulkImport\Reader\Reader
+    protected function prepareAvailableFieldsMultiSheetsOld(): self
     {
         $this->availableFields = [];
         $this->availableFieldsMultiSheets = [];
-        /** @var \Box\Spout\Reader\ODS\Sheet $sheet */
+        /** @var \OpenSpout\Reader\ODS\Sheet $sheet */
         foreach ($this->sheetIterator as $sheet) {
-            if (!$this->isOldBoxSpout && !$sheet->isVisible()) {
+            if (!$sheet->isVisible()) {
                 continue;
             }
 
-            /** @var \Box\Spout\Common\Entity\Row $fields */
+            /** @var \OpenSpout\Common\Entity\Row $fields */
             foreach ($sheet->getRowIterator() as $fields) {
                 break;
             }
@@ -537,7 +522,7 @@ class OpenDocumentSpreadsheetReader extends AbstractSpreadsheetFileReader
             // The data should be cleaned, since it's not an entry.
             $this->availableFieldsMultiSheets[$sheet->getIndex()] = $this->cleanData($fields);
         }
-        $this->availableFields = array_values(array_unique(array_merge(...$this->availableFieldsMultiSheets)));
+        $this->availableFields = array_values(array_unique(array_merge(...array_values($this->availableFieldsMultiSheets))));
         $this->initializeReader();
         return $this;
     }

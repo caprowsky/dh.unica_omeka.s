@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -29,6 +29,8 @@
 
 namespace IiifServer\Iiif;
 
+use Common\Stdlib\PsrMessage;
+use IiifServer\Iiif\Exception\RuntimeException;
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Api\Representation\MediaRepresentation;
 
@@ -37,50 +39,59 @@ use Omeka\Api\Representation\MediaRepresentation;
  */
 class Rendering extends AbstractResourceType
 {
-    use TraitIiifType;
-
     protected $type = null;
 
-    protected $keys = [
+    protected $propertyRequirements = [
         'id' => self::REQUIRED,
         'type' => self::REQUIRED,
         'label' => self::OPTIONAL,
         'format' => self::OPTIONAL,
     ];
 
-    public function __construct(AbstractResourceEntityRepresentation $resource, array $options = null)
+    public function setResource(AbstractResourceEntityRepresentation $resource): self
     {
-        if (!($resource instanceof MediaRepresentation)) {
-            throw new \RuntimeException(
-                'A media is required to build a canvas.'
+        // The options should be set first.
+
+        parent::setResource($resource);
+
+        if (!$resource instanceof MediaRepresentation) {
+            $message = new PsrMessage(
+                'Resource #{resource_id}: A media is required to build a Rendering.', // @translate
+                ['resource_id' => $resource->id()]
             );
+            $this->logger->err($message->getMessage(), $message->getContext());
+            throw new RuntimeException((string) $message);
         }
 
-        parent::__construct($resource, $options);
+        $this->type = $this->iiifTypeOfMedia->__invoke($resource);
 
-        $this->initIiifType();
+        return $this;
     }
 
     public function id(): ?string
     {
-        if (!array_key_exists('id', $this->_storage)) {
-            // FIXME Manage all media Omeka types (Iiif, youtube, etc.)..
-            $url = $this->resource->originalUrl();
-            if ($url) {
-                $id = $url;
-            } else {
-                $siteSlug = @$this->options['siteSlug'];
-                if ($siteSlug) {
-                    // TODO Return media page or item page? Add an option.
-                    $id = $this->resource->siteUrl($siteSlug, true);
-                } else {
-                    $id = null;
-                }
-            }
-            $this->_storage['id'] = $id;
+        if (array_key_exists('id', $this->cache)) {
+            return $this->cache['id'];
         }
 
-        return $this->_storage['id'];
+        // FIXME Manage all media Omeka types (Iiif, youtube, etc.)..
+        $url = $this->resource->originalUrl();
+        if ($url) {
+            $id = $url;
+        } else {
+            $siteSlug = $this->options['siteSlug'] ?? null;
+            if ($siteSlug) {
+                // TODO Return media page or item page? Add an option.
+                // To get the site url from resource is slow.
+                // $id = $this->resource->siteUrl($siteSlug, true);
+                $id = $this->urlHelper->__invoke('site/resource-id', ['site-slug' => $siteSlug, 'controller' => $this->resource->getControllerName(), 'action' => 'show', 'id' => $this->resource->id()], ['force_canonical' => true]);
+            } else {
+                $id = null;
+            }
+        }
+        $this->cache['id'] = $id;
+
+        return $this->cache['id'];
     }
 
     /**
@@ -90,7 +101,7 @@ class Rendering extends AbstractResourceType
      * {@inheritDoc}
      * @see \IiifServer\Iiif\AbstractResourceType::getLabel()
      */
-    public function label(): ?ValueLanguage
+    public function label(): ?array
     {
         if (!$this->type) {
             return null;
@@ -103,7 +114,7 @@ class Rendering extends AbstractResourceType
         $label = $format
             ? sprintf('%1$s [%2$s]', $this->type, $format)
             : $this->type;
-        return new ValueLanguage(['none' => [$label]]);
+        return ValueLanguage::output(['none' => [$label]]);
     }
 
     /**

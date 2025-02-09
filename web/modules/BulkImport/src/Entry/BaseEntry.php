@@ -39,6 +39,11 @@ class BaseEntry implements Entry
      */
     protected $valid;
 
+    /**
+     * @var \BulkImport\Stdlib\MetaMapper|null
+     */
+    protected $metaMapper;
+
     public function __construct($data, int $index, array $fields, array $options = [])
     {
         $this->data = $data;
@@ -51,6 +56,15 @@ class BaseEntry implements Entry
     protected function init(): void
     {
         if (!empty($this->options['is_formatted'])) {
+            return;
+        }
+
+        if (!empty($this->options['metaMapper'])) {
+            $this->metaMapper = $this->options['metaMapper'];
+        }
+
+        if (is_null($this->data)) {
+            $this->data = [];
             return;
         }
 
@@ -96,16 +110,22 @@ class BaseEntry implements Entry
         return $this->data;
     }
 
-    public function getIterator()
+    public function valuesFromMap(array $map): array
+    {
+        return [];
+    }
+
+    public function getIterator(): \Traversable
     {
         return new ArrayIterator($this->data);
     }
 
-    public function offsetExists($offset)
+    public function offsetExists($offset): bool
     {
         return array_key_exists($offset, $this->data);
     }
 
+    #[\ReturnTypeWillChange]
     public function offsetGet($offset)
     {
         if (array_key_exists($offset, $this->data)) {
@@ -156,7 +176,7 @@ class BaseEntry implements Entry
         return count($this->data);
     }
 
-    public function jsonSerialize()
+    public function jsonSerialize(): array
     {
         return $this->data;
     }

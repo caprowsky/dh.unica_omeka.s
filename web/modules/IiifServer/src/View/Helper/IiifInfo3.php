@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -66,15 +66,20 @@ class IiifInfo3 extends AbstractHelper
      */
     public function __invoke(MediaRepresentation $media): ImageService3
     {
-        $info = new ImageService3($media, ['version' => '3']);
+        $info = new ImageService3();
+        $info
+            ->setOptions(['version' => '3'])
+            ->setResource($media)
+            ->normalize();
 
         // Give possibility to customize the manifest.
         $resource = $media;
         $format = 'info';
         $type = 'image';
         $params = compact('format', 'info', 'resource', 'type');
-        $this->getView()->plugin('trigger')->__invoke('iiifserver.manifest', $params, true);
-        $info->isValid(true);
+        $this->view->plugin('trigger')->__invoke('iiifserver.manifest', $params, true);
+        // Exception may be thrown.
+        $info->normalize();
         return $info;
     }
 }

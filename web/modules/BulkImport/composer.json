@@ -1,16 +1,19 @@
 {
     "require": {
-        "php": ">=7.2",
         "ext-xml": "*",
-        "box/spout": "^3.3",
-        "codemirror/codemirror": "^5.65.1",
+        "codemirror/codemirror": "^5.65",
+        "daniel-km/simple-iso-3166-1": "^0.2",
+        "daniel-km/simple-iso-639-3": "^0.2",
         "flowjs/flow-php-server": "^1.0",
-        "flowjs/flow.js": "^2.14.1",
-        "hakre/xmlreaderiterator": "^0.1.10",
+        "flowjs/flow.js": "^2.14",
+        "hakre/xmlreaderiterator": "^0.1",
+        "james-heinrich/getid3": "^2.0-dev",
         "mikehaertl/php-pdftk": "^0.9",
         "mtdowling/jmespath.php": "^2.6",
         "oomphinc/composer-installers-extender": "^2.0",
-        "phpoffice/phpword": "^0.18.2"
+        "openspout/openspout": "^3.7",
+        "phpoffice/phpword": "^1.1",
+        "softcreatr/jsonpath": "^0.7"
     },
     "replace": {
         "laminas/laminas-escaper": "*",
@@ -43,10 +46,10 @@
             "package": {
                 "type": "omeka-addon-asset",
                 "name": "codemirror/codemirror",
-                "version": "5.65.1",
+                "version": "5.65.13",
                 "dist": {
-                    "type": "tar",
-                    "url": "https://github.com/Daniel-KM/Omeka-S-module-BulkImport/releases/download/3.3.31/CodeMirror-5.65.1.tar.gz"
+                    "type": "zip",
+                    "url": "https://codemirror.net/5/codemirror.zip"
                 }
             }
         }
@@ -60,9 +63,20 @@
         }
     },
     "config": {
+        "platform": {
+            "php": "7.4"
+        },
         "allow-plugins": {
             "composer/installers": true,
             "oomphinc/composer-installers-extender": true
         }
+    },
+    "scripts": {
+        "post-install-cmd": "@build",
+        "post-update-cmd": "@build",
+        "build": [
+            "# Fix deprecation for JsonPath on php 7.4 (minimum required by Omeka).",
+            "@php -r '$r = \"#[\\ReturnTypeWillChange]\\n    \"; $s = [\"public function offsetGet(\\$offset)\", \"public function key()\", \"public function current()\"]; $f = __DIR__ . \"/vendor/softcreatr/jsonpath/src/JSONPath.php\"; file_put_contents($f, str_replace($s, [$r . $s[0], $r . $s[1], $r . $s[2]], file_get_contents($f)));'"
+        ]
     }
 }

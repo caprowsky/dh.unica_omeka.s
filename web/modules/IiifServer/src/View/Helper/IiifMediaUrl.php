@@ -23,7 +23,7 @@ class IiifMediaUrl extends AbstractHelper
     /**
      * @var string
      */
-    protected $baseUrl;
+    protected $baseUrlPath;
 
     /**
      * @var string
@@ -43,11 +43,6 @@ class IiifMediaUrl extends AbstractHelper
     /**
      * @var string
      */
-    protected $prefix;
-
-    /**
-     * @var string
-     */
     protected $forceUrlFrom;
 
     /**
@@ -61,6 +56,11 @@ class IiifMediaUrl extends AbstractHelper
     protected $mediaIdentifier;
 
     /**
+     * @var string
+     */
+    protected $prefix;
+
+    /**
      * @var bool
      */
     protected $supportNonImages;
@@ -68,26 +68,26 @@ class IiifMediaUrl extends AbstractHelper
     public function __construct(
         Url $url,
         IiifCleanIdentifiers $iiifCleanIdentifiers,
-        ?string $baseUrl,
+        ?string $baseUrlPath,
         ?string $imageApiUrl,
         ?string $defaultVersion,
         array $supportedVersions,
-        ?string $prefix,
         ?string $forceUrlFrom,
         ?string $forceUrlTo,
         ?string $mediaIdentifier,
+        ?string $prefix,
         bool $supportNonImages
     ) {
         $this->url = $url;
         $this->iiifCleanIdentifiers = $iiifCleanIdentifiers;
-        $this->baseUrl = $baseUrl;
+        $this->baseUrlPath = $baseUrlPath;
         $this->imageApiUrl = $imageApiUrl;
         $this->defaultVersion = $defaultVersion;
         $this->supportedVersions = $supportedVersions;
-        $this->prefix = $prefix;
         $this->forceUrlFrom = $forceUrlFrom;
         $this->forceUrlTo = $forceUrlTo;
         $this->mediaIdentifier = $mediaIdentifier;
+        $this->prefix = $prefix;
         $this->supportNonImages = $supportNonImages;
     }
 
@@ -112,13 +112,28 @@ class IiifMediaUrl extends AbstractHelper
             $id = $resource->id();
         }
 
-        if ($this->mediaIdentifier === 'storage_id' || $this->mediaIdentifier === 'filename') {
-            $identifier = $this->mediaIdentifier === 'storage_id'
-                ? $resource->storageId()
-                : $resource->filename();
-            $identifier = $identifier ? str_replace('/', '%2F', $identifier) : $id;
-        } elseif ($this->mediaIdentifier === 'media_id') {
+        if ($this->mediaIdentifier === 'media_id') {
             $identifier = $id;
+        } elseif ($this->mediaIdentifier === 'storage_id') {
+            $identifier = $resource->storageId();
+            $identifier = $identifier ? str_replace('/', '%2F', $identifier) : $id;
+        } elseif ($this->mediaIdentifier === 'filename') {
+            $identifier = $resource->filename();
+            $identifier = $identifier ? str_replace('/', '%2F', $identifier) : $id;
+        } elseif ($this->mediaIdentifier === 'filename_image') {
+            $identifier = $resource->filename();
+            if ($identifier) {
+                $mediaType = $resource->mediaType();
+                $mainMediaType = strtok((string) $mediaType, '/');
+                // Remove extension only for non-images: the extension is
+                // required for Cantaloupe to find the image.
+                if ($mainMediaType !== 'image') {
+                    $identifier = $resource->storageId() ?: (string) $id;
+                }
+                $identifier = str_replace('/', '%2F', $identifier);
+            } else {
+                $identifier = $id;
+            }
         } else {
             // The identifier will be the identifier set in clean url or the
             // media id.
@@ -139,10 +154,18 @@ class IiifMediaUrl extends AbstractHelper
 
         $urlIiif = (string) $this->url->__invoke($route, $params, ['force_canonical' => true]);
 
+        // Fix issue when the method is called from a sub-job or when there is a
+        // proxy.
+        if ($this->baseUrlPath && strpos($urlIiif, $this->baseUrlPath) !== 0) {
+            $urlIiif = substr($urlIiif, 0, 11) === 'https:/iiif'
+                ? $this->baseUrlPath . substr($urlIiif, 6)
+                : $this->baseUrlPath . substr($urlIiif, 5);
+        }
+
         if ($this->imageApiUrl
             && ($this->supportNonImages || substr($route, 0, 11) === 'imageserver')
         ) {
-            $urlIiif = substr_replace($urlIiif, $this->imageApiUrl, 0, strlen($this->baseUrl));
+            $urlIiif = substr_replace($urlIiif, $this->imageApiUrl, 0, strlen($this->baseUrlPath));
         }
 
         return $this->forceUrlFrom && (strpos($urlIiif, $this->forceUrlFrom) === 0)

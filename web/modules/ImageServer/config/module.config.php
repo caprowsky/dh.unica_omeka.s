@@ -69,7 +69,7 @@ return [
     ],
     'view_helpers' => [
         'invokables' => [
-            'formNote' => View\Helper\FormNote::class,
+            'formNote' => Form\View\Helper\FormNote::class,
         ],
         'factories' => [
             'tileInfo' => Service\ViewHelper\TileInfoFactory::class,
@@ -77,14 +77,13 @@ return [
         ],
         'delegators' => [
             'Laminas\Form\View\Helper\FormElement' => [
-                Service\Delegator\FormElementDelegatorFactory::class,
+                __NAMESPACE__ => Service\Delegator\FormElementDelegatorFactory::class,
             ],
         ],
     ],
     'form_elements' => [
         'invokables' => [
             Form\Element\Note::class => Form\Element\Note::class,
-            Form\Element\OptionalRadio::class => Form\Element\OptionalRadio::class,
             Form\SettingsFieldset::class => Form\SettingsFieldset::class,
             Form\SiteSettingsFieldset::class => Form\SiteSettingsFieldset::class,
         ],
@@ -114,11 +113,13 @@ return [
             'tileRemover' => Service\ControllerPlugin\TileRemoverFactory::class,
         ],
     ],
+    /*
     'media_ingesters' => [
         'factories' => [
             'tile' => Service\Media\Ingester\TileFactory::class,
         ],
     ],
+    */
     'media_renderers' => [
         'factories' => [
             'tile' => Service\Media\Renderer\TileFactory::class,
@@ -275,6 +276,7 @@ return [
         ],
     ],
     'archiverepertory' => [
+        // The key is "ingesters", even if "tile" is no more an ingester.
         'ingesters' => [
             'tile' => [
                 // This is the param "imageserver_image_tile_dir".
@@ -295,18 +297,20 @@ return [
             ],
         ],
     ],
+    /*
     'csv_import' => [
         'media_ingester_adapter' => [
             'tile' => MediaIngesterAdapter\TileMediaIngesterAdapter::class,
         ],
     ],
+    */
     'imageserver' => [
         'config' => [
             // Use the same name than the module Iiif Server for simplicity.
             // Except "iiifserver_media_api_url", that is hidden.
             // Hidden key.
             'iiifserver_media_api_url' => '',
-            'iiifserver_media_api_default_version' => '2',
+            'iiifserver_media_api_default_version' => '3',
             'iiifserver_media_api_supported_versions' => [
                 '2/2',
                 '3/2',
@@ -323,9 +327,10 @@ return [
             // Content of the info.json.
             'imageserver_info_rights' => 'property_or_url',
             'imageserver_info_rights_property' => 'dcterms:license',
-            'imageserver_info_rights_url' => 'http://rightsstatements.org/vocab/CNE/1.0/',
+            'imageserver_info_rights_uri' => 'https://rightsstatements.org/vocab/CNE/1.0/',
+            'imageserver_info_rights_url' => '',
             'imageserver_info_rights_text' => '',
-            'imageserver_auto_tile' => false,
+            'imageserver_tile_mode' => 'auto',
             'imageserver_imager' => 'Auto',
             'imageserver_image_max_size' => 10000000,
             'imageserver_image_tile_type' => 'deepzoom',

@@ -7,7 +7,7 @@ use BulkImport\Form\Processor\EprintsProcessorParamsForm;
 use BulkImport\Stdlib\MessageStore;
 
 /**
- * @todo Use transformSource() instead hard coded mapping or create sql views.
+ * @todo Use metaMapper() instead hard coded mapping or create sql views.
  *
  * Warning: contains mapping with a special vocabulary "dante" for special columns.
  *
@@ -49,7 +49,7 @@ class EprintsProcessor extends AbstractFullProcessor
     ];
 
     protected $modules = [
-        'AccessResource',
+        'Access',
         'NumericDataTypes',
         'UserName',
         'UserProfile',
@@ -943,7 +943,7 @@ class EprintsProcessor extends AbstractFullProcessor
                 ],
                 // New thesaurus.
                 'label' => 'Thesaurus ' . $sourceId,
-                'mapping_name' => 'concepts_' . $sourceId,
+                'mapping_source' => 'concepts_' . $sourceId,
                 'main_name' => 'concepts_' . $sourceId,
                 // Data from the source.
                 'source' => 'subject',
@@ -2528,7 +2528,7 @@ class EprintsProcessor extends AbstractFullProcessor
 
         // May be "staffonly", "validuser", "public".
         // Restricted access for "validuser" is managed through module
-        // AccessResource and "curation:reserved".
+        // Access and "curation:access".
         $isPublic = $source['security'] === 'public';
 
         // TODO Use table file to get created date of the document, but same as item anyway.
@@ -2632,21 +2632,21 @@ class EprintsProcessor extends AbstractFullProcessor
         if ($source['security'] === 'validuser') {
             $values[] = [
                 'term' => 'curation:access',
-                'value' => 'reserved',
+                'value' => 'restricted',
             ];
             $values[] = [
                 'term' => 'curation:reserved',
-                'value' => 'reserved',
+                'value' => 'restricted',
             ];
         } elseif ($source['security'] === 'staffonly') {
             $values[] = [
                 'term' => 'curation:access',
-                'value' => 'private',
+                'value' => 'forbidden',
             ];
         } else {
             $values[] = [
                 'term' => 'curation:access',
-                'value' => 'public',
+                'value' => 'free',
             ];
         }
 
@@ -2688,7 +2688,7 @@ class EprintsProcessor extends AbstractFullProcessor
         );
         if ($value) {
             $values[] = [
-                'term' => 'curation:dateEnd',
+                'term' => 'curation:end',
                 'value' => $value,
                 'type' => 'numeric:timestamp',
             ];

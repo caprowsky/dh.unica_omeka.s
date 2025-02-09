@@ -87,7 +87,7 @@ trait UserTrait
                 }
             }
 
-            $email = mb_strtolower($user['email']);
+            $email = mb_strtolower((string) $user['email']);
             if (!$validator->isValid($email)) {
                 $cleanName = empty($user['name'])
                     ?$this->randomString(5)
@@ -136,7 +136,7 @@ trait UserTrait
      *
      * Only id, email and name are needed here. Other data are filled later.
      *
-     * @todo Use transformSource().
+     * @todo Use metaMapper().
      */
     protected function prepareUser(array $source): array
     {
@@ -150,7 +150,7 @@ trait UserTrait
     }
 
     /**
-     * @todo Move to sql reader with transformSource().
+     * @todo Move to sql reader with metaMapper().
      *
      * @param iterable $sources
      */
@@ -275,7 +275,7 @@ trait UserTrait
      * Normally, "o:id", "o:email" and "o-module-usernames:username" should not
      * be overridden.
      *
-     * @todo Use transformSource().
+     * @todo Use metaMapper().
      */
     protected function fillUser(array $source, array $user): array
     {

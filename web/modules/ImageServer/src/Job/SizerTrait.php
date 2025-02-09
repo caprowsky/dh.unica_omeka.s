@@ -3,7 +3,6 @@
 namespace ImageServer\Job;
 
 use Omeka\Api\Representation\MediaRepresentation;
-use Omeka\Stdlib\Message;
 
 trait SizerTrait
 {
@@ -13,7 +12,7 @@ trait SizerTrait
     protected $logger;
 
     /**
-     * @var \ImageServer\Mvc\Controller\Plugin\ImageSize
+     * @var \IiifServer\Mvc\Controller\Plugin\ImageSize
      */
     protected $imageSize;
 
@@ -71,7 +70,12 @@ trait SizerTrait
 
     protected function prepareSize(MediaRepresentation $media): void
     {
-        if (strtok((string) $media->mediaType(), '/') !== 'image') {
+        if (strtok((string) $media->mediaType(), '/') !== 'image'
+            // For ingester bulk_upload, wait that the process is finished, else
+            // the thumbnails won't be available and the size of derivative will
+            // be the fallback ones.
+            || $media->ingester() === 'bulk_upload'
+        ) {
             return;
         }
 
@@ -89,10 +93,10 @@ trait SizerTrait
             }
         }
 
-        $this->logger->info(new Message(
-            'Media #%d: Sizing', // @translate
-            $media->id()
-        ));
+        $this->logger->info(
+            'Media #{media_id}: Sizing', // @translate
+            ['media_id' => $media->id()]
+        );
 
         /** @var \Omeka\Entity\Media $mediaEntity */
         $mediaEntity = $this->mediaRepository->find($media->id());
@@ -111,11 +115,10 @@ trait SizerTrait
             $mediaData['dimensions'][$imageType] = $result;
         }
         if (count($failedTypes)) {
-            $this->logger->err(new Message(
-                'Media #%1$d: Error getting dimensions for types "%2$s".', // @translate
-                $mediaEntity->getId(),
-                implode('", "', $failedTypes)
-            ));
+            $this->logger->err(
+                'Media #{media_id}: Error getting dimensions for types "{types}".', // @translate
+                ['media_id' => $mediaEntity->getId(), 'types' => implode('", "', $failedTypes)]
+            );
             ++$this->totalFailed;
         }
 

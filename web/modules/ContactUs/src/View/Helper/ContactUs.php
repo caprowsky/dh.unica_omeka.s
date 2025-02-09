@@ -2,16 +2,21 @@
 
 namespace ContactUs\View\Helper;
 
+use Common\Stdlib\PsrMessage;
 use ContactUs\Form\ContactUsForm;
-use Laminas\Form\FormElementManager\FormElementManagerV3Polyfill as FormElementManager;
+use ContactUs\Form\NewsletterForm;
+use Laminas\Form\FormElementManager;
 use Laminas\Http\PhpEnvironment\RemoteAddress;
 use Laminas\Session\Container;
 use Laminas\View\Helper\AbstractHelper;
 use Omeka\Mvc\Controller\Plugin\Api;
 use Omeka\Mvc\Controller\Plugin\Messenger;
 use Omeka\Stdlib\Mailer;
-use Omeka\Stdlib\Message;
 
+/**
+ * @see \Access\Site\BlockLayout\AccessRequest
+ * @see \ContactUs\Site\BlockLayout\ContactUs
+ */
 class ContactUs extends AbstractHelper
 {
     /**
@@ -66,9 +71,11 @@ class ContactUs extends AbstractHelper
             'template' => null,
             'resource' => null,
             'heading' => null,
+            'confirmation_enabled' => false,
             'html' => null,
-            'attach_file' => null,
+            'attach_file' => false,
             'consent_label' => null,
+            'newsletter_only' => false,
             'newsletter_label' => null,
             'notify_recipients' => null,
             'contact' => 'us',
@@ -119,8 +126,18 @@ class ContactUs extends AbstractHelper
         $user = $view->identity();
         $translate = $view->plugin('translate');
 
+        $sendWithUserEmail = (bool) $view->setting('contactus_send_with_user_email');
+
+        // Manage list of resource ids automatically, if any.
+        // "resource_ids" is used for standard forms and fields for complex
+        // forms with multiple specific fields.
+        // TODO Manage "resource_ids" in backend, not only in js.
+        $fields = empty($options['fields'])
+            ? ['id' => ['type' => 'hidden']]
+            : ($options['fields'] + ['id' => ['type' => 'hidden']]);
         $attachFile = !empty($options['attach_file']);
         $consentLabel = trim((string) $options['consent_label']);
+        $newsletterOnly = !empty($options['newsletter_only']);
         $newsletterLabel = trim((string) $options['newsletter_label']);
 
         $antispam = empty($user)
@@ -160,6 +177,7 @@ class ContactUs extends AbstractHelper
 
             /** @var \ContactUs\Form\ContactUsForm $form */
             $formOptions = [
+                'fields' => $fields,
                 'attach_file' => $attachFile,
                 'consent_label' => $consentLabel,
                 'newsletter_label' => $newsletterLabel,
@@ -169,40 +187,66 @@ class ContactUs extends AbstractHelper
                 'user' => $user,
                 'contact' => $isContactAuthor ? 'author' : 'us',
             ];
-            $form = $this->formElementManager->get(ContactUsForm::class, $formOptions);
-            $form
-                ->setAttachFile($attachFile)
-                ->setConsentLabel($consentLabel)
-                ->setNewsletterLabel($newsletterLabel)
-                ->setQuestion($question)
-                ->setAnswer($answer)
-                ->setCheckAnswer($checkAnswer)
-                ->setUser($user)
-                ->setIsContactAuthor($isContactAuthor);
+            $form = $newsletterOnly
+                ? $this->getFormNewsletter($formOptions)
+                : $this->getFormContactUs($formOptions);
+
+            $postFields = [];
+            if ($fields) {
+                // Manage exception for list of ids and security, because fields
+                // are not fully checked.
+                $params['fields']['id'] = array_values(array_filter(array_map('intval', $params['fields']['id'] ?? [])));
+                foreach (array_keys($fields) as $name) {
+                    $params['fields[' . $name . ']'] = $params['fields'][$name] ?? null;
+                    $postFields[$name] = $params['fields'][$name] ?? null;
+                    unset($params['fields'][$name]);
+                }
+            }
 
             $form->setData($params);
             if ($hasEmail && $form->isValid()) {
                 $submitted = $form->getData();
                 if ($user) {
                     $submitted['from'] = $user->getEmail();
-                    $submitted['name'] = $user->getName();
+                    $submitted['name'] = $newsletterOnly ? $user->getName() : null;
                 }
 
                 $fileData = $attachFile ? $view->params()->fromFiles() : [];
 
-                // If spam, return a success message, but don't send email.
+                // If spam, store the message and return a success message, but
+                // don't send email.
+
                 // Status is checked below.
                 $status = 'success';
-                $message = new Message(
-                    $isContactAuthor
-                        ? $translate('Thank you for your message %s. It will be sent to the author as soon as possible.') // @translate
-                        : $translate('Thank you for your message %s. We will answer you as soon as possible.'), // @translate
-                    $submitted['name']
-                        ? sprintf('%s (%s)', $submitted['name'], $submitted['from'])
-                        : sprintf('(%s)', $submitted['from'])
-                );
+                if ($newsletterOnly) {
+                    $message = new PsrMessage(
+                        'Thank you for subscribing to our newsletter.' // @translate
+                    );
+                } else {
+                    $message = new PsrMessage(
+                        $isContactAuthor
+                            ? 'Thank you for your message {name}. It will be sent to the author as soon as possible.' // @translate
+                            : 'Thank you for your message {name}. We will answer you as soon as possible.', // @translate
+                        $submitted['name']
+                            ? ['name' => sprintf('%s (%s)', $submitted['name'], $submitted['from'])]
+                            : ['name' => $submitted['from']]
+                    );
+                }
 
                 $site = $this->currentSite();
+
+                // Manage the specific field for multiple ids.
+                if (empty($postFields['id'])) {
+                    unset($postFields['id']);
+                } elseif (is_array($postFields['id']) && count($postFields['id']) === 1 && empty($options['resource'])) {
+                    try {
+                        $fieldResource = $this->api->__invoke()->read('resources', ['id' => (int) $postFields['id']])->getContent();
+                        $options['resource'] = $fieldResource;
+                        unset($postFields['id']);
+                    } catch (\Exception $e) {
+                        // Nothing to do.
+                    }
+                }
 
                 // Store contact message in all cases. Security checks are done
                 // in adapter.
@@ -211,12 +255,13 @@ class ContactUs extends AbstractHelper
                 $data = [
                     'o:owner' => $user,
                     'o:email' => $submitted['from'],
-                    'o:name' => $submitted['name'],
+                    'o:name' => $newsletterOnly ? null : $submitted['name'],
                     'o:resource' => !empty($options['resource']) ? ['o:id' => $options['resource']->id()] : null,
                     'o:site' => ['o:id' => $site->id()],
-                    'o-module-contact:subject' => $submitted['subject'],
-                    'o-module-contact:body' => $submitted['message'],
-                    'o-module-contact:newsletter' => $newsletterLabel ? $submitted['newsletter'] === 'yes' : null,
+                    'o-module-contact:subject' => $newsletterOnly ? 'Subscribe newsletter' : $submitted['subject'],
+                    'o-module-contact:body' => $newsletterOnly ? 'Subscribe newsletter' : $submitted['message'],
+                    'o-module-contact:fields' => $postFields,
+                    'o-module-contact:newsletter' => $newsletterOnly ? true : ($newsletterLabel ? $submitted['newsletter'] === 'yes' : null),
                     'o-module-contact:is_spam' => $isSpam,
                     'o-module-contact:to_author' => $isContactAuthor,
                 ];
@@ -233,9 +278,9 @@ class ContactUs extends AbstractHelper
                     // TODO Map errors key with form (keep original keys of the form).
                     $this->messenger->addFormErrors($form);
                     $status = 'error';
-                    $message = new Message(
-                        $translate('There is an error: %s'), // @translate
-                        implode(", \n", $errorMessages)
+                    $message = new PsrMessage(
+                        'There is an error: {errors}', // @translate
+                        ['errors' => implode(", \n", $errorMessages)]
                     );
                     $defaultForm = false;
                 }
@@ -269,17 +314,19 @@ class ContactUs extends AbstractHelper
 
                     // Message to author (with copy to administrators if set).
                     if ($isContactAuthor) {
-                        $message = new Message(
-                            $translate('Thank you for your message %s. Check your confirmation mail. The author will receive it soon.'), // @translate
+                        $message = new PsrMessage(
+                            'Thank you for your message {name}. Check your confirmation mail. The author will receive it soon.', // @translate
                             $submitted['name']
-                                ? sprintf('%1$s (%2$s)', $submitted['name'], $submitted['from'])
-                                : sprintf('(%s)', $submitted['from'])
+                                ? ['name' => sprintf('%1$s (%2$s)', $submitted['name'], $submitted['from'])]
+                                : ['name' => $submitted['from']]
                         );
 
                         $notifyRecipients = $this->getNotifyRecipients($options);
 
                         $mail = [];
-                        $mail['from'] = reset($notifyRecipients) ?: $view->setting('administrator_email');
+                        if ($sendWithUserEmail) {
+                            $mail['from'] = reset($notifyRecipients) ?: $view->setting('administrator_email');
+                        }
                         $mail['to'] = $options['author_email'];
                         $mail['toName'] = null;
                         $mail['reply-to'] = $submitted['email'];
@@ -302,8 +349,8 @@ class ContactUs extends AbstractHelper
                         $result = $this->sendEmail($mail);
                         if (!$result) {
                             $status = 'error';
-                            $message = new Message(
-                                $translate('Sorry, we are not able to send the email to the author.') // @translate
+                            $message = new PsrMessage(
+                                'Sorry, we are not able to send the email to the author.' // @translate
                             );
                         }
                     }
@@ -312,8 +359,10 @@ class ContactUs extends AbstractHelper
                     else {
                         // Send the notification message to administrators.
                         $mail = [];
-                        $mail['from'] = $contactMessage->email();
-                        $mail['fromName'] = $contactMessage->name();
+                        if ($sendWithUserEmail) {
+                            $mail['from'] = $contactMessage->email();
+                            $mail['fromName'] = $contactMessage->name();
+                        }
                         $mail['to'] = $this->getNotifyRecipients($options);
                         $mail['subject'] = $this->getMailSubject($options)
                             ?: sprintf($translate('[Contact] %s'), $this->mailer->getInstallationTitle());
@@ -323,35 +372,48 @@ class ContactUs extends AbstractHelper
                         $result = $this->sendEmail($mail);
                         if (!$result) {
                             $status = 'error';
-                            $message = new Message(
-                                $translate('Sorry, the message is recorded, but we are not able to notify the admin at once. You may come back later if you don’t receive answer.') // @translate
+                            $message = new PsrMessage(
+                                'Sorry, the message is recorded, but we are not able to notify the admin at once. You may come back later if you don’t receive answer.' // @translate
                             );
                         }
                         // Send the confirmation message to the visitor.
                         elseif ($options['confirmation_enabled']) {
-                            $message = new Message(
-                                $translate('Thank you for your message %s. Check your confirmation mail. We will answer you soon.'), // @translate
-                                $submitted['name']
-                                    ? sprintf('%1$s (%2$s)', $submitted['name'], $submitted['from'])
-                                    : sprintf('(%s)', $submitted['from'])
-                            );
-
-                            $notifyRecipients = $this->getNotifyRecipients($options);
+                            if ($newsletterOnly) {
+                                $message = new PsrMessage(
+                                    'Thank you for subscribing to our newsletter. Check the confirmation email sent to {email}.', // @translate
+                                    ['email' => $submitted['from']]
+                                );
+                            } else {
+                                $message = new PsrMessage(
+                                    'Thank you for your message {name}. Check your confirmation email. We will answer you soon.', // @translate
+                                    $submitted['name']
+                                        ? ['name' => sprintf('%1$s (%2$s)', $submitted['name'], $submitted['from'])]
+                                        : ['name' => $submitted['from']]
+                                );
+                            }
 
                             $mail = [];
-                            $mail['from'] = reset($notifyRecipients) ?: $view->setting('administrator_email');
+                            if ($sendWithUserEmail) {
+                                $notifyRecipients = $this->getNotifyRecipients($options);
+                                $mail['from'] = reset($notifyRecipients) ?: $view->setting('administrator_email');
+                            }
                             $mail['to'] = $submitted['from'];
                             $mail['toName'] = $submitted['name'] ?: null;
-                            $subject = $options['confirmation_subject'] ?: $this->defaultOptions['confirmation_subject'];
-                            $body = $options['confirmation_body'] ?: $this->defaultOptions['confirmation_body'];
+                            if ($newsletterOnly) {
+                                $subject = $options['confirmation_subject'] ?: $this->defaultOptions['confirmation_newsletter_subject'];
+                                $body = $options['confirmation_body'] ?: $this->defaultOptions['confirmation_newsletter_body'];
+                            } else {
+                                $subject = $options['confirmation_subject'] ?: $this->defaultOptions['confirmation_subject'];
+                                $body = $options['confirmation_body'] ?: $this->defaultOptions['confirmation_body'];
+                            }
                             $mail['subject'] = $this->fillMessage($translate($subject), $submitted);
                             $mail['body'] = $this->fillMessage($translate($body), $submitted);
 
                             $result = $this->sendEmail($mail);
                             if (!$result) {
                                 $status = 'error';
-                                $message = new Message(
-                                    $translate('Sorry, we are not able to send the confirmation email.') // @translate
+                                $message = new PsrMessage(
+                                    'Sorry, we are not able to send the confirmation email.' // @translate
                                 );
                             }
                         }
@@ -369,12 +431,12 @@ class ContactUs extends AbstractHelper
                 $this->messenger->addFormErrors($form);
                 $status = 'error';
                 $message = count($errorMessages)
-                    ? new Message(
-                        $translate('There is an error: %s'), // @translate
-                        implode(", \n", $errorMessages)
+                    ? new PsrMessage(
+                        'There is an error: {errors}', // @translate
+                        ['errors' => implode(", \n", $errorMessages)]
                     )
-                    : new Message(
-                        $translate('There is an error.') // @translate
+                    : new PsrMessage(
+                        'There is an error.' // @translate
                     );
                 $defaultForm = false;
             }
@@ -391,7 +453,8 @@ class ContactUs extends AbstractHelper
                 $answer = '';
                 $checkAnswer = '';
             }
-            $form = $this->formElementManager->get(ContactUsForm::class, [
+            $formOptions = [
+                'fields' => $fields,
                 'attach_file' => $attachFile,
                 'consent_label' => $consentLabel,
                 'newsletter_label' => $newsletterLabel,
@@ -400,34 +463,31 @@ class ContactUs extends AbstractHelper
                 'check_answer' => $checkAnswer,
                 'user' => $user,
                 'contact' => $isContactAuthor ? 'author' : 'us',
-            ]);
-            $form
-                ->setAttachFile($attachFile)
-                ->setConsentLabel($consentLabel)
-                ->setNewsletterLabel($newsletterLabel)
-                ->setQuestion($question)
-                ->setAnswer($answer)
-                ->setCheckAnswer($checkAnswer)
-                ->setUser($user);
+            ];
+            $form = $newsletterOnly
+                ? $this->getFormNewsletter($formOptions)
+                : $this->getFormContactUs($formOptions);
         }
 
-        if ($user):
+        if ($user) {
             $form->get('from')
                 ->setValue($user->getEmail())
                 ->setAttribute('disabled', 'disabled');
-            $form->get('name')
-                ->setValue($user->getName())
-                ->setAttribute('disabled', 'disabled');
-        endif;
+            if (!$newsletterOnly) {
+                $form->get('name')
+                    ->setValue($user->getName())
+                    ->setAttribute('disabled', 'disabled');
+            }
+        }
 
-        if ($options['resource']):
+        if ($options['resource']) {
             $answer = 'About resource %s (%s).'; // @translate
             $form->get('message')
                 ->setAttribute('value', sprintf($answer, $options['resource']->displayTitle(), $options['resource']->siteUrl(null, true)) . "\n\n");
-        endif;
+        }
 
         $form->init();
-        $form->setName('contact-us');
+        $form->setName($newsletterOnly ? 'newsletter' : 'contact-us');
 
         return $view->partial(
             $template,
@@ -435,12 +495,40 @@ class ContactUs extends AbstractHelper
                 'heading' => $options['heading'],
                 'html' => $options['html'],
                 'form' => $form,
-                'message' => $message,
+                'message' => $message ? $message->setTranslator($view->translator()) : null,
                 'status' => $status,
                 'resource' => $options['resource'],
                 'contact' => $isContactAuthor ? 'author' : 'us',
             ]
         );
+    }
+
+    protected function getFormContactUs(array $formOptions): ContactUsForm
+    {
+        /** @var \ContactUs\Form\ContactUsForm $form */
+        $form = $this->formElementManager->get(ContactUsForm::class, $formOptions);
+        return $form
+            ->setFields($formOptions['fields'])
+            ->setAttachFile($formOptions['attach_file'])
+            ->setConsentLabel($formOptions['consent_label'])
+            ->setNewsletterLabel($formOptions['newsletter_label'])
+            ->setQuestion($formOptions['question'])
+            ->setAnswer($formOptions['answer'])
+            ->setCheckAnswer($formOptions['check_answer'])
+            ->setUser($formOptions['user'])
+            ->setIsContactAuthor($formOptions['contact'] === 'author');
+    }
+
+    protected function getFormNewsletter(array $formOptions): NewsletterForm
+    {
+        /** @var \ContactUs\Form\NewsletterForm $form */
+        $form = $this->formElementManager->get(NewsletterForm::class, $formOptions);
+        return $form
+            ->setConsentLabel($formOptions['consent_label'])
+            ->setQuestion($formOptions['question'])
+            ->setAnswer($formOptions['answer'])
+            ->setCheckAnswer($formOptions['check_answer'])
+            ->setUser($formOptions['user']);
     }
 
     /**
@@ -579,9 +667,7 @@ SQL;
         // Check emails.
         if ($list) {
             $originalList = array_filter($list);
-            $list = array_filter($originalList, function ($v) {
-                return filter_var($v, FILTER_VALIDATE_EMAIL);
-            });
+            $list = array_filter($originalList, fn ($v) => filter_var($v, FILTER_VALIDATE_EMAIL));
             if (count($originalList) !== count($list)) {
                 $view->logger()->err('Contact Us: Some notification emails for module are invalid.'); // @translate
             }
@@ -627,9 +713,9 @@ SQL;
         ];
         $params += $defaultParams;
         if (empty($params['body'])) {
-            $view->logger()->err(new Message(
+            $view->logger()->err(
                 'The message has no content to send.' // @translate
-            ));
+            );
             return false;
         }
 
@@ -653,7 +739,7 @@ SQL;
         foreach ($replyTo as $r) {
             $message->addReplyTo($r);
         }
-        if ($params['from']) {
+        if (!empty($params['from'])) {
             $message
                 ->setFrom($params['from'], $params['fromName']);
         }
@@ -661,10 +747,10 @@ SQL;
             $this->mailer->send($message);
             return true;
         } catch (\Exception $e) {
-            $view->logger()->err(new Message(
-                'Error when sending email. Arguments:\n%s', // @translate
-                json_encode($params, 448)
-            ));
+            $view->logger()->err(
+                'Error when sending email. Arguments:\n{json}', // @translate
+                ['json' => json_encode($params, 448)]
+            );
             return false;
         }
     }
@@ -701,7 +787,7 @@ SQL;
             if (strpos($keyValue, '=') === false) {
                 $result[trim($keyValue)] = '';
             } else {
-                list($key, $value) = array_map('trim', explode('=', $keyValue, 2));
+                [$key, $value] = array_map('trim', explode('=', $keyValue, 2));
                 $result[$key] = $value;
             }
         }

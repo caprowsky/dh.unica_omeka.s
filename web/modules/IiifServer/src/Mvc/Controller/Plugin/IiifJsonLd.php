@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2021 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  * Copyright 2016-2017 BibLibre
  *
  * This software is governed by the CeCILL license under French law and abiding
@@ -41,10 +41,10 @@ class IiifJsonLd extends AbstractPlugin
         /**
          * @var \Laminas\Http\PhpEnvironment\Request $request
          * @var \Laminas\Http\PhpEnvironment\Response $response
+         * @var \Laminas\Http\Headers $headers
          */
         $request = $controller->getRequest();
         $response = $controller->getResponse();
-
         $headers = $response->getHeaders();
 
         if (version_compare((string) $version, '3', '>=')) {
@@ -68,10 +68,16 @@ class IiifJsonLd extends AbstractPlugin
         }
 
         // Header for CORS, required for access of IIIF.
-        $headers->addHeaderLine('Access-Control-Allow-Origin', '*');
+        if ($controller->settings()->get('iiifserver_manifest_append_cors_headers')) {
+            $headers
+                ->addHeaderLine('Access-Control-Allow-Origin', '*');
+        }
 
         //$response->clearBody();
-        $body = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $prettyJson = (bool) $controller->settings()->get('iiifserver_manifest_pretty_json', false);
+        $body = $prettyJson
+            ? json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            : json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         return $response
             ->setContent($body);
     }

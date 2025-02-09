@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2021 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -29,8 +29,8 @@
 
 namespace IiifServer\Controller;
 
+use Common\Stdlib\PsrMessage;
 use Laminas\Mvc\Controller\AbstractActionController;
-use Omeka\Stdlib\Message;
 
 class NoopServerController extends AbstractActionController
 {
@@ -45,9 +45,9 @@ class NoopServerController extends AbstractActionController
     {
         $resource = $this->fetchResource('media');
         if (!$resource) {
-            return $this->jsonError(new Message(
-                'Media "%s" not found.', // @translate
-                $this->params('id')
+            return $this->viewError(new PsrMessage(
+                'Media #{media_id} not found.', // @translate
+                ['media_id' => $this->params('id')]
             ), \Laminas\Http\Response::STATUS_CODE_404);
         }
 
@@ -57,9 +57,9 @@ class NoopServerController extends AbstractActionController
             return $this->forward()->dispatch(\IiifServer\Controller\MediaController::class, $params);
         }
 
-        return $this->jsonError(new Message(
-            'The media server is unavailable for resource "%s".', // @translate
-            $this->params('id')
+        return $this->jsonError(new PsrMessage(
+            'The media server is unavailable for resource #"{resource_id}".', // @translate
+            ['resource_id' => $this->params('id')]
         ), \Laminas\Http\Response::STATUS_CODE_503);
     }
 
@@ -67,14 +67,14 @@ class NoopServerController extends AbstractActionController
     {
         $resource = $this->fetchResource('media');
         if (!$resource) {
-            return $this->viewError(new Message(
-                'Media "%s" not found.', // @translate
-                $this->params('id')
+            return $this->viewError(new PsrMessage(
+                'Media #{media_id} not found.', // @translate
+                ['media_id' => $this->params('id')]
             ), \Laminas\Http\Response::STATUS_CODE_404);
         }
-        return $this->viewError(new Message(
-            'The media server is unavailable for resource "%s".', // @translate
-            $this->params('id')
+        return $this->viewError(new PsrMessage(
+            'The media server is unavailable for resource #{resource_id}.', // @translate
+            ['resource_id' => $this->params('id')]
         ), \Laminas\Http\Response::STATUS_CODE_503);
     }
 
@@ -85,9 +85,15 @@ class NoopServerController extends AbstractActionController
         // TODO Manage other placeholders or use a setting.
         $placeholder = 'thumbnails/default.png';
 
+        $headers = $response->getHeaders();
+
         // Header for CORS, required for access.
-        $response->getHeaders()
-            ->addHeaderLine('access-control-allow-origin', '*')
+        if ($this->settings()->get('iiifserver_manifest_append_cors_headers')) {
+            $headers
+                ->addHeaderLine('Access-Control-Allow-Origin', '*');
+        }
+
+        $headers
             ->addHeaderLine('Content-Type', 'image/png');
 
         // TODO This is a local file (normal server): use 200.

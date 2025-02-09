@@ -1,32 +1,62 @@
-Contact us (module for Omeka S)
+Contact Us (module for Omeka S)
 ===============================
 
 > __New versions of this module and support for Omeka S version 3.0 and above
 > are available on [GitLab], which seems to respect users and privacy better
 > than the previous repository.__
 
-[Contact us] is a module for [Omeka S] that allows to add a site page block with
-a "Contact us" form. The messages are sent by email to the admin but can be read
-directly in the interface too. The form is fully available by api too, so it can
-be used by a third party client. It's possible to send a mail to the author of a
-resource too.
+[Contact Us] is a module for [Omeka S] that allows to add a site page block with
+a "Contact us" form. The messages are sent by email to the admin and can be read
+directly in the interface too. The form can be set on a resource page too, and
+in that case, it is possible for the admin to send a zip of the medias.
+
+Furthermore, it is possible to send a email to the author of a resource, for
+example for an institutional repository of student works.
+
+The form is fully available by api, so it can be used by a third party client,
+like any web or phone app.
+
+The module is compatible with module [Selection], that allows to store a list of
+resources.
+
+A block allows to display a form to subscribe to a newsletter too.
 
 
 Installation
 ------------
 
-First, install the two optional modules [Generic] and [Blocks Disposition].
+See general end user documentation for [installing a module].
 
-Uncompress files and rename module folder `ContactUs`. Then install it like any
-other Omeka module and follow the config instructions.
+The module [Common] must be installed first.
 
-See general end user documentation for [Installing a module].
+If you use an old theme, you can install [Blocks Disposition] too.
+
+You may use the release zip to install it or clone the source via git.
+
+* From the zip
+
+Download the last release [ContactUs.zip] from the list of releases (the master
+does not contain the dependency), and uncompress it in the `modules` directory.
+
+* From the source and for development
+
+If the module was installed from the source, rename the name of the folder of
+the module to `ContactUs`.
+
+```sh
+cd modules
+git clone https://gitlab.com/Daniel-KM/Omeka-S-module-ContactUs ContactUs
+```
+
+Then install it like any other Omeka module and follow the config instructions.
 
 
 Quick start
 -----------
 
-The form can be placed anywhere in the site.
+The module adds two blocks for site pages: Contact Us and Newsletter.
+
+The blocks can be placed anywhere in the site.
 
 ### Config
 
@@ -34,10 +64,10 @@ Fill the options in the main settings, the site settings and the page block.
 
 For subjects and messages, you can use placeholders for customization. They
 should be wrapped with `{` and `}`: "from", "email", "name", "site_title",
-"site_url", "subject", "message", "ip", "newsletter".
-When there is a resource, you can use too "resource_id", "resource_title",
-"resource_url", and any property term, like "dcterms:date". Note that the
-property should exist in all cases, else it won't be filled.
+"site_url", "subject", "message", "ip", "newsletter". When there is a resource,
+you can use too "resource_id", "resource_title", "resource_url", and any
+property term, like "dcterms:date". Note that the property should exist in all
+cases, else it won't be filled.
 
 ### Static pages
 
@@ -56,14 +86,17 @@ module [Block Plus], that has a special block to duplicate a page in multiple pl
 
 ### Resource pages
 
-The form is displayed automatically on item set, item or media show pages. The
-settings can be set for each site.
+The form is displayed automatically on item set, item or media show pages and
+item browse page. The settings can be set for each site.
 
 To manage the display more precisely, use the module [Blocks Disposition], or
 add the following code in your theme:
 
 ```php
+// For a single resource.
 echo $this->contactUs(['resource' => $resource]);
+// For multiple resources.
+echo $this->contactUs();
 ```
 
 The partial is themable: copy the file `common/contact-us.phtml` in your theme.
@@ -72,6 +105,21 @@ The partial is themable: copy the file `common/contact-us.phtml` in your theme.
 
 The contact us list of message is available in the left sidebar and can be
 managed: mark read, set spam, delete.
+
+### Multicheckbox in item/browse, search results or selection
+
+To send contact message with selected items, add the form as above and add a
+checkbox aside each result in the theme template, for example in "item/browse.phtml"
+or "search/resource-list.phtml":
+
+```php
+<input form="contact-us" class="contact-us-resource" type="checkbox" name="fields[id][]" value="<?= $resource->id() ?>" title="<?= $this->translate('Add this resource to the message to send') ?>"/>
+```
+
+To be automatically managed, the name of the input should be `fields[id][]` for
+now. If you use `resource_ids[]`, it is automatically managed via js. Don't
+forget to set the attribute `form="contact-us"`, or use some js to set it before
+submission.
 
 
 Development
@@ -166,14 +214,18 @@ altered, and that no provisions are either added or removed herefrom.
 Copyright
 ---------
 
-* Copyright Daniel Berthereau, 2018-2022 (see [Daniel-KM] on GitLab)
+* Copyright Daniel Berthereau, 2018-2024 (see [Daniel-KM] on GitLab)
+
+The feature to display a block to subscribe to a newsletter was implemented for
+the digital library of the city of [Saint-Quentin].
 
 
-[Contact us]: https://gitlab.com/Daniel-KM/Omeka-S-module-ContactUs
+[Contact Us]: https://gitlab.com/Daniel-KM/Omeka-S-module-ContactUs
 [Omeka S]: https://omeka.org/s
 [Generic]: https://gitlab.com/Daniel-KM/Omeka-S-module-Generic
 [Blocks Disposition]: https://gitlab.com/Daniel-KM/Omeka-S-module-BlocksDisposition
-[Installing a module]: http://dev.omeka.org/docs/s/user-manual/modules/#installing-modules
+[installing a module]: https://omeka.org/s/docs/user-manual/modules/#installing-modules
+[Selection]: https://gitlab.com/Daniel-KM/Omeka-S-module-Selection
 [Block Plus]: https://gitlab.com/Daniel-KM/Omeka-S-module-BlockPlus
 [module issues]: https://gitlab.com/Daniel-KM/Omeka-S-module-ContactUs/-/issues
 [CeCILL v2.1]: https://www.cecill.info/licences/Licence_CeCILL_V2.1-en.html
@@ -181,5 +233,6 @@ Copyright
 [FSF]: https://www.fsf.org
 [OSI]: http://opensource.org
 [MIT]: http://opensource.org/licenses/MIT
+[Saint-Quentin]: https://saintquentinartethistoire.fr
 [GitLab]: https://gitlab.com/Daniel-KM
 [Daniel-KM]: https://gitlab.com/Daniel-KM "Daniel Berthereau"

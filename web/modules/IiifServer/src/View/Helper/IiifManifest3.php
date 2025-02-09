@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -69,7 +69,7 @@ class IiifManifest3 extends AbstractHelper
             return $this->buildManifestItem($resource);
         }
         if ($resourceName == 'item_sets') {
-            return $this->getView()->iiifCollection3($resource);
+            return $this->view->iiifCollection3($resource);
         }
     }
 
@@ -81,15 +81,18 @@ class IiifManifest3 extends AbstractHelper
      */
     protected function buildManifestItem(ItemRepresentation $item)
     {
-        $manifest = new Manifest($item);
+        $manifest = new Manifest();
+        $manifest
+            ->setResource($item)
+            ->normalize();
 
         // Give possibility to customize the manifest.
         $resource = $item;
         $format = 'manifest';
         $type = 'item';
         $params = compact('format', 'manifest', 'resource', 'type');
-        $this->getView()->plugin('trigger')->__invoke('iiifserver.manifest', $params, true);
-        $manifest->isValid(true);
+        $this->view->plugin('trigger')->__invoke('iiifserver.manifest', $params, true);
+        $manifest->normalize();
         return $manifest;
     }
 }

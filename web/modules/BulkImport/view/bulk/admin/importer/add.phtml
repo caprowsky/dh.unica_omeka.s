@@ -4,21 +4,31 @@
  * @var \BulkImport\Form\ImporterForm $form
  */
 
-$translate = $this->plugin('translate');
-$escape = $this->plugin('escapeHtml');
+$plugins = $this->getHelperPluginManager();
+$escape = $plugins->get('escapeHtml');
+$assetUrl = $plugins->get('assetUrl');
+$translate = $plugins->get('translate');
 
 $this->htmlElement('body')->appendAttribute('class', 'bulk-importers edit');
-$this->headLink()->appendStylesheet($this->assetUrl('css/bulk-import.css', 'BulkImport'));
+$this->headLink()->appendStylesheet($assetUrl('css/bulk-import.css', 'BulkImport'));
+
 $form->prepare();
 ?>
 
-<?= $this->pageTitle($translate('Create new importer'), 1, $translate('Bulk Import')) ?>
+<?= $this->pageTitle($translate('Importer'), 1, $translate('Bulk Import')) ?>
 
-<div id="content">
+<div id="bulk-import">
     <h2><?= $escape($translate('Create new importer')) ?></h2>
     <?php
+    $submit = $form->get('importer_submit')->get('submit');
+    $submit->setAttribute('form', $form->getAttribute('id'));
+    $form->get('importer_submit')->remove('submit');
     echo $this->form()->openTag($form);
     echo $this->formCollection($form);
     echo $this->form()->closeTag();
     ?>
+</div>
+
+<div id="page-actions">
+    <?= $this->formSubmit($submit) ?>
 </div>

@@ -16,8 +16,6 @@ interface Entry extends \IteratorAggregate, \ArrayAccess, \Countable, \JsonSeria
 {
     /**
      * Indicates that the entry has no content, so probably to be skipped.
-     *
-     * @return bool
      */
     public function isEmpty(): bool;
 
@@ -25,10 +23,18 @@ interface Entry extends \IteratorAggregate, \ArrayAccess, \Countable, \JsonSeria
      * Get the full entry as an array, instead of value by value.
      *
      * Generally the same output than jsonSerialize().
-     *
-     * @return array
      */
     public function getArrayCopy(): array;
+
+    /**
+     * Get values according to a map.
+     *
+     * The map is an array that sets "from", "to" and "mod".
+     * @see \BulkImport\Stdlib\MetaMapperConfig
+     *
+     * @experimental May be removed in a future version.
+     */
+    public function valuesFromMap(array $map): array;
 
     /**
      * @return int The 1-based source index of the resource.
@@ -40,7 +46,7 @@ interface Entry extends \IteratorAggregate, \ArrayAccess, \Countable, \JsonSeria
      * {@inheritDoc}
      * @see \Iterator::current()
      *
-     * @return array The list of values for the current field of the entry.
+     * @return array List of values of the current field or column of the entry.
      */
     #[\ReturnTypeWillChange]
     public function current();

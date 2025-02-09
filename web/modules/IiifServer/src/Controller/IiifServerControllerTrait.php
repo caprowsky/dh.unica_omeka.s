@@ -29,12 +29,12 @@
 
 namespace IiifServer\Controller;
 
+use Common\Stdlib\PsrMessage;
 use Laminas\View\Model\JsonModel;
 use Laminas\View\Model\ViewModel;
 use Omeka\Api\Exception\BadRequestException;
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Api\Representation\MediaRepresentation;
-use Omeka\Stdlib\Message;
 
 trait IiifServerControllerTrait
 {
@@ -65,7 +65,7 @@ trait IiifServerControllerTrait
      */
     public function badAction()
     {
-        return $this->viewError(new Message(
+        return $this->viewError(new PsrMessage(
                 'The image server cannot fulfill the request: the arguments are incorrect.' // @translate
             ),
             \Laminas\Http\Response::STATUS_CODE_400
@@ -94,9 +94,9 @@ trait IiifServerControllerTrait
             : $this->fetchResource('resources');
 
         if (!$resource) {
-            return $this->jsonError(new Message(
-                'Media "%s" not found.', // @translate
-                $this->params('id')
+            return $this->jsonError(new PsrMessage(
+                'Media #{media_id}" not found.', // @translate
+                ['media_id' => $this->params('id')]
             ), \Laminas\Http\Response::STATUS_CODE_404);
         }
 
@@ -144,9 +144,9 @@ trait IiifServerControllerTrait
     {
         $resource = $this->fetchResource('media');
         if (!$resource) {
-            return $this->jsonError(new Message(
-                'Media "%s" not found.', // @translate
-                $this->params('id')
+            return $this->jsonError(new PsrMessage(
+                'Media #{media_id} not found.', // @translate
+                ['media_id' => $this->params('id')]
             ), \Laminas\Http\Response::STATUS_CODE_404);
         }
 
@@ -168,9 +168,6 @@ trait IiifServerControllerTrait
         return substr((string) $media->mediaType(), 0, 6) === 'image/';
     }
 
-    /**
-     * Similar to \IiifServer\Controller\PresentationController::fetchResource().
-     */
     protected function fetchResource(string $resourceType = 'resources'): ?AbstractResourceEntityRepresentation
     {
         $resource = $this->params()->fromRoute('resource');
@@ -227,12 +224,15 @@ trait IiifServerControllerTrait
                     return null;
                 }
             case 'storage_id':
+                // The storage id may contain slashs (module ArchiveRepertory).
+                $id = str_replace(['%2F', '%2f'], ['/', '/'], $id);
                 try {
                     return $this->api()->read('media', ['storageId' => $id])->getContent();
                 } catch (\Omeka\Api\Exception\NotFoundException $e) {
                     return null;
                 }
             case 'filename':
+            case 'filename_image':
                 $id = str_replace(['%2F', '%2f'], ['/', '/'], $id);
                 $extension = (string) pathinfo($id, PATHINFO_EXTENSION);
                 $lengthExtension = strlen($extension);
@@ -240,7 +240,12 @@ trait IiifServerControllerTrait
                     ? substr($id, 0, strlen($id) - $lengthExtension - 1)
                     : $id;
                 try {
-                    return $this->api()->read('media', ['storageId' => $storageId, 'extension' => $extension])->getContent();
+                    // Don't check the extension in order to allow complex
+                    // cases, in particular when there is an external image
+                    // server that doesn't manage other media types, or when the
+                    // extension is missing or duplicated.
+                    // Anyway, storage_id is unique.
+                    return $this->api()->read('media', ['storageId' => $storageId])->getContent();
                 } catch (\Omeka\Api\Exception\NotFoundException $e) {
                     return null;
                 }
@@ -280,11 +285,13 @@ trait IiifServerControllerTrait
         ) {
             return '3';
         }
+
         if (strpos($accept, 'iiif.io/api/presentation/2/context.json')
             || strpos($accept, 'iiif.io/api/image/2/context.json')
         ) {
             return '2';
         }
+
         return null;
     }
 
@@ -307,9 +314,18 @@ trait IiifServerControllerTrait
         } else {
             $this->requestedApiVersion = $this->settings()->get('iiifserver_media_api_default_version', '2') ?: '2';
         }
+
         return $this->requestedApiVersion;
     }
 
+    /**
+     * On error, the response body should be human-readable plain text or html,
+     * not json. This applies only to image api, not presentation.
+     *
+     * Nevertheless, some viewers may require json, without specifying format.
+     *
+     * @see https://iiif.io/api/image/3.0/#73-error-conditions
+     */
     protected function jsonError($exceptionOrMessage, $statusCode = 500): JsonModel
     {
         $this->getResponse()->setStatusCode($statusCode);
@@ -320,7 +336,8 @@ trait IiifServerControllerTrait
     }
 
     /**
-     * @see https://iiif.io/api/image/3.0/#73-error-conditions
+     * On error, the response body should be human-readable plain text or html,
+     * not json. This applies only to image api, not presentation.
      */
     protected function viewError($exceptionOrMessage, $statusCode = 500): ViewModel
     {
@@ -335,14 +352,12 @@ trait IiifServerControllerTrait
 
     protected function viewMessage($exceptionOrMessage): string
     {
-        if (is_object($exceptionOrMessage)) {
-            if ($exceptionOrMessage instanceof \Exception) {
-                return $exceptionOrMessage->getMessage();
-            }
-            if ($exceptionOrMessage instanceof Message) {
-                return (string) sprintf($this->translate($exceptionOrMessage->getMessage()), ...$exceptionOrMessage->getArgs());
-            }
+        if ($exceptionOrMessage instanceof \Exception) {
+            return (string) $exceptionOrMessage->getMessage();
         }
-        return $this->translate((string) $exceptionOrMessage);
+        if ($exceptionOrMessage instanceof PsrMessage) {
+            return (string) $exceptionOrMessage->setTranslator($this->translator());
+        }
+        return $this->translate($exceptionOrMessage);
     }
 }

@@ -49,9 +49,10 @@ class Dsdiff extends Handler
 		$info['audio']['bits_per_sample'] = 1;
 
 		$info['dsdiff'] = array();
+		$thisChunk = null;
 		while (!$this->feof() && ($ChunkHeader = $this->fread(12))) {
 			if (strlen($ChunkHeader) < 12) {
-				$this->error('Expecting chunk header at offset '.$thisChunk['offset'].', found insufficient data in file, aborting parsing');
+				$this->error('Expecting chunk header at offset '.(isset($thisChunk['offset']) ? $thisChunk['offset'] : 'N/A').', found insufficient data in file, aborting parsing');
 				break;
 			}
 			$thisChunk = array();
@@ -197,9 +198,13 @@ class Dsdiff extends Handler
 						$this->fseek(1, SEEK_CUR);
 					}
 
-					if ($commentkey = (($thisChunk['name'] == 'DIAR') ? 'artist' : (($thisChunk['name'] == 'DITI') ? 'title' : ''))) {
-						@$info['dsdiff']['comments'][$commentkey][] = $thisChunk['description'];
-					}
+					$commentKeys = array(
+						'DIAR' => 'artist',
+						'DITI' => 'title'
+					);
+					$commentkey = $commentKeys[$thisChunk['name']];
+
+					$info['dsdiff']['comments'][$commentkey][] = $thisChunk['description'];
 					break;
 				case 'EMID': // Edited Master ID chunk
 					if ($thisChunk['size']) {
@@ -211,7 +216,7 @@ class Dsdiff extends Handler
 					$endOfID3v2 = $this->ftell() + $datasize; // we will need to reset the filepointer after parsing ID3v2
 
 					$getid3_temp = new GetID3();
-					$getid3_temp->openfile($this->getid3->filename, null, $this->getid3->fp);
+					$getid3_temp->openfile($this->getid3->filename, $this->getid3->info['filesize'], $this->getid3->fp);
 					$getid3_id3v2 = new ID3v2($getid3_temp);
 					$getid3_id3v2->StartingOffset = $this->ftell();
 					if ($thisChunk['valid'] = $getid3_id3v2->Analyze()) {
@@ -294,7 +299,7 @@ class Dsdiff extends Handler
 	}
 
 	/**
-	 * @param int $cmtType
+	 * @param int $markType
 	 *
 	 * @return string
 	 */

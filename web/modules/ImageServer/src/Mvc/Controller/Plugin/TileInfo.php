@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2021 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -30,6 +30,7 @@
 namespace ImageServer\Mvc\Controller\Plugin;
 
 use IiifServer\Mvc\Controller\Plugin\ImageSize;
+use Laminas\Log\Logger;
 use Laminas\Mvc\Controller\Plugin\AbstractPlugin;
 use Omeka\Api\Representation\MediaRepresentation;
 
@@ -86,6 +87,11 @@ class TileInfo extends AbstractPlugin
     protected $imageSize;
 
     /**
+     * @var Logger
+     */
+    protected $logger;
+
+    /**
      * @param string $tileBaseDir Full path prepended to a storage id. Is equal
      *   to $tileBaseUrl for remote storage.
      */
@@ -95,7 +101,8 @@ class TileInfo extends AbstractPlugin
         ?string $tileBaseQuery,
         bool $hasAmazonS3,
         ?\AmazonS3\File\Store\AwsS3 $store,
-        ImageSize $imageSize
+        ImageSize $imageSize,
+        Logger $logger
     ) {
         $this->tileBaseDir = $tileBaseDir;
         $this->tileBaseUrl = $tileBaseUrl;
@@ -103,6 +110,7 @@ class TileInfo extends AbstractPlugin
         $this->hasAmazonS3 = $hasAmazonS3;
         $this->store = $store;
         $this->imageSize = $imageSize;
+        $this->logger = $logger;
     }
 
     /**
@@ -223,6 +231,10 @@ class TileInfo extends AbstractPlugin
         if ($this->hasAmazonS3) {
             $path = $this->store->getUri($path);
         }
+        if (!function_exists('simplexml_load_file')) {
+            $this->logger->err('Php extension php-xml is not installed'); // @translate
+            return null;
+        }
         $xml = @simplexml_load_file($path, 'SimpleXMLElement', LIBXML_NOENT | LIBXML_XINCLUDE | LIBXML_PARSEHUGE);
         if (!$xml) {
             return null;
@@ -293,12 +305,16 @@ class TileInfo extends AbstractPlugin
         if ($this->hasAmazonS3) {
             $path = $this->store->getUri($path);
         }
+        if (!function_exists('simplexml_load_file')) {
+            $this->logger->err('Php extension php-xml is not installed'); // @translate
+            return null;
+        }
         $xml = @simplexml_load_file($path, 'SimpleXMLElement', LIBXML_NOENT | LIBXML_XINCLUDE | LIBXML_PARSEHUGE);
         if (!$xml) {
             return null;
         }
         $properties = $xml->attributes();
-        $properties = reset($properties);
+        // reset($properties) is deprecated, so use object properties directly.
 
         $tilingData = [];
         $tilingData['tile_type'] = 'zoomify';
@@ -307,12 +323,12 @@ class TileInfo extends AbstractPlugin
         $tilingData['url_base'] = $this->tileBaseUrl;
         $tilingData['path_base'] = $this->hasAmazonS3 ? $this->tileBaseUrl : $this->tileBaseDir;
         $tilingData['url_query'] = $this->tileBaseQuery;
-        $tilingData['size'] = (int) $properties['TILESIZE'];
+        $tilingData['size'] = (int) @$properties->TILESIZE;
         $tilingData['overlap'] = 0;
-        $tilingData['total'] = (int) $properties['NUMTILES'];
-        $tilingData['source']['width'] = (int) $properties['WIDTH'];
-        $tilingData['source']['height'] = (int) $properties['HEIGHT'];
-        $tilingData['format'] = $properties['FORMAT'] ?? 'jpg';
+        $tilingData['total'] = (int) @$properties->NUMTILES;
+        $tilingData['source']['width'] = (int) @$properties->WIDTH;
+        $tilingData['source']['height'] = (int) @$properties->HEIGHT;
+        $tilingData['format'] = (string) @$properties->FORMAT ?: 'jpg';
         return $tilingData;
     }
 

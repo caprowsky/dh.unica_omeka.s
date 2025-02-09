@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -29,16 +29,14 @@
 
 namespace IiifServer\Iiif;
 
-use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
-
 /**
- *@link https://iiif.io/api/presentation/3.0/#55-annotation-page
+ *@link https://iiif.io/api/presentation/3.0/#service
  */
 class Service extends AbstractType
 {
     protected $type = 'Service';
 
-    protected $keys = [
+    protected $propertyRequirements = [
         '@context' => self::OPTIONAL,
         'id' => self::REQUIRED,
         'type' => self::REQUIRED,
@@ -61,14 +59,12 @@ class Service extends AbstractType
     protected $id;
 
     /**
-     * @var array
+     * @todo Move options to internal array.
+     *
+     * {@inheritDoc}
+     * @see \IiifServer\Iiif\AbstractType::setOptions()
      */
-    protected $options;
-
-    /**
-     * @todo The resource is useless, but kept for Iiif Search.
-     */
-    public function __construct(?AbstractResourceEntityRepresentation $resource = null, array $options = [])
+    public function setOptions(array $options): self
     {
         if (isset($options['@id'])) {
             $options['id'] = $options['@id'];
@@ -78,12 +74,12 @@ class Service extends AbstractType
             $options['type'] = $options['@type'];
             unset($options['@type']);
         }
-        $this->options = array_filter($options);
+        return parent::setOptions(array_filter($options));
     }
 
-    public function getContent(): \ArrayObject
+    public function getContent(): array
     {
-        return new \ArrayObject($this->options);
+        return $this->options;
     }
 
     public function id(): ?string

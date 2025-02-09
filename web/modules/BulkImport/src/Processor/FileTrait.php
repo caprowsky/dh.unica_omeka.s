@@ -6,6 +6,7 @@ use finfo;
 use Log\Stdlib\PsrMessage;
 use Omeka\Stdlib\ErrorStore;
 use SplFileInfo;
+use ZipArchive;
 
 /**
  * @todo Factorize with AbstractFileReader.
@@ -51,6 +52,11 @@ trait FileTrait
     protected $allowEmptyFiles = false;
 
     /**
+     * @var bool
+     */
+    protected $isFileSideloadActive = false;
+
+    /**
      * @var string
      */
     protected $sideloadPath = null;
@@ -75,13 +81,39 @@ trait FileTrait
      */
     protected $checkAssetMediaType = false;
 
+    /**
+     * @var string
+     */
+    protected $baseTempDir;
+
+    /**
+     * @var string
+     */
+    protected $baseTempDirPath;
+
+    /**
+     * @var array
+     */
+    protected $filesUploaded;
+
     protected function initFileTrait(): void
     {
         $services = $this->getServiceLocator();
+        $settings = $services->get('Omeka\Settings');
+
+        // Unzip in Omeka temp directory.
+        $config = $services->get('Config');
+        $this->baseTempDir = $config['temp_dir'] ?: sys_get_temp_dir();
+        if (!$this->baseTempDir) {
+            throw new \Omeka\Service\Exception\RuntimeException(
+                'The "temp_dir" is not configured' // @translate
+            );
+        }
+
         $this->tempFileFactory = $services->get('Omeka\File\TempFileFactory');
         $this->store = $services->get('Omeka\File\Store');
 
-        $settings = $services->get('Omeka\Settings');
+        $this->isFileSideloadActive = $this->bulk->isFileSideloadActive();
         $this->disableFileValidation = (bool) $settings->get('disable_file_validation');
         $this->allowedMediaTypes = $settings->get('media_type_whitelist') ?: [];
         $this->allowedExtensions = $settings->get('extension_whitelist') ?: [];
@@ -89,11 +121,191 @@ trait FileTrait
         $this->sideloadPath = (string) $settings->get('file_sideload_directory');
         $this->sideloadDeleteFile = $settings->get('file_sideload_delete_file') === 'yes';
         $this->streamContextHeadersOnly = stream_context_create(['http' => ['method' => 'HEAD']]);
+
         // Required for strict types.
         if (PHP_MAJOR_VERSION < 8) {
             $this->asAssociative = 1;
         }
+
         $this->isInitFileTrait = true;
+    }
+
+    /**
+     * Move uploaded files in a temp directory available for a background job.
+     *
+     * Here, the process is not inside the job, but during the configuration.
+     *
+     * @todo Factorize with \BulkImport\Reader\FileAndUrlTrait::getUploadedFile()
+     */
+    protected function prepareFilesUploaded(?array $files): ?array
+    {
+        if (!$files) {
+            $this->filesUploaded = [];
+            return [];
+        }
+
+        // Fix when no files are submitted in processor.
+        if ($files === [['name' => '', 'type' => '', 'tmp_name' => '', 'error' => 4, 'size' => 0]]
+            || $files === [['name' => '', 'full_path' => '', 'type' => '', 'tmp_name' =>'', 'error' => 4, 'size' => 0]]
+        ) {
+            $this->filesUploaded = [];
+            return [];
+        }
+
+        if (is_array($this->filesUploaded)) {
+            return $this->filesUploaded;
+        }
+
+        if (!$this->isInitFileTrait) {
+            $this->initFileTrait();
+        }
+
+        // Create a unique temp dir to avoid to override existing files and to
+        // simplify distinction between imports.
+        // Here, the job is unknown.
+        $this->baseTempDirPath = tempnam($this->baseTempDir, sprintf('omk_bki_%s_', (new \DateTime('now'))->format('Ymd-H:i:s')));
+        if (!$this->baseTempDirPath) {
+            throw new \Omeka\Service\Exception\RuntimeException(
+                'Unable to create directory in temp dir.' // @translate
+            );
+        }
+        @unlink($this->baseTempDirPath);
+        @mkdir($this->baseTempDirPath);
+        @chmod($this->baseTempDirPath, 0775);
+
+        foreach ($files as $key => $file) {
+            if ($file['error'] ?? true) {
+                throw new \Omeka\Service\Exception\RuntimeException((string) new PsrMessage(
+                    'File "{file}" is not manageable.', // @translate
+                    ['file' => $file['name']]
+                ));
+            }
+            if (empty($file['tmp_name']) || !file_exists($file['tmp_name'])) {
+                throw new \Omeka\Service\Exception\RuntimeException((string) new PsrMessage(
+                    'File "{file}" is not manageable.', // @translate
+                    ['file' => $file['name']]
+                ));
+            }
+            $filepath = @tempnam($this->baseTempDirPath, substr($file['name'], 0, 16) . '_');
+            if (!move_uploaded_file($file['tmp_name'], $filepath)) {
+                throw new \Omeka\Service\Exception\RuntimeException((string) new PsrMessage(
+                    'Unable to move uploaded file "{file}" to "{filepath}".', // @translate
+                    ['file' => $file['name'], 'filepath' => $filepath]
+                ));
+            }
+            @chmod($filepath, 0664);
+            //unset($files[$key]['tmp_name']);
+            $files[$key]['filename'] = $filepath;
+        }
+
+        $this->filesUploaded = $files;
+        return $files;
+    }
+
+    /**
+     * Extract uploaded files in temp directories.
+     *
+     * Here, the process occurs inside job.
+     */
+    protected function prepareFilesZip(): self
+    {
+        if (empty($this->filesUploaded)) {
+            return $this;
+        }
+
+        if (!$this->isInitFileTrait) {
+            $this->initFileTrait();
+        }
+
+        foreach ($this->filesUploaded as $key => $file) {
+            if ($file['error']) {
+                $message = new PsrMessage(
+                    'File "{file}" is not manageable.', // @translate
+                    ['file' => $file['name']]
+                );
+                $this->logger->err($message);
+                ++$this->totalErrors;
+                return $this;
+            }
+
+            if (!$file['size']
+                || $file['type'] !== 'application/zip'
+                || empty($file['filename'])
+                || !empty($file['dirpath'])
+                || !empty($file['entries'])
+            ) {
+                continue;
+            }
+
+            // To get the base temp dir path, that is not stored in params for
+            // background process, get it from the first filname.
+            if ($this->baseTempDirPath === null) {
+                $this->baseTempDirPath = pathinfo($file['filename'], PATHINFO_DIRNAME);
+            }
+
+            // Create a temp dir to avoid overriding existing files.
+            $tempDirPath = tempnam($this->baseTempDirPath, 'zip_');
+            if (!$tempDirPath) {
+                $message = new PsrMessage(
+                    'Unable to create directory in temp dir.' // @translate
+                );
+                $this->logger->err($message);
+                ++$this->totalErrors;
+                return $this;
+            }
+            @unlink($tempDirPath);
+            @mkdir($tempDirPath);
+            @chmod($tempDirPath, 0775);
+
+            $zip = new ZipArchive();
+            if ($zip->open($file['filename']) !== true) {
+                $message = new PsrMessage(
+                    'Unable to extract zip file "{file}".', // @translate
+                    ['file' => $file['name']]
+                );
+                $this->logger->err($message);
+                $zip->close();
+                ++$this->totalErrors;
+                return $this;
+            }
+
+            $check = $zip->extractTo($tempDirPath);
+
+            if (!$check) {
+                $message = new PsrMessage(
+                    'Unable to extract all files from zip file "{file}".', // @translate
+                    ['file' => $file['name']]
+                );
+                $this->logger->err($message);
+                ++$this->totalErrors;
+                return $this;
+            }
+
+            // Store the list of files and secure them.
+            $entries = [];
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $filename = $zip->getNameIndex($i);
+                if (mb_substr($filename, -1) === '/' || mb_substr($filename, -1) === '\\') {
+                    @chmod($tempDirPath . '/' . $filename, 0775);
+                } else {
+                    $entries[] = $filename;
+                    @chmod($tempDirPath . '/' . $filename, 0664);
+                }
+            }
+
+            $zip->close();
+
+            $this->filesUploaded[$key]['dirpath'] = $tempDirPath;
+            $this->filesUploaded[$key]['entries'] = $entries;
+        }
+
+        return $this;
+    }
+
+    protected function setFilesUploaded(array $files): self
+    {
+        $this->filesUploaded = $files;
+        return $this;
     }
 
     /**
@@ -108,6 +320,8 @@ trait FileTrait
 
     /**
      * Check if a file exists and is readable.
+     *
+     * @todo Add an option to check media types for assets.
      */
     protected function checkFile($filepath, ?ErrorStore $messageStore = null): bool
     {
@@ -117,9 +331,22 @@ trait FileTrait
 
         $filepath = (string) $filepath;
 
-        $realPath = $this->verifyFile($filepath, $messageStore);
-        if (is_null($realPath)) {
+        // Check if this is a directly uploaded file. They are already checked.
+        $uploadedFile = $this->getFileUploaded($filepath);
+        if ($uploadedFile) {
+            $realPath = $uploadedFile;
+        } elseif (!$this->isFileSideloadActive) {
+            if ($messageStore) {
+                $messageStore->addError('file', new PsrMessage(
+                    'Cannot sideload file: module FileSideload inactive or not installed.' // @translate
+                ));
+            }
             return false;
+        } else {
+            $realPath = $this->verifyFile($filepath, $messageStore);
+            if (is_null($realPath)) {
+                return false;
+            }
         }
 
         if (!filesize($realPath) && !$this->allowEmptyFiles) {
@@ -141,6 +368,7 @@ trait FileTrait
         $mediaType = \Omeka\File\TempFile::MEDIA_TYPE_ALIASES[$mediaType] ?? $mediaType;
         $extension = pathinfo($realPath, PATHINFO_EXTENSION);
 
+        // Here, use the source filepath because this is only for message.
         return $this->checkMediaTypeAndExtension($filepath, $mediaType, $extension, $messageStore);
     }
 
@@ -536,13 +764,28 @@ trait FileTrait
     }
 
     /**
-     * Fetch, check and save a file for an asset or a media.
+     * Get files uploaded from the form via filepath from the metadata.
      *
-     * @deprecated Use self::fetchFile()
+     * When multiple files have the same name, the first one is used: individual
+     * files first, then each zipped files in the order they were loaded.
      */
-    protected function fetchUrl($type, $sourceName, $filename, $storageId, $extension, $url)
+    protected function getFileUploaded($sourceFilepath): ?string
     {
-        return $this->fetchFile($type, $sourceName, $filename, $storageId, $extension, $url);
+        if (!$this->filesUploaded) {
+            return null;
+        }
+        foreach ($this->filesUploaded as $file) {
+            if ($sourceFilepath === $file['name']) {
+                return $file['filename'] ?? null;
+            }
+            if (!empty($file['dirpath'])
+                && !empty($file['entries'])
+                && ($pos = array_search($sourceFilepath, $file['entries'], true)) !== false
+            ) {
+                return $file['dirpath'] . '/' . $file['entries'][$pos];
+            }
+        }
+        return null;
     }
 
     /**
@@ -556,7 +799,7 @@ trait FileTrait
      * @param string $filename
      * @param string $storageId
      * @param string $extension
-     * @param string $fileOrUrl Full url or filepath.
+     * @param string $fileOrUrl Full url or filepath (relative or absolute).
      * @return array
      *
      * @todo Use \Omeka\File\Downloader
@@ -645,8 +888,8 @@ trait FileTrait
                 fclose($fp);
             } else {
                 // copy($url, $tempname);
-                $result = file_put_contents($tempname,(string) file_get_contents($fileOrUrl), \LOCK_EX);
-                if ($result ===  false) {
+                $result = file_put_contents($tempname, (string) file_get_contents($fileOrUrl), \LOCK_EX);
+                if ($result === false) {
                     return [
                         'status' => 'error',
                         'message' => new PsrMessage(
@@ -747,7 +990,7 @@ trait FileTrait
         $sha256 = $tempFile->getSha256();
 
         if ($isUrl) {
-            unlink($tempname);
+            @unlink($tempname);
         }
 
         return [

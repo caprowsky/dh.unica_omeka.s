@@ -8,12 +8,11 @@ use Laminas\Form\Element;
 use Omeka\Form\Element as OmekaElement;
 
 /**
- * @todo Factorize with Spip, Eprints, and Omeka S processor.
+ * @deprecated Use new mapping features.
+ * @todo Factorize with Manioc, Spip, Eprints, and Omeka S processor.
  */
 class ManiocProcessorParamsForm extends ManiocProcessorConfigForm
 {
-    use ServiceLocatorAwareTrait;
-
     public function init(): void
     {
         $this

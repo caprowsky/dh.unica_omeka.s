@@ -2,28 +2,35 @@
 
 namespace ImageServer;
 
-use Omeka\Mvc\Controller\Plugin\Messenger;
-use Omeka\Stdlib\Message;
+use Common\Stdlib\PsrMessage;
 
 /**
  * @var Module $this
- * @var \Laminas\ServiceManager\ServiceLocatorInterface $serviceLocator
- * @var string $oldVersion
+ * @var \Laminas\ServiceManager\ServiceLocatorInterface $services
  * @var string $newVersion
- */
-$services = $serviceLocator;
-
-/**
+ * @var string $oldVersion
+ *
+ * @var \Omeka\Api\Manager $api
  * @var \Omeka\Settings\Settings $settings
  * @var \Doctrine\DBAL\Connection $connection
- * @var \Omeka\Api\Manager $api
- * @var array $config
+ * @var \Doctrine\ORM\EntityManager $entityManager
+ * @var \Omeka\Mvc\Controller\Plugin\Messenger $messenger
  */
+$plugins = $services->get('ControllerPluginManager');
+$api = $plugins->get('api');
 $settings = $services->get('Omeka\Settings');
+$translate = $plugins->get('translate');
 $connection = $services->get('Omeka\Connection');
-$api = $services->get('Omeka\ApiManager');
-$config = require dirname(__DIR__, 2) . '/config/module.config.php';
-$settings = $services->get('Omeka\Settings');
+$messenger = $plugins->get('messenger');
+$entityManager = $services->get('Omeka\EntityManager');
+
+if (!method_exists($this, 'checkModuleActiveVersion') || !$this->checkModuleActiveVersion('Common', '3.4.63')) {
+    $message = new \Omeka\Stdlib\Message(
+        $translate('The module %1$s should be upgraded to version %2$s or later.'), // @translate
+        'Common', '3.4.63'
+    );
+    throw new \Omeka\Module\Exception\ModuleCannotInstallException((string) $message);
+}
 
 if (version_compare($oldVersion, '3.6.2', '<')) {
     $settings->set('imageserver_info_default_version', $settings->get('imageserver_manifest_version'));
@@ -32,18 +39,7 @@ if (version_compare($oldVersion, '3.6.2', '<')) {
 }
 
 if (version_compare($oldVersion, '3.6.3.3', '<')) {
-    $module = $services->get('Omeka\ModuleManager')->getModule('Generic');
-    if ($module && version_compare($module->getIni('version') ?? '', '3.3.27', '<')) {
-        $translator = $services->get('MvcTranslator');
-        $message = new \Omeka\Stdlib\Message(
-            $translator->translate('This module requires the module "%s", version %s or above.'), // @translate
-            'Generic', '3.3.27'
-        );
-        throw new \Omeka\Module\Exception\ModuleCannotInstallException((string) $message);
-    }
-
-    $messenger = new Messenger();
-    $message = new Message(
+    $message = new PsrMessage(
         'Now, all images can be automatically converted into tiles and an option in settings and site settings allows to specify the default display.
 It can be selected directly in the theme too (thumbnail "tile").
 The conversion of the renderer from "tile" to the standard "file" can be done with the job in the config form.' // @translate
@@ -53,8 +49,8 @@ The conversion of the renderer from "tile" to the standard "file" can be done wi
     $settings->set('imageserver_imager', $settings->get('imageserver_image_creator') ?: 'Auto');
     $settings->delete('imageserver_image_creator');
 
-    $urlHelper = $services->get('ViewHelperManager')->get('url');
-    $top = rtrim($urlHelper('top', [], ['force_canonical' => true]), '/') . '/';
+    $urlPlugin = $services->get('ControllerPluginManager')->get('url');
+    $top = rtrim($urlPlugin->fromRoute('top', [], ['force_canonical' => true]), '/') . '/';
     $settings->set('imageserver_base_url', $top);
 
     $settings->set('imageserver_auto_tile', false);
@@ -74,20 +70,21 @@ The conversion of the renderer from "tile" to the standard "file" can be done wi
     $dispatcher = $services->get(\Omeka\Job\Dispatcher::class);
     $job = $dispatcher->dispatch(\ImageServer\Job\BulkSizerAndTiler::class, $args);
 
-    $urlHelper = $services->get('ControllerPluginManager')->get('url');
-    $message = new Message(
-        'Storing tile info for images in background (%1$sjob #%2$d%3$s, %4$slogs%3$s). This process will take a while.', // @translate
-        sprintf('<a href="%s">',
-            htmlspecialchars($urlHelper->fromRoute('admin/id', ['controller' => 'job', 'id' => $job->getId()]))
-        ),
-        $job->getId(),
-        '</a>',
-        sprintf('<a href="%s">',
-            htmlspecialchars($this->isModuleActive('Log')
-                ? $urlHelper->fromRoute('admin/log', [], ['query' => ['job_id' => $job->getId()]])
-                : $urlHelper->fromRoute('admin/id', ['controller' => 'job', 'id' => $job->getId(), 'action' => 'log'])
-            )
-        )
+    $message = new PsrMessage(
+        'Storing tile info for images in background ({link}job #{job_id}{link_end}, {link_log}logs{link_end}). This process will take a while.', // @translate
+        [
+            'link' => sprintf('<a href="%s">',
+                htmlspecialchars($urlPlugin->fromRoute('admin/id', ['controller' => 'job', 'id' => $job->getId()]))
+            ),
+            'job_id' => $job->getId(),
+            'link_end' => '</a>',
+            'link_log' => sprintf('<a href="%s">',
+                htmlspecialchars($this->isModuleActive('Log')
+                    ? $urlPlugin->fromRoute('admin/log', [], ['query' => ['job_id' => $job->getId()]])
+                    : $urlPlugin->fromRoute('admin/id', ['controller' => 'job', 'id' => $job->getId(), 'action' => 'log'])
+                )
+            ),
+        ]
     );
     $message->setEscapeHtml(false);
     $messenger->addWarning($message);
@@ -97,11 +94,11 @@ if (version_compare($oldVersion, '3.6.7.3', '<')) {
     $module = $services->get('Omeka\ModuleManager')->getModule('IiifServer');
     if (!$module || version_compare($module->getIni('version') ?? '', '3.6.5.3', '<')) {
         $translator = $services->get('MvcTranslator');
-        $message = new \Omeka\Stdlib\Message(
-            $translator->translate('This module requires the module "%s", version %s or above.'), // @translate
-            'IiifServer', '3.6.5.3'
+        $message = new PsrMessage(
+            'This module requires the module "{module}", version {version} or above.', // @translate
+            ['module' => $module, 'version' => $version]
         );
-        throw new \Omeka\Module\Exception\ModuleCannotInstallException((string) $message);
+        throw new \Omeka\Module\Exception\ModuleCannotInstallException((string) $message->setTranslator($translator));
     }
 
     $settings->set('iiifserver_media_api_url', '');
@@ -112,12 +109,11 @@ if (version_compare($oldVersion, '3.6.7.3', '<')) {
     //  Renamed "iiifserver_media_api_prefix".
     $settings->delete('imageserver_identifier_prefix');
 
-    $messenger = new Messenger();
-    $message = new Message(
+    $message = new PsrMessage(
         'The routes to the image server have been renamed from "iiif-img/" and "ixif-media/" to the more standard "iiif/".' // @translate
     );
     $messenger->addWarning($message);
-    $message = new Message(
+    $message = new PsrMessage(
         'Check the config of the module.' // @translate
     );
     $messenger->addWarning($message);
@@ -129,33 +125,41 @@ if (version_compare($oldVersion, '3.6.9.3', '<')) {
 
 if (version_compare($oldVersion, '3.6.10.3', '<')) {
     $modules = [
-        ['name' => 'Generic', 'version' => '3.3.34', 'required' => false],
         ['name' => 'ArchiveRepertory', 'version' => '3.15.4', 'required' => false],
         ['name' => 'IiifServer', 'version' => '3.6.6.6', 'required' => true],
     ];
     foreach ($modules as $moduleData) {
-        if (method_exists($this, 'checkModuleAvailability')) {
-            $this->checkModuleAvailability($moduleData['name'], $moduleData['version'], $moduleData['required'], true);
-        } else {
-            // @todo Adaptation from Generic method, to be removed in next version.
-            $moduleName = $moduleData['name'];
-            $version = $moduleData['version'];
-            $required = $moduleData['required'];
-            $module = $services->get('Omeka\ModuleManager')->getModule($moduleName);
-            if (!$module || !$this->isModuleActive($moduleName)) {
-                if (!$required) {
-                    continue;
-                }
-                // Else throw message below (required module with a version or not).
-            } elseif (!$version || version_compare($module->getIni('version') ?? '', $version, '>=')) {
-                continue;
-            }
+        if (($moduleData['required'] && !$this->isModuleVersionAtLeast($moduleData['name'], $moduleData['version']))
+            || (!$moduleData['required'] && $this->isModuleActive($module) && !$this->isModuleVersionAtLeast($moduleData['name'], $moduleData['version']))
+        ) {
             $translator = $services->get('MvcTranslator');
-            $message = new \Omeka\Stdlib\Message(
-                $translator->translate('This module requires the module "%s", version %s or above.'), // @translate
-                $moduleName, $version
+            $message = new PsrMessage(
+                'This module requires the module "{module}", version {version} or above.', // @translate
+                ['module' => $moduleName, 'version' => $version]
             );
-            throw new \Omeka\Module\Exception\ModuleCannotInstallException((string) $message);
+            throw new \Omeka\Module\Exception\ModuleCannotInstallException((string) $message->setTranslator($translator));
         }
     }
+}
+
+if (version_compare($oldVersion, '3.6.13', '<')) {
+    $settings->set('imageserver_tile_manual', !$settings->get('imageserver_auto_tile'));
+    $settings->delete('imageserver_auto_tile');
+}
+
+if (version_compare($oldVersion, '3.6.18', '<')) {
+    $isTileManual = $settings->get('imageserver_tile_manual');
+    $settings->set('imageserver_tile_mode', $isTileManual ? 'manual' : 'auto');
+    $settings->delete('imageserver_tile_manual');
+    if ($isTileManual) {
+        $message = new PsrMessage(
+            'A new option allows to set the tile mode "external". Check it if you use an external image server.' // @translate
+        );
+        $messenger->addWarning($message);
+    }
+
+    $message = new PsrMessage(
+        'A new task allows to clear tile metadata, that may be useful when an external server is used.' // @translate
+    );
+    $messenger->addSuccess($message);
 }

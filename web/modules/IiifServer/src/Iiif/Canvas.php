@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -29,6 +29,9 @@
 
 namespace IiifServer\Iiif;
 
+use Common\Stdlib\PsrMessage;
+use IiifServer\Iiif\Exception\RuntimeException;
+use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Api\Representation\MediaRepresentation;
 
 /**
@@ -36,8 +39,11 @@ use Omeka\Api\Representation\MediaRepresentation;
  */
 class Canvas extends AbstractResourceType
 {
-    use TraitBehavior;
     use TraitDescriptive;
+    // TODO Use TraitMedia in Canvas?
+    // use TraitMedia;
+    // TODO Use TraitLinking for seeAlso.
+    use TraitTechnicalBehavior;
 
     protected $type = 'Canvas';
 
@@ -46,7 +52,7 @@ class Canvas extends AbstractResourceType
      *
      * @var array
      */
-    protected $keys = [
+    protected $propertyRequirements = [
         '@context' => self::OPTIONAL,
 
         'id' => self::REQUIRED,
@@ -62,7 +68,8 @@ class Canvas extends AbstractResourceType
         'language' => self::NOT_ALLOWED,
         'provider' => self::OPTIONAL,
         'thumbnail' => self::OPTIONAL,
-        // Except for a placeholder or an accompaying canvas.
+        // Forbidden when current canvas is a placeholder canvas or an
+        // accompaying canvas.
         'placeholderCanvas' => self::OPTIONAL,
         'accompanyingCanvas' => self::OPTIONAL,
 
@@ -84,6 +91,7 @@ class Canvas extends AbstractResourceType
         'seeAlso' => self::OPTIONAL,
         'service' => self::OPTIONAL,
         'homepage' => self::OPTIONAL,
+        'logo' => self::OPTIONAL,
         'rendering' => self::OPTIONAL,
         'partOf' => self::OPTIONAL,
         'start' => self::NOT_ALLOWED,
@@ -97,64 +105,92 @@ class Canvas extends AbstractResourceType
     ];
 
     protected $behaviors = [
+        // Temporal behaviors.
         'auto-advance' => self::OPTIONAL,
-        'continuous' => self::NOT_ALLOWED,
-        'facing-pages' => self::OPTIONAL,
-        'individuals' => self::NOT_ALLOWED,
-        'multi-part' => self::NOT_ALLOWED,
         'no-auto-advance' => self::OPTIONAL,
-        'no-nav' => self::NOT_ALLOWED,
-        'no-repeat' => self::NOT_ALLOWED,
-        'non-paged' => self::OPTIONAL,
-        'hidden' => self::NOT_ALLOWED,
-        'paged' => self::NOT_ALLOWED,
         'repeat' => self::NOT_ALLOWED,
+        'no-repeat' => self::NOT_ALLOWED,
+        // Layout behaviors.
+        'unordered' => self::NOT_ALLOWED,
+        'individuals' => self::NOT_ALLOWED,
+        'continuous' => self::NOT_ALLOWED,
+        'paged' => self::NOT_ALLOWED,
+        'facing-pages' => self::OPTIONAL,
+        'non-paged' => self::OPTIONAL,
+        // Collection behaviors.
+        'multi-part' => self::NOT_ALLOWED,
+        'together' => self::NOT_ALLOWED,
+        // Range behaviors.
         'sequence' => self::NOT_ALLOWED,
         'thumbnail-nav' => self::NOT_ALLOWED,
-        'together' => self::NOT_ALLOWED,
-        'unordered' => self::NOT_ALLOWED,
+        'no-nav' => self::NOT_ALLOWED,
+        // Miscellaneous behaviors.
+        'hidden' => self::NOT_ALLOWED,
     ];
 
     /**
-     * This construct is required, because the resource must be a media.
+     * This method is required, because the resource must be a media for now.
+     *
+     * Warning: setResource() should be called after setOptions() in order to manage init.
+     * @todo Make init independant of order setResource() or setOptions().
      */
-    public function __construct(MediaRepresentation $resource, array $options = null)
+    public function setResource(AbstractResourceEntityRepresentation $resource): self
     {
-        parent::__construct($resource, $options);
+        parent::setResource($resource);
+
+        if (!$resource instanceof MediaRepresentation) {
+            $message = new PsrMessage(
+                'Resource #{resource_id}: A media is required to build a Canvas.', // @translate
+                ['resource_id' => $resource->id()]
+            );
+            $this->logger->err($message->getMessage(), $message->getContext());
+            throw new RuntimeException((string) $message);
+        }
+
+        // TODO Move this option management in setOptions().
         // TODO Add linking properties when not in manifest.
         // The option should contain an index, that is the position from 1 in
         // the list of canvases (available in storage too).
         $this->options['target_type'] = 'canvas';
+
         if (empty($this->options['target_name'])) {
-            $name = $this->options['index'] ?? (string) $resource->id();
-            $this->options['target_name'] = (string) (int) $name === (string) $name
-                ? 'p' . $name
-                : $name;
+            // Don't mix index and resource id.
+            if (empty($this->options['index'])) {
+                $this->options['target_name'] = 'c' . $this->resource->id();
+            } else {
+                $name = $this->options['index'];
+                $this->options['target_name'] = (string) (int) $name === (string) $name
+                    ? 'p' . $name
+                    : $name;
+            }
         }
+
+        return $this;
     }
 
     public function id(): ?string
     {
         // TODO Use a specific value if any in the resource.
+        // TODO Factorize with TraitLinking->start().
+        // Here, the resource is a media.
         return $this->iiifUrl->__invoke($this->resource->item(), 'iiifserver/uri', '3', [
             'type' => 'canvas',
             'name' => $this->options['target_name'],
         ]);
     }
 
-    public function label(): ?ValueLanguage
+    public function label(): ?array
     {
-        $setting = $this->setting;
-        $labelOption = $setting('iiifserver_manifest_canvas_label');
+        $labelOption = $this->settings->get('iiifserver_manifest_canvas_label');
         $values = [];
         $fallback = (string) $this->options['index'];
         switch ($labelOption) {
             case 'property':
-                $labelProperty = $setting('iiifserver_manifest_canvas_label_property');
+                $labelProperty = $this->settings->get('iiifserver_manifest_canvas_label_property');
                 $values = $this->resource->value($labelProperty, ['all' => true, 'default' => $fallback]);
                 break;
             case 'property_or_source':
-                $labelProperty = $setting('iiifserver_manifest_canvas_label_property');
+                $labelProperty = $this->settings->get('iiifserver_manifest_canvas_label_property');
                 $values = $this->resource->value($labelProperty, ['all' => true]);
                 if (count($values)) {
                     break;
@@ -167,12 +203,18 @@ class Canvas extends AbstractResourceType
                 $fallback = $this->resource->displayTitle($fallback);
                 // no break;
             case 'template':
+                // displayTitle() can't be used, because language is needed.
                 $template = $this->resource->resourceTemplate();
-                if ($template && $template->titleProperty()) {
-                    $labelProperty = $template->titleProperty()->term();
-                    $values = $this->resource->value($labelProperty, ['all' => true]);
+                if ($template) {
+                    $titleProperty = $template->titleProperty();
+                    if ($titleProperty) {
+                        $titlePropertyTerm = $titleProperty->term();
+                        if ($titlePropertyTerm !== 'dcterms:title') {
+                            $values = $this->resource->value($titlePropertyTerm, ['all' => true]);
+                        }
+                    }
                 }
-                if (!$values) {
+                if (empty($values)) {
                     $values = $this->resource->value('dcterms:title', ['all' => true, 'default' => $fallback]);
                 }
                 break;
@@ -181,51 +223,15 @@ class Canvas extends AbstractResourceType
                 // Use fallback.
                 break;
         }
-        return new ValueLanguage($values, false, $fallback);
+        return ValueLanguage::output($values, false, $fallback);
     }
 
     /**
-     * As the process converts Omeka resource, there is only one file by canvas
-     * currently.
+     * @todo Manage the provider at the canvas level.
      */
-    public function items(): array
+    public function provider(): ?array
     {
-        if (!array_key_exists('items', $this->_storage)) {
-            $this->_storage['items'] = [];
-            if (isset($this->options['key']) && $this->options['key'] === 'annotation'
-                && isset($this->options['motivation']) && $this->options['motivation'] === 'painting'
-            ) {
-                $item = new AnnotationPage($this->resource, $this->options);
-                $this->_storage['items'][] = $item;
-            }
-        }
-        return $this->_storage['items'];
-    }
-
-    public function annotations(): array
-    {
-        if (!array_key_exists('annotations', $this->_storage)) {
-            $this->_storage['annotations'] = [];
-            if (isset($this->options['key']) && $this->options['key'] === 'annotation'
-                && isset($this->options['motivation']) && $this->options['motivation'] !== 'painting'
-            ) {
-                $rendering = new AnnotationPage($this->resource, $this->options);
-                $this->_storage['annotations'][] = $rendering;
-            }
-        }
-        return $this->_storage['annotations'];
-    }
-
-    public function rendering(): array
-    {
-        if (!array_key_exists('rendering', $this->_storage)) {
-            $this->_storage['rendering'] = [];
-            if (isset($this->options['key']) && $this->options['key'] === 'rendering') {
-                $rendering = new Rendering($this->resource, $this->options);
-                $this->_storage['rendering'][] = $rendering;
-            }
-        }
-        return $this->_storage['rendering'];
+        return null;
     }
 
     public function height(): ?int
@@ -238,53 +244,186 @@ class Canvas extends AbstractResourceType
         return $this->canvasDimensions()['width'];
     }
 
-    public function duration(): ?string
+    public function duration(): ?float
     {
         return $this->canvasDimensions()['duration'];
     }
 
-    protected function canvasDimensions(): array
+    public function seeAlso(): array
     {
-        if (!array_key_exists('dimension', $this->_storage)) {
-            $heights = [0];
-            $widths = [0];
-            $durations = [0];
-            foreach ($this->items() as $item) {
-                foreach ($item->items() as $itemItem) {
-                    if ($itemItem->motivation() !== 'painting') {
-                        continue;
-                    }
-                    $body = $itemItem->body();
-                    if (method_exists($body, 'height')) {
-                        $heights[] = $body->height();
-                    }
-                    if (method_exists($body, 'width')) {
-                        $widths[] = $body->width();
-                    }
-                    if (method_exists($body, 'duration')) {
-                        $durations[] = $body->duration();
-                    }
+        if (array_key_exists('seeAlso', $this->cache)) {
+            return $this->cache['seeAlso'];
+        }
+
+        $this->cache['seeAlso'] = [];
+        if ($this->resource instanceof MediaRepresentation) {
+            // Add the associated media to the current media.
+            // Currently, only the xml alto is managed.
+            $opts = $this->options;
+            $opts['callingResource'] = $this->resource;
+            $opts['callingMotivation'] = 'seeAlso';
+            foreach ($this->options['mediaInfos']['seeAlso'] ?? [] as $mediaData) {
+                $seeAlso = new SeeAlso();
+                // TODO Options should be set first for now for init, done in setResource().
+                $seeAlso
+                    ->setOptions($opts)
+                    ->setResource($mediaData['content']->getResource());
+                // Useless check.
+                if ($seeAlso->id()) {
+                    $this->cache['seeAlso'][] = $seeAlso;
                 }
             }
-            $this->_storage['dimension']['height'] = max($heights) ?: null;
-            $this->_storage['dimension']['width'] = max($widths) ?: null;
-            $this->_storage['dimension']['duration'] = max($durations) ?: null;
-
-            /* // TODO Required dimensions of canvas. It should work with pdf and UV.
-            // The canvas must have a size or a duration. It depends on the type
-            // of the view.
-            // Image / Video.
-            if (empty($this->_storage['dimension']['duration'])) {
-                $this->keys['width'] = self::REQUIRED;
-                $this->keys['height'] = self::REQUIRED;
-            }
-            // Audio / Video.
-            if (empty($this->_storage['dimension']['width'])) {
-                $this->keys['duration'] = self::REQUIRED;
+            /*
+            // Here, the single alto file is useless, because this is a media.
+            // Anyway, the sub process skip it because there is no media.
+            if (empty($this->cache['seeAlso']) && !empty($this->options['mediaInfos']['extraFiles']['alto'])) {
+                // There is only one annotation with alto ocr.
+                // TODO Manage pdf2xml (and tsv!)
+                $opts['useExtraFiles'] = true;
+                $seeAlso = new SeeAlso();
+                // TODO Options should be set first for now for init, done in setResource().
+                $seeAlso
+                    ->setOptions($opts)
+                    ->setResource($this->resource);
+                if ($seeAlso->id()) {
+                    $this->cache['seeAlso'][] = $seeAlso;
+                }
             }
             */
         }
+        return $this->cache['seeAlso'];
+    }
 
-        return $this->_storage['dimension'];
+    public function rendering(): array
+    {
+        if (array_key_exists('rendering', $this->cache)) {
+            return $this->cache['rendering'];
+        }
+
+        $this->cache['rendering'] = [];
+        if (isset($this->options['key']) && $this->options['key'] === 'rendering') {
+            $rendering = new Rendering();
+            // TODO Options should be set first for now for init, done in setResource().
+            $rendering
+                ->setOptions($this->options)
+                ->setResource($this->resource);
+            $this->cache['rendering'][] = $rendering;
+        }
+        return $this->cache['rendering'];
+    }
+
+    /**
+     * As the process converts Omeka resource, there is only one file by canvas
+     * currently.
+     */
+    public function items(): array
+    {
+        if (array_key_exists('items', $this->cache)) {
+            return $this->cache['items'];
+        }
+
+        $this->cache['items'] = [];
+        if (isset($this->options['key']) && $this->options['key'] === 'annotation'
+            && isset($this->options['motivation']) && $this->options['motivation'] === 'painting'
+        ) {
+            $opts = $this->options;
+            $opts['callingResource'] = $this->resource;
+            $opts['callingMotivation'] = 'painting';
+            $item = new AnnotationPage();
+            // TODO Options should be set first for now for init, done in setResource().
+            $item
+                ->setOptions($opts)
+                ->setResource($this->resource);
+            $this->cache['items'][] = $item;
+        }
+        return $this->cache['items'];
+    }
+
+    public function annotations(): array
+    {
+        if (array_key_exists('annotations', $this->cache)) {
+            return $this->cache['annotations'];
+        }
+
+        $this->cache['annotations'] = [];
+        if ($this->resource instanceof MediaRepresentation) {
+            $opts = $this->options;
+            $opts['callingResource'] = $this->resource;
+            $opts['callingMotivation'] = 'annotation';
+            // Currently, only alto ocr can be added.
+            // TODO Clarify process: currently, use only one
+            foreach ($this->options['mediaInfos']['annotation'] ?? [] as $mediaData) {
+                $annotation = new AnnotationPage();
+                // TODO Options should be set first for now for init, done in setResource().
+                $annotation
+                    ->setOptions($opts)
+                    ->setResource($mediaData['content']->getResource());
+                if ($annotation->id()) {
+                    $this->cache['annotations'][] = $annotation;
+                }
+            }
+            if (empty($this->cache['annotations']) && !empty($this->options['mediaInfos']['extraFiles']['alto'])) {
+                // There is only one annotation with alto ocr.
+                // TODO Manage pdf2xml (and tsv!)
+                $annotation = new AnnotationPage();
+                $opts['useExtraFiles'] = true;
+                // This is not a file, so it is dereferenced.
+                $opts['isDereferenced'] = true;
+                $annotation
+                    ->setOptions($opts)
+                    ->setResource($this->resource);
+                if ($annotation->id()) {
+                    $this->cache['annotations'][] = $annotation;
+                }
+            }
+        }
+        return $this->cache['annotations'];
+    }
+
+    /**
+     * The canvas dimensions is the max size of any of its items.
+     * @return array
+     */
+    protected function canvasDimensions(): array
+    {
+        if (array_key_exists('dimensions', $this->cache)) {
+            return $this->cache['dimensions'];
+        }
+
+        $this->cache['dimensions'] = [];
+        $heights = [0];
+        $widths = [0];
+        $durations = [0];
+        /** @var \IiifServer\Iiif\AnnotationPage $item */
+        foreach ($this->items() as $item) {
+            /** @var \IiifServer\Iiif\Annotation $itemItem */
+            foreach ($item->items() as $itemItem) {
+                if ($itemItem->motivation() !== 'painting') {
+                    continue;
+                }
+                $body = $itemItem->body();
+                $heights[] = $body['height'] ?? 0;
+                $widths[] = $body['width'] ?? 0;
+                $durations[] = $body['duration'] ?? 0.0;
+            }
+        }
+        $this->cache['dimensions']['height'] = max($heights) ?: null;
+        $this->cache['dimensions']['width'] = max($widths) ?: null;
+        $this->cache['dimensions']['duration'] = max($durations) ?: null;
+
+        /* // TODO Required dimensions of canvas. It should work with pdf and UV.
+        // The canvas must have a size or a duration. It depends on the type
+        // of the view.
+        // Image / Video.
+        if (empty($this->cache['dimensions']['duration'])) {
+            $this->propertyRequirements['width'] = self::REQUIRED;
+            $this->propertyRequirements['height'] = self::REQUIRED;
+        }
+        // Audio / Video.
+        if (empty($this->cache['dimensions']['width'])) {
+            $this->propertyRequirements['duration'] = self::REQUIRED;
+        }
+        */
+        return $this->cache['dimensions'];
     }
 }

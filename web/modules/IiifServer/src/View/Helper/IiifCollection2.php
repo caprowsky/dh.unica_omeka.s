@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2021 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  * Copyright 2016-2017 BibLibre
  *
  * This software is governed by the CeCILL license under French law and abiding
@@ -30,6 +30,7 @@
 
 namespace IiifServer\View\Helper;
 
+use IiifServer\Iiif\TraitDescriptiveRights;
 use Laminas\View\Helper\AbstractHelper;
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 
@@ -39,7 +40,17 @@ use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
  */
 class IiifCollection2 extends AbstractHelper
 {
-    use \IiifServer\Iiif\TraitRights;
+    use TraitDescriptiveRights;
+
+    /**
+     * @var \Omeka\Settings\Settings
+     */
+    protected $settings;
+
+    /**
+     * @var \Omeka\Api\Representation\AbstractResourceEntityRepresentation
+     */
+    protected $resource;
 
     /**
      * Get the IIIF Collection manifest for the specified item set or item.
@@ -80,7 +91,9 @@ class IiifCollection2 extends AbstractHelper
         ];
 
         $view = $this->getView();
-        $this->setting = $view->getHelperPluginManager()->get('setting');
+
+        $this->resource = $resource;
+        $this->settings = $this->resource->getServiceLocator()->get('Omeka\Settings');
 
         $isItemSet = $resource->resourceName() === 'item_sets';
 
@@ -89,9 +102,9 @@ class IiifCollection2 extends AbstractHelper
         } else {
             // Use an item with multiple external manifests as a collection.
             $manifest['@id'] = $view->url('iiifserver/collection', ['id' => $resource->id(), 'version' => '2'], ['force_canonical' => true], true);
-            $forceUrlFrom = $this->setting->__invoke('iiifserver_url_force_from');
+            $forceUrlFrom = $this->settings->get('iiifserver_url_force_from');
             if ($forceUrlFrom && (strpos($manifest['@id'], $forceUrlFrom) === 0)) {
-                $forceUrlTo = $this->setting->__invoke('iiifserver_url_force_to');
+                $forceUrlTo = $this->settings->get('iiifserver_url_force_to');
                 $manifest['@id'] = substr_replace($manifest['@id'], $forceUrlTo, 0, strlen($forceUrlFrom));
             }
             $manifest['@type'] = 'sc:Collection';
@@ -101,9 +114,11 @@ class IiifCollection2 extends AbstractHelper
         $metadata = $this->iiifMetadata($resource);
         $manifest['metadata'] = $metadata;
 
-        $descriptionProperty = $this->setting->__invoke('iiifserver_manifest_description_property');
+        $descriptionProperty = $this->settings->get('iiifserver_manifest_summary_property');
         if ($descriptionProperty) {
-            $description = strip_tags($resource->value($descriptionProperty, ['type' => 'literal', 'default' => '']));
+            $description = $descriptionProperty === 'template'
+                ? strip_tags((string) $resource->displayDescription())
+                : strip_tags((string) $resource->value($descriptionProperty, ['default' => '']));
         }
         $manifest['description'] = $description;
 
@@ -112,16 +127,16 @@ class IiifCollection2 extends AbstractHelper
             $manifest['license'] = $license;
         }
 
-        $attributionProperty = $this->setting->__invoke('iiifserver_manifest_attribution_property');
+        $attributionProperty = $this->settings->get('iiifserver_manifest_attribution_property');
         if ($attributionProperty) {
-            $attribution = strip_tags((string) $resource->value($attributionProperty, ['type' => 'literal', 'default' => '']));
+            $attribution = strip_tags((string) $resource->value($attributionProperty, ['default' => '']));
         }
         if (empty($attribution)) {
-            $attribution = $this->setting->__invoke('iiifserver_manifest_attribution_default');
+            $attribution = $this->settings->get('iiifserver_manifest_attribution_default');
         }
         $manifest['attribution'] = $attribution;
 
-        $manifest['logo'] = $this->setting->__invoke('iiifserver_manifest_logo_default');
+        $manifest['logo'] = $this->settings->get('iiifserver_manifest_logo_default');
 
         // TODO Use resource thumbnail (> Omeka 1.3).
         // $manifest['thumbnail'] = $thumbnail;
@@ -178,7 +193,7 @@ class IiifCollection2 extends AbstractHelper
             $manifest['manifests'] = [];
         }
 
-        return (object) $manifest;
+        return $manifest;
     }
 
     /**
@@ -220,7 +235,7 @@ class IiifCollection2 extends AbstractHelper
 
     protected function externalManifestsOfResource(AbstractResourceEntityRepresentation $resource): array
     {
-        $manifestProperty = $this->setting->__invoke('iiifserver_manifest_external_property');
+        $manifestProperty = $this->settings->get('iiifserver_manifest_external_property');
         if (empty($manifestProperty)) {
             return [];
         }
@@ -242,7 +257,7 @@ class IiifCollection2 extends AbstractHelper
                 $result[] = $val;
             } else {
                 $urlManifest = (string) $value;
-                if (filter_var($urlManifest, FILTER_VALIDATE_URL)) {
+                if (filter_var($urlManifest, FILTER_VALIDATE_URL, FILTER_FLAG_PATH_REQUIRED)) {
                     $result[] = [
                         '@id' => $urlManifest,
                         '@type' => 'sc:Manifest',
@@ -283,9 +298,7 @@ class IiifCollection2 extends AbstractHelper
             return [];
         }
 
-        $settingHelper = $this->view->getHelperPluginManager()->get('setting');
-
-        $whitelist = $settingHelper($map[$jsonLdType]['whitelist'], []);
+        $whitelist = $this->settings->get($map[$jsonLdType]['whitelist'], []);
         if ($whitelist === ['none']) {
             return [];
         }
@@ -294,7 +307,7 @@ class IiifCollection2 extends AbstractHelper
             ? array_intersect_key($resource->values(), array_flip($whitelist))
             : $resource->values();
 
-        $blacklist = $settingHelper($map[$jsonLdType]['blacklist'], []);
+        $blacklist = $this->settings->get($map[$jsonLdType]['blacklist'], []);
         if ($blacklist) {
             $values = array_diff_key($values, array_flip($blacklist));
         }
@@ -304,7 +317,7 @@ class IiifCollection2 extends AbstractHelper
 
         // TODO Remove automatically special properties, and only for values that are used (check complex conditions…).
 
-        return $this->setting->__invoke('iiifserver_manifest_html_descriptive')
+        return $this->settings->get('iiifserver_manifest_html_descriptive')
             ? $this->valuesAsHtml($values)
             : $this->valuesAsPlainText($values);
     }
@@ -328,7 +341,7 @@ class IiifCollection2 extends AbstractHelper
                     : (string) $v;
             }, $propertyData['values']), 'strlen');
             $valueMetadata['value'] = count($valueValues) <= 1 ? reset($valueValues) : $valueValues;
-            $metadata[] = (object) $valueMetadata;
+            $metadata[] = $valueMetadata;
         }
         return $metadata;
     }
@@ -355,15 +368,15 @@ class IiifCollection2 extends AbstractHelper
                 return $v->asHtml();
             }, $propertyData['values']), 'strlen');
             $valueMetadata['value'] = count($valueValues) <= 1 ? reset($valueValues) : $valueValues;
-            $metadata[] = (object) $valueMetadata;
+            $metadata[] = $valueMetadata;
         }
         return $metadata;
     }
 
     /**
-     * Added in order to use trait TraitRights.
+     * Added in order to use trait TraitDescriptiveRights.
      */
-    protected function getContext(): string
+    protected function context(): string
     {
         return 'http://iiif.io/api/presentation/2/context.json';
     }

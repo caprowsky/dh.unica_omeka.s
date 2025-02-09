@@ -2,6 +2,7 @@
 
 namespace ContactUs\Api\Adapter;
 
+use DateTime;
 use Doctrine\ORM\QueryBuilder;
 use Laminas\Validator\EmailAddress;
 use Omeka\Api\Adapter\AbstractEntityAdapter;
@@ -39,6 +40,7 @@ class MessageAdapter extends AbstractEntityAdapter
         'ip' => 'ip',
         'user_agent' => 'userAgent',
         'created' => 'created',
+        'modified' => 'modified',
     ];
 
     protected $scalarFields = [
@@ -48,6 +50,7 @@ class MessageAdapter extends AbstractEntityAdapter
         'name' => 'name',
         'subject' => 'subject',
         'body' => 'body',
+        'fields' => 'fields',
         'source' => 'source',
         'media_type' => 'mediaType',
         'storage_id' => 'storageId',
@@ -62,6 +65,7 @@ class MessageAdapter extends AbstractEntityAdapter
         'is_spam' => 'isSpam',
         'to_author' => 'toAuthor',
         'created' => 'created',
+        'modified' => 'modified',
     ];
 
     public function getResourceName()
@@ -214,6 +218,38 @@ class MessageAdapter extends AbstractEntityAdapter
                     ));
             }
         }
+
+        /** @see \Omeka\Api\Adapter\AbstractResourceEntityAdapter::buildQuery() */
+        $dateSearches = [
+            'modified_before' => ['lt', 'modified'],
+            'modified_after' => ['gt', 'modified'],
+            'created_before' => ['lt', 'created'],
+            'created_after' => ['gt', 'created'],
+        ];
+        $dateGranularities = [
+            DateTime::ISO8601,
+            '!Y-m-d\TH:i:s',
+            '!Y-m-d\TH:i',
+            '!Y-m-d\TH',
+            '!Y-m-d',
+            '!Y-m',
+            '!Y',
+        ];
+        foreach ($dateSearches as $dateSearchKey => $dateSearch) {
+            if (isset($query[$dateSearchKey])) {
+                foreach ($dateGranularities as $dateGranularity) {
+                    $date = DateTime::createFromFormat($dateGranularity, $query[$dateSearchKey]);
+                    if (false !== $date) {
+                        break;
+                    }
+                }
+                $qb->andWhere($expr->{$dateSearch[0]}(
+                    sprintf('omeka_root.%s', $dateSearch[1]),
+                    // If the date is invalid, pass null to ensure no results.
+                    $this->createNamedParameter($qb, $date ?: null)
+                ));
+            }
+        }
     }
 
     public function hydrate(
@@ -240,9 +276,15 @@ class MessageAdapter extends AbstractEntityAdapter
             if ($subject = trim(strip_tags((string) $subject))) {
                 $entity->setSubject($subject);
             }
+
             $body = $data['o-module-contact:body'] ?? null;
             if ($body = trim(strip_tags((string) $body))) {
                 $entity->setBody($body);
+            }
+
+            $fields = $data['o-module-contact:fields'] ?? null;
+            if ($fields && is_array($fields)) {
+                $entity->setFields($fields);
             }
 
             $this->hydrateFile($request, $entity, $errorStore);
@@ -268,8 +310,6 @@ class MessageAdapter extends AbstractEntityAdapter
                     : null
                 );
             }
-
-            $entity->setCreated(new \DateTime('now'));
         }
 
         if ($this->shouldHydrate($request, 'o-module-contact:is_read')) {
@@ -281,6 +321,8 @@ class MessageAdapter extends AbstractEntityAdapter
         if ($this->shouldHydrate($request, 'o-module-contact:to_author')) {
             $entity->setToAuthor(!empty($data['o-module-contact:to_author']));
         }
+
+        $this->updateTimestamps($request, $entity);
     }
 
     /**

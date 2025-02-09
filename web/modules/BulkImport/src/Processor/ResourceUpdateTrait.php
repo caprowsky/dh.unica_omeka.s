@@ -47,78 +47,13 @@ trait ResourceUpdateTrait
             try {
                 $this->resourceToUpdateEntity = $this->bulk->api()->read($resourceName, $resourceId, [], ['responseContent' => 'resource'])->getContent();
                 $this->resourceToUpdate = $this->adapterManager->get($resourceName)->getRepresentation($this->resourceToUpdateEntity);
-                $this->resourceToUpdateArray = $this->resourceToUpdateToArray();
+                $this->resourceToUpdateArray = $this->bulk->resourceJson($this->resourceToUpdate);
             } catch (\Exception $e) {
                 $this->resourceToUpdateEntity = null;
                 $this->resourceToUpdate = null;
                 $this->resourceToUpdateArray = [];
             }
         }
-    }
-
-    /**
-     * Convert a resource into an array (json serialize), without issue.
-     */
-    protected function resourceToUpdateToArray(): array
-    {
-        if (!$this->resourceToUpdate) {
-            return [];
-        }
-
-        // Direct jsonSerialize() keeps sub-objects, so use json decode/encode.
-        // return json_decode(json_encode($resource), true);
-
-        // But in some cases, for linked resources, there may be rights issues,
-        // or the resource may be not reloaded but a partial doctrine entity
-        // converted into a partial representation. So there may be missing
-        // linked resources, so a fatal error can occur when converting a value
-        // resource to its reference. So extract properties manually.
-        // TODO Find where the issues occurs (during a spreadsheed update on the second row).
-
-        $propertyIds = $this->bulk->getPropertyIds();
-
-        // This serialization does not serialize sub-objects as array.
-        $resourceArray = $this->resourceToUpdate->jsonSerialize();
-
-        // There is only issue for properties.
-        $repr = array_diff_key($resourceArray, $propertyIds);
-        $repr = json_decode(json_encode($repr), true);
-
-        $propertiesWithoutResource = array_intersect_key($resourceArray, $propertyIds);
-        foreach ($propertiesWithoutResource as $term => $values) {
-            /** @var \Omeka\Api\Representation\ValueRepresentation|array $value */
-            foreach ($values as $value) {
-                // In some cases (module event), the value is already an array.
-                if (is_object($value)) {
-                    $valueType = $value->type();
-                    // The issue occurs only for linked resources.
-                    if ($vr = $value->valueResource()) {
-                        $repr[$term][] = [
-                            'type' => $valueType,
-                            'property_id' => $propertyIds[$term],
-                            'is_public' => $value->isPublic(),
-                            // '@id' => $vr->apiUrl(),
-                            'value_resource_id' => (int) $vr->id(),
-                            'value_resource_name' => $vr->resourceName(),
-                            '@language' => $value->lang() ?: null,
-                            // 'url' => null,
-                            // 'display_title' => $vr->displayTitle(),
-                        ];
-                    } elseif ($this->bulk->getMainDataType($valueType) === 'resource') {
-                        $this->logger->warn(
-                            'Index #{index}: The resource {resource} #{id} has a linked resource for term {term} that is not available and cannot be really updated.', // @translate
-                            ['index' => $this->indexResource, 'resource' => $this->resourceToUpdate->resourceName(), 'id' => $this->resourceToUpdate->id(), 'term' => $term]
-                        );
-                    } else {
-                        $repr[$term][] = json_decode(json_encode($value), true);
-                    }
-                } else {
-                    $repr[$term][] = $value;
-                }
-            }
-        }
-
-        return $repr;
     }
 
     /**
@@ -281,7 +216,7 @@ trait ResourceUpdateTrait
      */
     protected function fillEmptyData(array $data)
     {
-        if (!$this->hasMapping) {
+        if (!$this->hasProcessorMapping) {
             return $data;
         }
 
@@ -348,7 +283,7 @@ trait ResourceUpdateTrait
                     array_values($currentData[$propertyTerm]),
                     array_values($data[$propertyTerm])
                 );
-                $data[$propertyTerm] = $this->deduplicateSinglePropertyValues($newData);
+                $data[$propertyTerm] = $this->deduplicateSinglePropertyValues($propertyTerm, $newData);
             } else {
                 $data[$propertyTerm] = $currentData[$propertyTerm];
             }
@@ -530,68 +465,24 @@ trait ResourceUpdateTrait
      */
     protected function deduplicatePropertyValues(array $valuesByProperty): array
     {
-        return array_map([$this, 'deduplicateSinglePropertyValues'], $valuesByProperty);
+        foreach ($valuesByProperty as $term => &$vals) {
+            $newVals = $this->bulk->normalizePropertyValues($term, $vals);
+            // array_unique() does not work on array, so serialize them first.
+            $vals = count($newVals) <= 1
+                ? $newVals
+                : array_map('unserialize', array_unique(array_map('serialize', $newVals)));
+        }
+        unset($vals);
+        return array_filter($valuesByProperty);
     }
 
     /**
      * Deduplicate values of a single property.
      */
-    protected function deduplicateSinglePropertyValues(array $values): array
+    protected function deduplicateSinglePropertyValues(string $term, array $values): array
     {
-        // Base to normalize data in order to deduplicate them in one pass.
-        $base = [
-            'literal' => [
-                'type' => 'literal',
-                'property_id' => 0,
-                'is_public' => true,
-                '@value' => '',
-                '@language' => null,
-            ],
-            'resource' => [
-                'type' => 'resource',
-                'property_id' => 0,
-                'is_public' => true,
-                'value_resource_id' => 0,
-            ],
-            'uri' => [
-                'type' => 'uri',
-                'property_id' => 0,
-                'is_public' => true,
-                '@id' => '',
-                'o:label' => null,
-            ],
-        ];
-
-        return array_values(
-            // Deduplicate values.
-            array_map('unserialize', array_unique(array_map(
-                'serialize',
-                // Normalize values.
-                array_map(function ($v) use ($base) {
-                    // Data types "resource" and "uri" have "@id" (in json).
-                    if (array_key_exists('value_resource_id', $v)) {
-                        $mainType = 'resource';
-                    } else {
-                        $mainType = array_key_exists('@id', $v) ? 'uri' : 'literal';
-                    }
-                    // Keep order and meaning keys.
-                    $r = array_replace($base[$mainType], array_intersect_key($v, $base[$mainType]));
-                    $r['is_public'] = (bool) $r['is_public'];
-                    switch ($mainType) {
-                        case 'literal':
-                            if (empty($r['@language'])) {
-                                $r['@language'] = null;
-                            }
-                            break;
-                        case 'uri':
-                            if (empty($r['o:label'])) {
-                                $r['o:label'] = null;
-                            }
-                            break;
-                    }
-                    return $r;
-                }, $values)
-            )))
-        );
-    }
+        $newVals = $this->bulk->normalizePropertyValues($term, $values);
+        return count($newVals) <= 1
+            ? $newVals
+            : array_map('unserialize', array_unique(array_map('serialize', $newVals)));}
 }

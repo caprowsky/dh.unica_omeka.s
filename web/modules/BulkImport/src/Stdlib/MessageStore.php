@@ -20,6 +20,22 @@ class MessageStore extends \Omeka\Stdlib\ErrorStore
     protected $messages = [];
 
     /**
+     * @var bool
+     */
+    protected $storeNewErrorAsWarning = false;
+
+    public function setStoreNewErrorAsWarning(bool $storeNewErrorAsWarning): self
+    {
+        $this->storeNewErrorAsWarning = $storeNewErrorAsWarning;
+        return $this;
+    }
+
+    public function getStoreNewErrorAsWarning(): bool
+    {
+        return $this->storeNewErrorAsWarning;
+    }
+
+    /**
      * Add a message.
      *
      * @param string $key
@@ -29,6 +45,9 @@ class MessageStore extends \Omeka\Stdlib\ErrorStore
      */
     public function addMessage($key, $message, $severity = Logger::ERR): self
     {
+        if ($this->storeNewErrorAsWarning && $severity === Logger::ERR) {
+            $severity === Logger::WARN;
+        }
         $this->messages[$severity][$key][] = $message;
         return $this;
     }
@@ -38,7 +57,7 @@ class MessageStore extends \Omeka\Stdlib\ErrorStore
      */
     public function addError($key, $message): self
     {
-        $this->messages[Logger::ERR][$key][] = $message;
+        $this->messages[$this->storeNewErrorAsWarning ? Logger::WARN : Logger::ERR][$key][] = $message;
         return $this;
     }
 
@@ -88,6 +107,68 @@ class MessageStore extends \Omeka\Stdlib\ErrorStore
             }
         } elseif ($errorStore->hasErrors()) {
             $this->addError($key, $errorStore->getErrors());
+        }
+        return $this;
+    }
+
+    /**
+     * Merge all messages of an ErrorStore onto this one.
+     */
+    public function mergeErrorStore(\Omeka\Stdlib\ErrorStore $errorStore, $key = null)
+    {
+        if (!$errorStore instanceof \BulkImport\Stdlib\MessageStore) {
+            return $this->mergeErrors($errorStore, $key);
+        }
+        if ($key === null) {
+            foreach ($errorStore->getErrors() as $origKey => $messages) {
+                if (is_array($messages)) {
+                    foreach ($messages as $message) {
+                        $this->addError($origKey, $message);
+                    }
+                } else {
+                    $this->addError($origKey, $message);
+                }
+            }
+            foreach ($errorStore->getWarnings() as $origKey => $messages) {
+                if (is_array($messages)) {
+                    foreach ($messages as $message) {
+                        $this->addWarning($origKey, $message);
+                    }
+                } else {
+                    $this->addWarning($origKey, $message);
+                }
+            }
+            foreach ($errorStore->getNotices() as $origKey => $messages) {
+                if (is_array($messages)) {
+                    foreach ($messages as $message) {
+                        $this->addNotice($origKey, $message);
+                    }
+                } else {
+                    $this->addNotice($origKey, $message);
+                }
+            }
+            foreach ($errorStore->getInfos() as $origKey => $messages) {
+                if (is_array($messages)) {
+                    foreach ($messages as $message) {
+                        $this->addInfo($origKey, $message);
+                    }
+                } else {
+                    $this->addInfo($origKey, $message);
+                }
+            }
+        } else {
+            if ($errorStore->hasErrors()) {
+                $this->addError($key, $errorStore->getErrors());
+            }
+            if ($errorStore->hasWarnings()) {
+                $this->addWarning($key, $errorStore->getWarnings());
+            }
+            if ($errorStore->hasNotices()) {
+                $this->addNotice($key, $errorStore->getNotices());
+            }
+            if ($errorStore->hasInfos()) {
+                $this->addInfo($key, $errorStore->getInfos());
+            }
         }
         return $this;
     }

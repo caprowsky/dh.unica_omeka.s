@@ -20,7 +20,8 @@ GNU LGPL: https://gnu.org/licenses/lgpl.html                 (v3)
 
 Mozilla MPL: https://www.mozilla.org/MPL/2.0/                (v2)
 
-getID3 Commercial License: https://www.getid3.org/#gCL (payment required)
+getID3 Commercial License: https://www.getid3.org/#gCL
+(no longer available, existing licenses remain valid)
 
 *****************************************************************
 *****************************************************************
@@ -188,8 +189,8 @@ if ($fp_remote = fopen($remotefilename, 'rb')) {
 		$remote_headers = array_change_key_case(get_headers($remotefilename, 1), CASE_LOWER);
 		$remote_filesize = (isset($remote_headers['content-length']) ? (is_array($remote_headers['content-length']) ? $remote_headers['content-length'][count($remote_headers['content-length']) - 1] : $remote_headers['content-length']) : null);
 
-		// Initialize getID3 engine
-		$getID3 = new getID3;
+		// Initialize GetID3 engine
+		$getID3 = new GetID3;
 
 		$ThisFileInfo = $getID3->analyze($localtempfilename, $remote_filesize, basename($remotefilename));
 
@@ -625,3 +626,4 @@ Reference material:
 * http://www.sno.phy.queensu.ca/~phil/exiftool/TagNames/Nikon.html
 * http://www.codeproject.com/Articles/8295/MPEG-Audio-Frame-Header
 * http://dsd-guide.com/sites/default/files/white-papers/DSFFileFormatSpec_E.pdf
+* https://fileformats.fandom.com/wiki/Torrent_file

@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -36,7 +36,7 @@ class Annotation extends AbstractResourceType
 {
     protected $type = 'Annotation';
 
-    protected $keys = [
+    protected $propertyRequirements = [
         '@context' => self::NOT_ALLOWED,
 
         'id' => self::REQUIRED,
@@ -76,6 +76,7 @@ class Annotation extends AbstractResourceType
         'seeAlso' => self::OPTIONAL,
         'service' => self::OPTIONAL,
         'homepage' => self::OPTIONAL,
+        'logo' => self::OPTIONAL,
         'rendering' => self::OPTIONAL,
         'partOf' => self::OPTIONAL,
         'start' => self::NOT_ALLOWED,
@@ -89,11 +90,40 @@ class Annotation extends AbstractResourceType
     ];
 
     protected $behaviors = [
+        // // Temporal behaviors.
+        // 'auto-advance' => self::NOT_ALLOWED,
+        // 'no-auto-advance' => self::NOT_ALLOWED,
+        // 'repeat' => self::NOT_ALLOWED,
+        // 'no-repeat' => self::NOT_ALLOWED,
+        // // Layout behaviors.
+        // 'unordered' => self::NOT_ALLOWED,
+        // 'individuals' => self::NOT_ALLOWED,
+        // 'continuous' => self::NOT_ALLOWED,
+        // 'paged' => self::NOT_ALLOWED,
+        // 'facing-pages' => self::NOT_ALLOWED,
+        // 'non-paged' => self::NOT_ALLOWED,
+        // // Collection behaviors.
+        // 'multi-part' => self::NOT_ALLOWED,
+        // 'together' => self::NOT_ALLOWED,
+        // // Range behaviors.
+        // 'sequence' => self::NOT_ALLOWED,
+        // 'thumbnail-nav' => self::NOT_ALLOWED,
+        // 'no-nav' => self::NOT_ALLOWED,
+        // Miscellaneous behaviors.
         'hidden' => self::OPTIONAL,
     ];
 
     public function id(): ?string
     {
+        // Here, the resource is a media.
+        if (isset($this->options['body']) && $this->options['body'] === 'TextualBody') {
+            return $this->iiifUrl->__invoke($this->resource->item(), 'iiifserver/uri', '3', [
+                'type' => 'annotation-page',
+                'name' => $this->options['callingResource']->id(),
+                'subtype' => 'line',
+                'subname' => 'l' . $this->options['index'],
+            ]);
+        }
         return $this->iiifUrl->__invoke($this->resource->item(), 'iiifserver/uri', '3', [
             'type' => 'annotation',
             'name' => $this->resource->id(),
@@ -102,20 +132,40 @@ class Annotation extends AbstractResourceType
 
     public function motivation(): ?string
     {
-        return isset($this->options['motivation']) ? $this->options['motivation'] : null;
+        return $this->options['motivation'] ?? null;
     }
 
-    public function body(): Annotation\Body
+    public function body(): array
     {
-        return new Annotation\Body($this->resource, $this->options);
+        $body = isset($this->options['body']) && $this->options['body'] === 'TextualBody'
+            ? new Annotation\TextualBody()
+            : new Annotation\Body();
+        $body
+            ->setOptions($this->options)
+            ->setResource($this->resource)
+            ->normalize();
+        return $body->getArrayCopy();
     }
 
     public function target(): ?string
     {
-        // TODO Annotation target may not be a canvas (but for now it's always the case).
+        // Here, the resource is a media.
         return $this->iiifUrl->__invoke($this->resource->item(), 'iiifserver/uri', '3', [
             'type' => $this->options['target_type'] ?? 'canvas',
             'name' => $this->options['target_name'] ?? $this->resource->id(),
+            'subtype' => $this->options['target_subtype'] ?? null,
+            'subname' => $this->options['target_subname'] ?? null,
+            'query' => $this->options['target_query'] ?? null,
+            'fragment' => $this->options['target_fragment'] ?? null,
         ]);
+    }
+
+    public function label(): ?array
+    {
+        // No label for a textual body.
+        if (isset($this->options['body']) && $this->options['body'] === 'TextualBody') {
+            return null;
+        }
+        return parent::label();
     }
 }

@@ -2,10 +2,8 @@
 
 namespace ImageServer\Job;
 
-use Omeka\Entity\Media;
-use Omeka\Job\AbstractJob;
-use Omeka\Stdlib\Message;
 use Omeka\Api\Representation\MediaRepresentation;
+use Omeka\Job\AbstractJob;
 
 class BulkTileInfo extends AbstractJob
 {
@@ -78,19 +76,19 @@ class BulkTileInfo extends AbstractJob
 
         $query = $this->getArg('query', []);
 
-        $response = $api->search('items', $query);
+        $response = $api->search('items', ['limit' => 0] + $query);
         $this->totalToProcess = $response->getTotalResults();
         if (empty($this->totalToProcess)) {
-            $this->logger->warn(new Message(
+            $this->logger->warn(
                 'No item selected. You may check your query.' // @translate
-            ));
+            );
             return;
         }
 
-        $this->logger->info(new Message(
-            'Starting bulk tile info for %d items.', // @translate
-            $this->totalToProcess
-        ));
+        $this->logger->info(
+            'Starting bulk tile info for {total} items.', // @translate
+            ['total' => $this->totalToProcess]
+        );
 
         $offset = 0;
         $this->totalImages = 0;
@@ -109,16 +107,21 @@ class BulkTileInfo extends AbstractJob
 
             foreach ($items as $key => $item) {
                 if ($this->shouldStop()) {
-                    $this->logger->warn(new Message(
-                        'The job "Bulk Tile Info" was stopped: %1$d/%2$d resources processed.', // @translate
-                        $offset + $key, $this->totalToProcess
-                    ));
+                    $this->logger->warn(
+                        'The job "Bulk Tile Info" was stopped: {count}/{total} resources processed.', // @translate
+                        ['count' => $offset + $key, 'total' => $this->totalToProcess]
+                    );
                     break 2;
                 }
 
                 /** @var \Omeka\Api\Representation\MediaRepresentation $media */
                 foreach ($item->media() as $media) {
-                    if (strtok((string) $media->mediaType(), '/') !== 'image') {
+                    if (strtok((string) $media->mediaType(), '/') !== 'image'
+                        // For ingester bulk_upload, wait that the process is
+                        // finished, else the thumbnails won't be available and
+                        // the size of derivative will be the fallback ones.
+                        || $media->ingester() === 'bulk_upload'
+                    ) {
                         unset($media);
                         continue;
                     }
@@ -131,21 +134,28 @@ class BulkTileInfo extends AbstractJob
                 ++$this->totalProcessed;
             }
 
+            $this->logger->info(
+                '{count}/{total} items processed.', // @translate
+                ['count' => $this->totalProcessed, 'total' => $this->totalToProcess]
+            );
+
             // Flush one time each loop.
             $this->entityManager->flush();
             $this->entityManager->clear();
             $offset += self::SQL_LIMIT;
         }
 
-        $this->logger->notice(new Message(
-            'End of bulk prepare tile info: %1$d/%2$d items processed, %3$d files processed, %4$d errors, %5$d skipped on a total of %6$d images.', // @translate
-            $this->totalProcessed,
-            $this->totalToProcess,
-            $this->totalSucceed,
-            $this->totalFailed,
-            $this->totalSkipped,
-            $this->totalImages
-        ));
+        $this->logger->notice(
+            'End of bulk prepare tile info: {count}/{total} items processed, {total_succeed} files sized, {total_failed} errors, {total_skipped} skipped on a total of {total_images} images.', // @translate
+            [
+                'count' => $this->totalProcessed,
+                'total' => $this->totalToProcess,
+                'total_succeed' => $this->totalSucceed,
+                'total_failed' => $this->totalFailed,
+                'total_skipped' => $this->totalSkipped,
+                'total_images' => $this->totalImages,
+            ]
+        );
     }
 
     protected function prepareTileInfo(MediaRepresentation $media): void

@@ -10,6 +10,7 @@ use Omeka\Entity\User;
 
 class ContactUsForm extends Form
 {
+    protected $fields = [];
     protected $attachFile = false;
     protected $consentLabel = '';
     protected $newsletterLabel = '';
@@ -22,6 +23,7 @@ class ContactUsForm extends Form
     public function __construct($name = null, $options = [])
     {
         parent::__construct($name, $options);
+        $this->fields = $options['fields'] ?? [];
         $this->attachFile = !empty($options['attach_file']);
         $this->consentLabel = $options['consent_label'] ?? '';
         $this->newsletterLabel = $options['newsletter_label'] ?? '';
@@ -33,8 +35,9 @@ class ContactUsForm extends Form
 
     public function init(): void
     {
-        $this->setAttribute('class', 'contact-form');
-        $this->setName('contact-us');
+        $this
+            ->setAttribute('class', 'contact-form')
+            ->setName('contact-us');
 
         // "From" is used instead of "email" to avoid some basic spammers.
         if ($this->user) {
@@ -71,6 +74,7 @@ class ContactUsForm extends Form
                     'attributes' => [
                         'id' => 'from',
                         'required' => true,
+                        'pattern' => '[\w\.\-]+@([\w\-]+\.)+[\w\-]{2,}',
                     ],
                 ])
                 ->add([
@@ -109,10 +113,57 @@ class ContactUsForm extends Form
                 ],
                 'attributes' => [
                     'id' => 'message',
+                    'rows' => 10,
                     'required' => true,
                 ],
             ])
         ;
+
+        foreach ($this->fields ?? [] as $name => $data) {
+            if ($name === 'id') {
+                $name = 'id[]';
+            }
+            if (!is_array($data)) {
+                $data = ['label' => $data, 'type' => Element\Text::class];
+            }
+            $isMultiple = substr($name, -2) === '[]';
+            if ($isMultiple) {
+                $fieldType = $data['type'] ?? Element\Select::class;
+                $fieldValue = isset($data['value']) ? (is_array($data['value']) ? $data['value'] : [$data['value']]) : [];
+                if ($fieldType === 'hidden' || $fieldType === Element\Hidden::class) {
+                    $fieldValue = json_encode($fieldValue);
+                }
+                $this
+                    ->add([
+                        'name' => 'fields[' . substr($name, 0, -2) . '][]',
+                        'type' => $fieldType,
+                        'options' => [
+                            'label' => $data['label'] ?? '',
+                            'value_options' => $data['value_options'] ?? [],
+                        ],
+                        'attributes' => [
+                            'id' => 'fields-' . substr($name, 0, -2),
+                            'class' => $data['class'] ?? '',
+                            'multiple' => 'multiple',
+                            'value' => $fieldValue,
+                        ],
+                    ]);
+            } else {
+                $this
+                    ->add([
+                        'name' => 'fields[' . $name . ']',
+                        'type' => $data['type'] ?? Element\Text::class,
+                        'options' => [
+                            'label' => $data['label'] ?? '',
+                        ],
+                        'attributes' => [
+                            'id' => 'fields-' . $name,
+                            'class' => $data['class'] ?? '',
+                            'value' => $data['value'] ?? '',
+                        ],
+                    ]);
+            }
+        }
 
         if ($this->attachFile) {
             $this
@@ -234,12 +285,7 @@ class ContactUsForm extends Form
                     [
                         'name' => Validator\Callback::class,
                         'options' => [
-                            'callback' => function ($answer) {
-                                return $answer === $this->checkAnswer;
-                            },
-                            'callbackOptions' => [
-                                'checkAnswer' => $this->checkAnswer,
-                            ],
+                            'callback' => fn ($answer) => $answer === $this->checkAnswer,
                         ],
                     ],
                 ],
@@ -247,49 +293,55 @@ class ContactUsForm extends Form
         }
     }
 
-    public function setAttachFile($attachFile)
+    public function setFields(?array $fields): self
+    {
+        $this->fields = $fields;
+        return $this;
+    }
+
+    public function setAttachFile($attachFile): self
     {
         $this->attachFile = $attachFile;
         return $this;
     }
 
-    public function setConsentLabel($consentLabel)
+    public function setConsentLabel($consentLabel): self
     {
         $this->consentLabel = $consentLabel;
         return $this;
     }
 
-    public function setNewsletterLabel($newsletterLabel)
+    public function setNewsletterLabel($newsletterLabel): self
     {
         $this->newsletterLabel = $newsletterLabel;
         return $this;
     }
 
-    public function setQuestion($question)
+    public function setQuestion($question): self
     {
         $this->question = $question;
         return $this;
     }
 
-    public function setAnswer($answer)
+    public function setAnswer($answer): self
     {
         $this->answer = $answer;
         return $this;
     }
 
-    public function setCheckAnswer($checkAnswer)
+    public function setCheckAnswer($checkAnswer): self
     {
         $this->checkAnswer = $checkAnswer;
         return $this;
     }
 
-    public function setUser(?User $user)
+    public function setUser(?User $user): self
     {
         $this->user = $user;
         return $this;
     }
 
-    public function setIsContactAuthor(bool $isContactAuthor)
+    public function setIsContactAuthor(bool $isContactAuthor): self
     {
         $this->isContactAuthor = $isContactAuthor;
         return $this;

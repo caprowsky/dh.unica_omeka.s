@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -29,7 +29,6 @@
 
 namespace IiifServer\Iiif;
 
-use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Api\Representation\ItemSetRepresentation;
 
 /**
@@ -39,11 +38,11 @@ class Collection extends AbstractResourceType
 {
     use TraitDescriptive;
     use TraitLinking;
-    use TraitThumbnail;
+    use TraitStructuralAnnotations;
 
     protected $type = 'Collection';
 
-    protected $keys = [
+    protected $propertyRequirements = [
         '@context' => self::REQUIRED,
 
         'id' => self::REQUIRED,
@@ -92,37 +91,28 @@ class Collection extends AbstractResourceType
     ];
 
     protected $behaviors = [
+        // Temporal behaviors.
         'auto-advance' => self::OPTIONAL,
-        'continuous' => self::OPTIONAL,
-        'facing-pages' => self::NOT_ALLOWED,
-        'individuals' => self::OPTIONAL,
-        'multi-part' => self::OPTIONAL,
         'no-auto-advance' => self::OPTIONAL,
-        'no-nav' => self::NOT_ALLOWED,
-        'no-repeat' => self::OPTIONAL,
-        'non-paged' => self::NOT_ALLOWED,
-        'hidden' => self::NOT_ALLOWED,
-        'paged' => self::OPTIONAL,
         'repeat' => self::OPTIONAL,
+        'no-repeat' => self::OPTIONAL,
+        // Layout behaviors.
+        'unordered' => self::OPTIONAL,
+        'individuals' => self::OPTIONAL,
+        'continuous' => self::OPTIONAL,
+        'paged' => self::OPTIONAL,
+        'facing-pages' => self::NOT_ALLOWED,
+        'non-paged' => self::NOT_ALLOWED,
+        // Collection behaviors.
+        'multi-part' => self::OPTIONAL,
+        'together' => self::OPTIONAL,
+        // Range behaviors.
         'sequence' => self::NOT_ALLOWED,
         'thumbnail-nav' => self::NOT_ALLOWED,
-        'together' => self::OPTIONAL,
-        'unordered' => self::OPTIONAL,
+        'no-nav' => self::NOT_ALLOWED,
+        // Miscellaneous behaviors.
+        'hidden' => self::NOT_ALLOWED,
     ];
-
-    /**
-     * @var \Omeka\View\Helper\Api
-     */
-    protected $api;
-
-    public function __construct(AbstractResourceEntityRepresentation $resource, array $options = null)
-    {
-        parent::__construct($resource, $options);
-        $viewHelpers = $resource->getServiceLocator()->get('ViewHelperManager');
-        $this->api = $viewHelpers->get('api');
-        $this->initLinking();
-        $this->initThumbnail();
-    }
 
     public function id(): ?string
     {
@@ -136,7 +126,9 @@ class Collection extends AbstractResourceType
         if ($this->resource instanceof ItemSetRepresentation) {
             $items = [];
             foreach ($this->api->search('items', ['item_set_id' => $this->resource->id()])->getContent() as $item) {
-                $items[] = new ReferencedManifest($item);
+                $referenced = new ReferencedManifest();
+                $referenced->setResource($item);
+                $items[] = $referenced;
             }
             return $items;
         }
@@ -149,7 +141,7 @@ class Collection extends AbstractResourceType
      */
     protected function externalManifestsOfResource(): array
     {
-        $manifestProperty = $this->setting->__invoke('iiifserver_manifest_external_property');
+        $manifestProperty = $this->settings->get('iiifserver_manifest_external_property');
         if (empty($manifestProperty)) {
             return [];
         }
@@ -163,15 +155,15 @@ class Collection extends AbstractResourceType
                 $result[] = [
                     'id' => $value->uri(),
                     'type' => 'Manifest',
-                    'label' => new ValueLanguage((string) $value->value(), false, '[Untitled]'),
+                    'label' => ValueLanguage::output((string) $value->value(), false, '[Untitled]'),
                 ];
             } else {
                 $urlManifest = (string) $value;
-                if (filter_var($urlManifest, FILTER_VALIDATE_URL)) {
+                if (filter_var($urlManifest, FILTER_VALIDATE_URL, FILTER_FLAG_PATH_REQUIRED)) {
                     $result[] = [
                         'id' => $urlManifest,
                         'type' => 'Manifest',
-                        'label' => new ValueLanguage('[Untitled]', false),
+                        'label' => ValueLanguage::output('[Untitled]', false),
                     ];
                 }
             }
@@ -184,21 +176,14 @@ class Collection extends AbstractResourceType
      * For collection items, that may be empty after a search.
      *
      * {@inheritDoc}
-     * @see \IiifServer\Iiif\AbstractType::getCleanContent()
+     * @see \IiifServer\Iiif\AbstractType::filterContentFilled()
      */
-    protected function getCleanContent(): array
+    protected function filterContentFilled($v, $k): bool
     {
-        return $this->content = array_filter($this->getContent()->getArrayCopy(), function ($v, $k) {
-            if ($k === 'items') {
-                return true;
-            }
-            if ($v instanceof \ArrayObject) {
-                return (bool) $v->count();
-            }
-            if ($v instanceof \JsonSerializable) {
-                return (bool) $v->jsonSerialize();
-            }
-            return !empty($v);
-        }, ARRAY_FILTER_USE_BOTH);
+        // Any array, string, numeric, boolean, object, etc. is filled.
+        return $k === 'items'
+            || $v === '0'
+            || is_bool($v)
+            || !empty($v);
     }
 }

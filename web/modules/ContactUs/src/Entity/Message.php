@@ -81,6 +81,16 @@ class Message extends AbstractEntity
     protected $body;
 
     /**
+     * @var array
+     *
+     * @Column(
+     *     type="json_array",
+     *     nullable=true
+     * )
+     */
+    protected $fields;
+
+    /**
      * @var string
      *
      * @Column(
@@ -247,6 +257,16 @@ class Message extends AbstractEntity
      */
     protected $created;
 
+    /**
+     * @var DateTime
+     *
+     * @Column(
+     *     type="datetime",
+     *     nullable=true
+     * )
+     */
+    protected $modified;
+
     public function getId()
     {
         return $this->id;
@@ -305,6 +325,17 @@ class Message extends AbstractEntity
     public function getBody(): ?string
     {
         return $this->body;
+    }
+
+    public function setFields(?array $fields): self
+    {
+        $this->fields = $fields;
+        return $this;
+    }
+
+    public function getFields(): ?array
+    {
+        return $this->fields;
     }
 
     public function setSource(?string $source): self
@@ -468,5 +499,16 @@ class Message extends AbstractEntity
     public function getCreated(): DateTime
     {
         return $this->created;
+    }
+
+    public function setModified(?DateTime $modified): self
+    {
+        $this->modified = $modified;
+        return $this;
+    }
+
+    public function getModified(): ?DateTime
+    {
+        return $this->modified;
     }
 }

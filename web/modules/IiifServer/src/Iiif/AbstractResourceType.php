@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -29,7 +29,6 @@
 
 namespace IiifServer\Iiif;
 
-use ArrayObject;
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 
 /**
@@ -39,14 +38,17 @@ use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
  */
 abstract class AbstractResourceType extends AbstractType
 {
+    use TraitDescriptiveLabel;
+
     /**
-     * List of keys for the resource type.
+     * Ordered list of properties associated with requirements for the type.
      *
-     * @link https://iiif.io/api/presentation/3.0/#a-summary-of-property-requirements
+     * This is an abstract class, so nothing is allowed.
+     * @see https://iiif.io/api/presentation/3.0/#a-summary-of-property-requirements
      *
      * @var array
      */
-    protected $keys = [
+    protected $propertyRequirements = [
         '@context' => self::NOT_ALLOWED,
 
         'id' => self::NOT_ALLOWED,
@@ -97,25 +99,201 @@ abstract class AbstractResourceType extends AbstractType
         'annotations' => self::NOT_ALLOWED,
     ];
 
-    // Behavior values.
+    /**
+     * Behavior values.
+     *
+     * @var array
+     */
     protected $behaviors = [
+        // Temporal behaviors.
         'auto-advance' => self::NOT_ALLOWED,
-        'continuous' => self::NOT_ALLOWED,
-        'facing-pages' => self::NOT_ALLOWED,
-        'individuals' => self::NOT_ALLOWED,
-        'multi-part' => self::NOT_ALLOWED,
         'no-auto-advance' => self::NOT_ALLOWED,
-        'no-nav' => self::NOT_ALLOWED,
-        'no-repeat' => self::NOT_ALLOWED,
-        'non-paged' => self::NOT_ALLOWED,
-        'hidden' => self::NOT_ALLOWED,
-        'paged' => self::NOT_ALLOWED,
         'repeat' => self::NOT_ALLOWED,
+        'no-repeat' => self::NOT_ALLOWED,
+        // Layout behaviors.
+        'unordered' => self::NOT_ALLOWED,
+        'individuals' => self::NOT_ALLOWED,
+        'continuous' => self::NOT_ALLOWED,
+        'paged' => self::NOT_ALLOWED,
+        'facing-pages' => self::NOT_ALLOWED,
+        'non-paged' => self::NOT_ALLOWED,
+        // Collection behaviors.
+        'multi-part' => self::NOT_ALLOWED,
+        'together' => self::NOT_ALLOWED,
+        // Range behaviors.
         'sequence' => self::NOT_ALLOWED,
         'thumbnail-nav' => self::NOT_ALLOWED,
-        'together' => self::NOT_ALLOWED,
-        'unordered' => self::NOT_ALLOWED,
+        'no-nav' => self::NOT_ALLOWED,
+        // Miscellaneous behaviors.
+        'hidden' => self::NOT_ALLOWED,
     ];
+
+    /**
+     * List of IIIF types.
+     *
+     * Currently not used.
+     * @todo Use AbstractResourceType only for the main iiif types. Other may derivate to get the init.
+     *
+     * The content is the body or the textual body.
+     *
+     * @see https://iiif.io/api/presentation/3.0/#2-resource-type-overview
+     *
+     * @var array
+     */
+    protected $iiifTypes = [
+        // Defined types.
+        Collection::class => 'Collection',
+        Manifest::class => 'Manifest',
+        Canvas::class => 'Canvas',
+        Range::class => 'Range',
+        // Selected additionnal types from Web Annotation Data Model.
+        AnnotationPage::class => 'AnnotationPage',
+        Annotation::class => 'Annotation',
+        ContentResource::class => 'Content',
+        AnnotationCollection::class => 'AnnotationCollection',
+    ];
+
+    /**
+     * @var \Omeka\Api\Manager
+     */
+    protected $api;
+
+    /**
+     * @var string
+     */
+    protected $basePath;
+
+    /**
+     * @var string
+     */
+    protected $baseUri;
+
+    /**
+     * @var \Omeka\Api\Representation\SiteRepresentation|null
+     */
+    protected $defaultSite;
+
+    /**
+     * @var \Common\Stdlib\EasyMeta
+     */
+    protected $easyMeta;
+
+    /**
+     * @var \IiifServer\Mvc\Controller\Plugin\FixUtf8
+     */
+    protected $fixUtf8;
+
+    /**
+     * @var bool
+     */
+    protected $hasModuleAccess;
+
+    /**
+     * @var bool
+     */
+    protected $hasModuleImageServer;
+
+    /**
+     * @var \IiifServer\View\Helper\IiifCleanIdentifiers
+     */
+    protected $iiifCleanIdentifiers;
+
+    /**
+     * @var string
+     */
+    protected $iiifImageApiVersion;
+
+    /**
+     * @var array
+     */
+    protected $iiifImageApiSupportedVersions;
+
+    /**
+     * @var \IiifServer\View\Helper\IiifMediaUrl
+     */
+    protected $iiifMediaUrl;
+
+    /**
+     * @var \IiifServer\View\Helper\IiifMediaRelatedOcr
+     */
+    protected $iiifMediaRelatedOcr;
+
+    /**
+     * @var \IiifServer\View\Helper\IiifTileInfo
+     */
+    protected $iiifTileInfo;
+
+    /**
+     * @var \IiifServer\View\Helper\IiifTypeOfMedia
+     */
+    protected $iiifTypeOfMedia;
+
+    /**
+     * @var \IiifServer\View\Helper\IiifUrl
+     */
+    protected $iiifUrl;
+
+    /**
+     * @var \IiifServer\Mvc\Controller\Plugin\ImageSize
+     */
+    protected $imageSize;
+
+    /**
+     * @var \Access\Mvc\Controller\Plugin\IsAllowedMediaContent
+     */
+    protected $isAllowedMediaContent;
+
+    /**
+     * @var \Laminas\Log\Logger
+     */
+    protected $logger;
+
+    /**
+     * @var \IiifServer\View\Helper\MediaDimension
+     */
+    protected $mediaDimension;
+
+    /**
+     * @var \IiifServer\View\Helper\PublicResourceUrl
+     */
+    protected $publicResourceUrl;
+
+    /**
+     * @var \IiifServer\Mvc\Controller\Plugin\RangeToArray
+     */
+    protected $rangeToArray;
+
+    /**
+     * @var \Omeka\Settings\Settings
+     */
+    protected $settings;
+
+    /**
+     * Warning: the site id should be set.
+     *
+     * @var \Omeka\Settings\SiteSettings
+     */
+    protected $siteSettings;
+
+    /**
+     * @var \ImageServer\Mvc\Controller\Plugin\TileMediaInfo|null
+     */
+    protected $tileMediaInfo;
+
+    /**
+     * @var \Common\I18n\Translator
+     */
+    protected $translator;
+
+    /**
+     * @var \Laminas\View\Helper\Url
+     */
+    protected $urlHelper;
+
+    /**
+     * @var string
+     */
+    protected $xmlFixMode;
 
     /**
      * @var AbstractResourceEntityRepresentation
@@ -125,48 +303,61 @@ abstract class AbstractResourceType extends AbstractType
     /**
      * @var array
      */
-    protected $options;
+    protected $cache = [];
 
-    /**
-     * @var ArrayObject
-     */
-    protected $manifest;
-
-    /**
-     * @var \Omeka\View\Helper\Setting
-     */
-    protected $setting;
-
-    /**
-     * @var \Laminas\View\Helper\Url
-     */
-    protected $urlHelper;
-
-    /**
-     * @var \IiifServer\View\Helper\IiifCleanIdentifiers
-     */
-    protected $iiifCleanIdentifiers;
-
-    /**
-     * @var \IiifServer\View\Helper\IiifUrl
-     */
-    protected $iiifUrl;
-
-    /**
-     * @var \IiifServer\View\Helper\PublicResourceUrl
-     */
-    protected $publicResourceUrl;
-
-    public function __construct(AbstractResourceEntityRepresentation $resource, array $options = null)
+    public function setResource(AbstractResourceEntityRepresentation $resource): self
     {
         $this->resource = $resource;
-        $this->options = $options ?? [];
-        $viewHelpers = $resource->getServiceLocator()->get('ViewHelperManager');
-        $this->setting = $viewHelpers->get('setting');
-        $this->urlHelper = $viewHelpers->get('url');
+        $this->services = $resource->getServiceLocator();
+
+        $config = $this->services->get('Config');
+        $plugins = $this->services->get('ControllerPluginManager');
+        $viewHelpers = $this->services->get('ViewHelperManager');
+
+        $this->hasModuleAccess = $plugins->has('isAllowedMediaContent');
+        $this->hasModuleImageServer = $plugins->has('tileMediaInfo');
+
+        $this->api = $this->services->get('Omeka\ApiManager');
+        $this->defaultSite = $viewHelpers->get('defaultSite')();
+        $this->easyMeta = $this->services->get('Common\EasyMeta');
+        $this->fixUtf8 = $plugins->get('fixUtf8');
         $this->iiifCleanIdentifiers = $viewHelpers->get('iiifCleanIdentifiers');
+        $this->iiifMediaRelatedOcr = $viewHelpers->get('iiifMediaRelatedOcr');
+        $this->iiifMediaUrl = $viewHelpers->get('iiifMediaUrl');
+        $this->iiifTileInfo = $viewHelpers->get('iiifTileInfo');
+        $this->iiifTypeOfMedia = $viewHelpers->get('iiifTypeOfMedia');
         $this->iiifUrl = $viewHelpers->get('iiifUrl');
+        $this->imageSize = $plugins->get('imageSize');
+        $this->isAllowedMediaContent = $this->hasModuleAccess ? $plugins->get('isAllowedMediaContent') : null;
+        $this->logger = $this->services->get('Omeka\Logger');
+        $this->mediaDimension = $viewHelpers->get('mediaDimension');
         $this->publicResourceUrl = $viewHelpers->get('publicResourceUrl');
+        $this->rangeToArray = $plugins->get('rangeToArray');
+        $this->settings = $this->services->get('Omeka\Settings');
+        $this->siteSettings = $this->services->get('Omeka\Settings\Site');
+        $this->tileMediaInfo = $this->hasModuleImageServer ? $plugins->get('tileMediaInfo') : null;
+        $this->translator = $this->services->get('MvcTranslator');
+        // TODO Use plugin url to simplify call.
+        $this->urlHelper = $viewHelpers->get('url');
+
+        $this->basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+        $this->baseUri = $config['file_store']['local']['base_uri'] ?: (rtrim($this->urlHelper->__invoke('top', [], ['force_canonical' => true]), '/') . '/files');
+        $this->iiifImageApiVersion = $this->settings->get('iiifserver_media_api_default_version', '2');
+        $this->iiifImageApiSupportedVersions = (array) $this->settings->get('iiifserver_media_api_supported_versions', ['2/2', '3/2']);
+        $this->xmlFixMode = $this->settings->get('iiifsearch_xml_fix_mode', 'no');
+
+        return $this;
+    }
+
+    /**
+     * Get the resource used to create this part of the manifest.
+     *
+     * It avoids to do reverse engineering to determine it, in particular inside
+     * the controller or in the event iiifserver.manifest.
+     */
+    public function getResource(): AbstractResourceEntityRepresentation
+    {
+        return $this->resource;
     }
 
     public function context(): ?string
@@ -179,30 +370,5 @@ abstract class AbstractResourceType extends AbstractType
     public function id(): ?string
     {
         return null;
-    }
-
-    public function label(): ?ValueLanguage
-    {
-        $template = $this->resource->resourceTemplate();
-        if ($template && $template->titleProperty()) {
-            $values = $this->resource->value($template->titleProperty()->term(), ['all' => true]);
-            if (empty($values)) {
-                $values = $this->resource->value('dcterms:title', ['all' => true]);
-            }
-        } else {
-            $values = $this->resource->value('dcterms:title', ['all' => true]);
-        }
-        return new ValueLanguage($values, false, '[Untitled]');
-    }
-
-    /**
-     * Get the resource used to create this part of the manifest.
-     *
-     * It avoids to do reverse engineering to determine it, in particular inside
-     * the controller or in the event iiifserver.manifest.
-     */
-    public function resource(): AbstractResourceEntityRepresentation
-    {
-        return $this->resource;
     }
 }

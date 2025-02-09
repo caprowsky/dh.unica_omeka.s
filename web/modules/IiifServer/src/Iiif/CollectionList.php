@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -29,6 +29,7 @@
 
 namespace IiifServer\Iiif;
 
+use Laminas\ServiceManager\ServiceLocatorInterface;
 use Omeka\Api\Representation\ItemRepresentation;
 use Omeka\Api\Representation\ItemSetRepresentation;
 
@@ -43,7 +44,7 @@ class CollectionList extends AbstractType
 {
     protected $type = 'Collection';
 
-    protected $keys = [
+    protected $propertyRequirements = [
         '@context' => self::REQUIRED,
 
         'id' => self::REQUIRED,
@@ -111,61 +112,26 @@ class CollectionList extends AbstractType
     ];
 
     /**
-     * @var \Omeka\Api\Representation\AbstractResourceEntityRepresentation[]
+     * @var \IiifServer\View\Helper\IiifUrl
+     */
+    protected $iiifUrl;
+
+    /**
+     * @var \Omeka\Api\Representation\AbstractResourceEntityRepresentation[]|string[]
      */
     protected $resources;
 
-    /**
-     * @var array
-     */
-    protected $options;
-
-    /**
-     * @var \Omeka\View\Helper\Api
-     */
-    protected $api;
-
-    /**
-     * @var \Omeka\View\Helper\Setting
-     */
-    protected $setting;
-
-    /**
-     * @var \Laminas\View\Helper\Url
-     */
-    protected $urlHelper;
-
-    /**
-     * @var \IiifServer\View\Helper\IiifCleanIdentifiers
-     */
-    protected $IiifCleanIdentifiers;
-
-    /**
-     * @var \IiifServer\View\Helper\IiifUrl
-     */
-    protected $IiifUrl;
-
-    /**
-     * @var \IiifServer\View\Helper\PublicResourceUrl
-     */
-    protected $publicResourceUrl;
-
-    public function __construct(array $resources = null, array $options = null)
-    {
-        $this->resources = $resources;
-        $this->options = $options;
-    }
-
-    public function setServiceLocator($services): AbstractType
+    public function setServiceLocator(ServiceLocatorInterface $services): self
     {
         $this->services = $services;
-        $viewHelpers = $services->get('ViewHelperManager');
-        $this->api = $viewHelpers->get('api');
-        $this->setting = $viewHelpers->get('setting');
-        $this->urlHelper = $viewHelpers->get('url');
-        $this->iiifCleanIdentifiers = $viewHelpers->get('iiifCleanIdentifiers');
+        $viewHelpers = $this->services->get('ViewHelperManager');
         $this->iiifUrl = $viewHelpers->get('iiifUrl');
-        $this->publicResourceUrl = $viewHelpers->get('publicResourceUrl');
+        return $this;
+    }
+
+    public function setResources(array $resources): self
+    {
+        $this->resources = $resources;
         return $this;
     }
 
@@ -179,10 +145,10 @@ class CollectionList extends AbstractType
         return $this->options['iiif_url'] ?? $this->iiifUrl->__invoke($this->resources, 'iiifserver/set', '3');
     }
 
-    public function label(): ?ValueLanguage
+    public function label(): ?array
     {
         $values = ['none' => ['Collection list']];
-        return new ValueLanguage($values);
+        return ValueLanguage::output($values);
     }
 
     public function items(): array
@@ -191,9 +157,13 @@ class CollectionList extends AbstractType
         foreach ($this->resources as $resource) {
             if (is_object($resource)) {
                 if ($resource instanceof ItemRepresentation) {
-                    $items[] = new ReferencedManifest($resource);
+                    $referenced = new ReferencedManifest();
+                    $referenced->setResource($resource);
+                    $items[] = $referenced;
                 } elseif ($resource instanceof ItemSetRepresentation) {
-                    $items[] = new ReferencedCollection($resource);
+                    $referenced = new ReferencedCollection();
+                    $referenced->setResource($resource);
+                    $items[] = $referenced;
                 }
             } else {
                 $protocol = substr((string) $resource, 0, 7);
@@ -202,7 +172,7 @@ class CollectionList extends AbstractType
                     $items[] = [
                         'id' => $resource,
                         'type' => 'Manifest',
-                        'label' => new ValueLanguage('[Untitled]', false),
+                        'label' => ValueLanguage::output('[Untitled]', false),
                     ];
                 }
             }
@@ -210,19 +180,18 @@ class CollectionList extends AbstractType
         return $items;
     }
 
-    protected function getCleanContent(): array
+    /**
+     * For collection items, that may be empty after a search.
+     *
+     * {@inheritDoc}
+     * @see \IiifServer\Iiif\AbstractType::filterContentFilled()
+     */
+    protected function filterContentFilled($v, $k): bool
     {
-        return $this->content = array_filter($this->getContent()->getArrayCopy(), function ($v, $k) {
-            if ($k === 'items') {
-                return true;
-            }
-            if ($v instanceof \ArrayObject) {
-                return (bool) $v->count();
-            }
-            if ($v instanceof \JsonSerializable) {
-                return (bool) $v->jsonSerialize();
-            }
-            return !empty($v);
-        }, ARRAY_FILTER_USE_BOTH);
+        // Any array, string, numeric, boolean, object, etc. is filled.
+        return $k === 'items'
+            || $v === '0'
+            || is_bool($v)
+            || !empty($v);
     }
 }

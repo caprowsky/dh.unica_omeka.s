@@ -5,8 +5,10 @@ namespace BulkImport;
 return [
     'service_manager' => [
         'factories' => [
-            Processor\Manager::class => Service\Plugin\PluginManagerFactory::class,
-            Reader\Manager::class => Service\Plugin\PluginManagerFactory::class,
+            'Bulk\MetaMapper' => Service\Stdlib\MetaMapperFactory::class,
+            'Bulk\MetaMapperConfig' => Service\Stdlib\MetaMapperConfigFactory::class,
+            Processor\Manager::class => Service\PluginManagerFactory::class,
+            Reader\Manager::class => Service\PluginManagerFactory::class,
         ],
     ],
     'entity_manager' => [
@@ -43,6 +45,7 @@ return [
             Controller\Admin\ImportController::class => 'bulk/admin/import',
             Controller\Admin\ImporterController::class => 'bulk/admin/importer',
             Controller\Admin\MappingController::class => 'bulk/admin/mapping',
+            Controller\Admin\UploadController::class => 'bulk/admin/upload',
         ],
         'strategies' => [
             'ViewJsonStrategy',
@@ -53,12 +56,16 @@ return [
             // Copy from AdvancedResourceTemplate. Copy in BulkExport, BulkEdit and BulkImport. Used in Contribute.
             'customVocabBaseType' => Service\ViewHelper\CustomVocabBaseTypeFactory::class,
         ],
+        'delegators' => [
+            'Laminas\Form\View\Helper\FormElement' => [
+                Service\Delegator\FormElementDelegatorFactory::class,
+            ],
+        ],
     ],
     // TODO Merge the forms.
     'form_elements' => [
         'invokables' => [
             Form\Element\ArrayText::class => Form\Element\ArrayText::class,
-            Form\Element\Note::class => Form\Element\Note::class,
             Form\Element\OptionalMultiCheckbox::class => Form\Element\OptionalMultiCheckbox::class,
             Form\Element\OptionalRadio::class => Form\Element\OptionalRadio::class,
             Form\Element\OptionalSelect::class => Form\Element\OptionalSelect::class,
@@ -69,9 +76,11 @@ return [
         ],
         'factories' => [
             Form\ConfigForm::class => \Omeka\Form\Factory\InvokableFactory::class,
+            Form\ImporterConfirmForm::class => Service\Form\FormFactory::class,
             Form\ImporterDeleteForm::class => Service\Form\FormFactory::class,
             Form\ImporterForm::class => Service\Form\FormFactory::class,
-            Form\ImporterStartForm::class => Service\Form\FormFactory::class,
+            Form\Processor\AssetProcessorConfigForm::class => Service\Form\FormFactory::class,
+            Form\Processor\AssetProcessorParamsForm::class => Service\Form\FormFactory::class,
             Form\Processor\EprintsProcessorConfigForm::class => Service\Form\FormFactory::class,
             Form\Processor\EprintsProcessorParamsForm::class => Service\Form\FormFactory::class,
             Form\Processor\ItemProcessorConfigForm::class => Service\Form\FormFactory::class,
@@ -119,14 +128,79 @@ return [
         'factories' => [
             'automapFields' => Service\ControllerPlugin\AutomapFieldsFactory::class,
             'bulk' => Service\ControllerPlugin\BulkFactory::class,
+            'diffResources' => Service\ControllerPlugin\DiffResourcesFactory::class,
             'extractDataFromPdf' => Service\ControllerPlugin\ExtractDataFromPdfFactory::class,
+            'extractMediaMetadata' => Service\ControllerPlugin\ExtractMediaMetadataFactory::class,
             Mvc\Controller\Plugin\FindResourcesFromIdentifiers::class => Service\ControllerPlugin\FindResourcesFromIdentifiersFactory::class,
             'processXslt' => Service\ControllerPlugin\ProcessXsltFactory::class,
-            'transformSource' => Service\ControllerPlugin\TransformSourceFactory::class,
+            'updateResourceProperties' => Service\ControllerPlugin\UpdateResourcePropertiesFactory::class,
         ],
         'aliases' => [
             'findResourcesFromIdentifiers' => Mvc\Controller\Plugin\FindResourcesFromIdentifiers::class,
             'findResourceFromIdentifier' => Mvc\Controller\Plugin\FindResourcesFromIdentifiers::class,
+        ],
+    ],
+    'router' => [
+        'routes' => [
+            'admin' => [
+                'child_routes' => [
+                    'bulk' => [
+                        'type' => \Laminas\Router\Http\Literal::class,
+                        'options' => [
+                            'route' => '/bulk',
+                            'defaults' => [
+                                '__NAMESPACE__' => 'BulkImport\Controller\Admin',
+                                '__ADMIN__' => true,
+                                'controller' => 'BulkImport',
+                                'action' => 'index',
+                            ],
+                        ],
+                        'may_terminate' => true,
+                        'child_routes' => [
+                            'default' => [
+                                'type' => \Laminas\Router\Http\Segment::class,
+                                'options' => [
+                                    'route' => '/:controller[/:action]',
+                                    'constraints' => [
+                                        'controller' => 'bulk-import|importer|import|mapping',
+                                        'action' => '[a-zA-Z][a-zA-Z0-9_-]*',
+                                    ],
+                                    'defaults' => [
+                                        'action' => 'browse',
+                                    ],
+                                ],
+                            ],
+                            'id' => [
+                                'type' => \Laminas\Router\Http\Segment::class,
+                                'options' => [
+                                    'route' => '/:controller/:id[/:action]',
+                                    'constraints' => [
+                                        'controller' => 'bulk-import|importer|import|mapping',
+                                        'action' => '[a-zA-Z][a-zA-Z0-9_-]*',
+                                        'id' => '\d+',
+                                    ],
+                                    'defaults' => [
+                                        'action' => 'show',
+                                    ],
+                                ],
+                            ],
+                            'upload' => [
+                                'type' => \Laminas\Router\Http\Segment::class,
+                                'options' => [
+                                    'route' => '/upload[/:action]',
+                                    'constraints' => [
+                                        'action' => 'index|files',
+                                    ],
+                                    'defaults' => [
+                                        'controller' => 'Upload',
+                                        'action' => 'index',
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
         ],
     ],
     'navigation' => [
@@ -139,7 +213,7 @@ return [
                 'class' => 'o-icon- fa-cloud-upload-alt',
                 'pages' => [
                     [
-                        'label' => 'Dashboard', // @translate
+                        'label' => 'Import', // @translate
                         'route' => 'admin/bulk/default',
                         'controller' => 'bulk-import',
                         'resource' => 'BulkImport\Controller\Admin\BulkImport',
@@ -168,6 +242,14 @@ return [
                                 'visible' => false,
                             ],
                         ],
+                    ],
+                    [
+                        // Not "Upload" because translation is not good here.
+                        'label' => 'Upload files', // @translate
+                        'route' => 'admin/bulk/upload',
+                        'controller' => 'Upload',
+                        'action' => 'files',
+                        'resource' => 'BulkImport\Controller\Admin\Upload',
                     ],
                     [
                         'label' => 'Configuration', // @translate
@@ -246,66 +328,6 @@ return [
             ],
         ],
     ],
-    'router' => [
-        'routes' => [
-            'admin' => [
-                'child_routes' => [
-                    'bulk' => [
-                        'type' => \Laminas\Router\Http\Literal::class,
-                        'options' => [
-                            'route' => '/bulk',
-                            'defaults' => [
-                                '__NAMESPACE__' => 'BulkImport\Controller\Admin',
-                                '__ADMIN__' => true,
-                                'controller' => 'BulkImport',
-                                'action' => 'index',
-                            ],
-                        ],
-                        'may_terminate' => true,
-                        'child_routes' => [
-                            'default' => [
-                                'type' => \Laminas\Router\Http\Segment::class,
-                                'options' => [
-                                    'route' => '/:controller[/:action]',
-                                    'constraints' => [
-                                        'controller' => '[a-zA-Z][a-zA-Z0-9_-]*',
-                                        'action' => '[a-zA-Z][a-zA-Z0-9_-]*',
-                                    ],
-                                    'defaults' => [
-                                        'action' => 'browse',
-                                    ],
-                                ],
-                            ],
-                            'id' => [
-                                'type' => \Laminas\Router\Http\Segment::class,
-                                'options' => [
-                                    'route' => '/:controller/:id[/:action]',
-                                    'constraints' => [
-                                        'controller' => '[a-zA-Z][a-zA-Z0-9_-]*',
-                                        'action' => '[a-zA-Z][a-zA-Z0-9_-]*',
-                                        'id' => '\d+',
-                                    ],
-                                    'defaults' => [
-                                        'action' => 'show',
-                                    ],
-                                ],
-                            ],
-                            'upload' => [
-                                'type' => \Laminas\Router\Http\Literal::class,
-                                'options' => [
-                                    'route' => '/upload',
-                                    'defaults' => [
-                                        'controller' => 'Upload',
-                                        'action' => 'index',
-                                    ],
-                                ],
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-        ],
-    ],
     'translator' => [
         'translation_file_patterns' => [
             [
@@ -324,20 +346,24 @@ return [
             'bulkimport_allow_empty_files' => false,
         ],
         'settings' => [
+            'bulkimport_extract_metadata' => false,
+            'bulkimport_extract_metadata_log' => false,
             'bulkimport_convert_html' => [],
         ],
     ],
     'bulk_import' => [
+        // Ordered by most common.
         'readers' => [
             Reader\JsonReader::class => Reader\JsonReader::class,
-            Reader\ContentDmReader::class => Reader\ContentDmReader::class,
-            Reader\OmekaSReader::class => Reader\OmekaSReader::class,
             Reader\SqlReader::class => Reader\SqlReader::class,
             Reader\XmlReader::class => Reader\XmlReader::class,
             Reader\SpreadsheetReader::class => Reader\SpreadsheetReader::class,
             Reader\CsvReader::class => Reader\CsvReader::class,
             Reader\TsvReader::class => Reader\TsvReader::class,
             Reader\OpenDocumentSpreadsheetReader::class => Reader\OpenDocumentSpreadsheetReader::class,
+            // TODO Deprecated these reader and create pofiles for json/sql/xml/spreadsheet readers.
+            Reader\ContentDmReader::class => Reader\ContentDmReader::class,
+            Reader\OmekaSReader::class => Reader\OmekaSReader::class,
             Reader\FakeReader::class => Reader\FakeReader::class,
         ],
         'processors' => [
@@ -345,6 +371,8 @@ return [
             Processor\ItemSetProcessor::class => Processor\ItemSetProcessor::class,
             Processor\MediaProcessor::class => Processor\MediaProcessor::class,
             Processor\ResourceProcessor::class => Processor\ResourceProcessor::class,
+            Processor\AssetProcessor::class => Processor\AssetProcessor::class,
+            // TODO Deprecated these processors and create meta-processor.
             Processor\EprintsProcessor::class => Processor\EprintsProcessor::class,
             Processor\ManiocProcessor::class => Processor\ManiocProcessor::class,
             Processor\OmekaSProcessor::class => Processor\OmekaSProcessor::class,

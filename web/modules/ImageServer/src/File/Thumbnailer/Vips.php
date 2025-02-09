@@ -43,7 +43,7 @@ class Vips extends AbstractThumbnailer
         $this->tempFileFactory = $tempFileFactory;
     }
 
-    public function setOptions(array $options)
+    public function setOptions(array $options): void
     {
         parent::setOptions($options);
         if (is_null($this->vipsPath)) {
@@ -64,6 +64,8 @@ class Vips extends AbstractThumbnailer
         $origPath = $this->source;
 
         // Available parameters on load.
+        // Special params on source file are managed via ImageMagick: page,
+        // density, background.
         $mediaType = $this->sourceFile->getMediaType();
         $supportPages = [
             'application/pdf',
@@ -78,7 +80,6 @@ class Vips extends AbstractThumbnailer
         $supportBackground = [
             'application/pdf',
         ];
-        // Other via magick: page, density.
         $loadOptions = [];
         if (in_array($mediaType, $supportPages)) {
             $page = (int) $this->getOption('page', 0);
@@ -88,12 +89,13 @@ class Vips extends AbstractThumbnailer
             $loadOptions[] = 'dpi=150';
         }
         if (in_array($mediaType, $supportBackground)) {
-            $loadOptions[] = 'background=255 255 255';
+            $loadOptions[] = 'background=255 255 255 255';
         }
         if (count($loadOptions)) {
             $origPath .= '[' . implode(',', $loadOptions) . ']';
         }
 
+        // Params on destination are managed via vips.
         if ($strategy === 'square') {
             $vipsCrop = [
                 // "none" does not crop (default).

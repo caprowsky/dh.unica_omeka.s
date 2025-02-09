@@ -1,4 +1,5 @@
 <?php declare(strict_types=1);
+
 namespace BulkImport\Traits;
 
 use Laminas\ServiceManager\ServiceLocatorInterface;
@@ -26,7 +27,7 @@ trait ServiceLocatorAwareTrait
      * @param ServiceLocatorInterface $services
      * @return self
      */
-    public function setServiceLocator(ServiceLocatorInterface $services)
+    public function setServiceLocator(ServiceLocatorInterface $services): self
     {
         $this->services = $services;
         return $this;

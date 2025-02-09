@@ -6,6 +6,8 @@ use BulkImport\Form\Processor\ManiocProcessorConfigForm;
 use BulkImport\Form\Processor\ManiocProcessorParamsForm;
 
 /**
+ * @deprecated Use standard processors.
+ *
  * FIXME Some sql queries apply on all the database: limit them to the item mapping.
  * TODO Remove hard coded data (templates).
  *
@@ -458,7 +460,7 @@ class ManiocProcessor extends AbstractFullProcessor
 
         // @see \Omeka\File\TempFile::getStorageId()
         $storageId = $this->entity->getId() . '/' . $filenameBase;
-        $result = $this->fetchUrl('original', $greenstoneFilename, $greenstoneFilename, $storageId, $extension, $url);
+        $result = $this->fetchFile('original', $greenstoneFilename, $greenstoneFilename, $storageId, $extension, $url);
         if ($result['status'] !== 'success') {
             $this->logger->err($result['message']);
             if (!empty($this->filenamesToSha256[$greenstoneFilename])) {

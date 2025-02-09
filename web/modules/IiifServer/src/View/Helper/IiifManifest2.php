@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2022 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  * Copyright 2016-2017 BibLibre
  *
  * This software is governed by the CeCILL license under French law and abiding
@@ -30,19 +30,23 @@
 
 namespace IiifServer\View\Helper;
 
+use IiifServer\Iiif\TraitDescriptiveRights;
+use IiifServer\Iiif\TraitStructuralStructures;
 use Laminas\View\Helper\AbstractHelper;
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Api\Representation\AssetRepresentation;
 use Omeka\Api\Representation\ItemRepresentation;
 use Omeka\Api\Representation\MediaRepresentation;
 use Omeka\File\TempFileFactory;
+use Omeka\Settings\Settings;
 
 /**
- * @todo Remove casting with "(object)", that was used because the json encoding converts array into object or array.
+ * The casting to (object) that was used because the json encoding converts array into object or array, was removed.
  */
 class IiifManifest2 extends AbstractHelper
 {
-    use \IiifServer\Iiif\TraitRights;
+    use TraitDescriptiveRights;
+    use TraitStructuralStructures;
 
     /**
      * @var int
@@ -50,7 +54,22 @@ class IiifManifest2 extends AbstractHelper
     protected $defaultHeight = 400;
 
     /**
-     * @var TempFileFactory
+     * @var \IiifServer\View\Helper\RangeToArray
+     */
+    protected $rangeToArray;
+
+    /**
+     * @var \Omeka\View\Helper\Setting
+     */
+    protected $setting;
+
+    /**
+     * @var \Omeka\Settings\Settings
+     */
+    protected $settings;
+
+    /**
+     * @var \Omeka\File\TempFileFactory
      */
     protected $tempFileFactory;
 
@@ -62,22 +81,26 @@ class IiifManifest2 extends AbstractHelper
     protected $basePath;
 
     /**
-     * @var \Omeka\View\Helper\Setting
+     * @var string
      */
-    protected $setting;
+    protected $baseUrlFiles;
 
     /**
      * @var string
      */
-    protected $_baseUrl;
+    protected $baseUrlIiif;
 
     /**
-     * @var string
+     * @var \Omeka\Api\Representation\AbstractResourceEntityRepresentation
      */
-    protected $_baseUrlImageServer;
+    protected $resource;
 
-    public function __construct(TempFileFactory $tempFileFactory, $basePath)
-    {
+    public function __construct(
+        Settings $settings,
+        TempFileFactory $tempFileFactory,
+        ?string $basePath
+    ) {
+        $this->settings = $settings;
         $this->tempFileFactory = $tempFileFactory;
         $this->basePath = $basePath;
     }
@@ -90,6 +113,8 @@ class IiifManifest2 extends AbstractHelper
      */
     public function __invoke(AbstractResourceEntityRepresentation $resource)
     {
+        $this->resource = $resource;
+
         $resourceName = $resource->resourceName();
         if ($resourceName == 'items') {
             return $this->buildManifestItem($resource);
@@ -111,46 +136,64 @@ class IiifManifest2 extends AbstractHelper
      *
      * @param ItemRepresentation $item
      * @return Object|null. The object corresponding to the manifest.
+     *
+     * @see https://iiif.io/api/presentation/2.1/
      */
     protected function buildManifestItem(ItemRepresentation $item)
     {
         // Prepare values needed for the manifest. Empty values will be removed.
         // Some are required.
         $manifest = [
+            // Metadata about this manifest file.
             '@context' => '',
             '@id' => '',
             '@type' => 'sc:Manifest',
+
+            // Descriptive metadata about the object/work.
             'label' => '',
+            'metadata' => [],
             'description' => '',
             'thumbnail' => '',
+
+            // Presentation information.
+            'viewingDirection' => '',
+            'viewingHint' => '',
+
+            // Rights Information.
             'license' => '',
             'attribution' => '',
             // A logo to add at the end of the information panel.
             'logo' => '',
-            'service' => [],
+
+            // Links.
             // For example the web page of the item.
-            'related' => '',
+            'related' => [],
+            'service' => [],
             // Other formats of the same data.
-            'seeAlso' => '',
+            'seeAlso' => [],
+            'rendering' => [],
             'within' => '',
-            'metadata' => [],
-            'mediaSequences' => [],
+
+            // List of sequences.
             'sequences' => [],
+            'mediaSequences' => [],
         ];
 
         $manifest['@id'] = $this->view->iiifUrl($item, 'iiifserver/manifest', '2');
 
-        // Required for TraitRights.
-        $helpers = $this->getView()->getHelperPluginManager();
+        // Required for TraitDescriptiveRights and to avoid to load setting each time.
+        $helpers = $this->view->getHelperPluginManager();
         $this->setting = $helpers->get('setting');
 
+        // The base url of files is used for derivative files.
+        $this->baseUrlFiles = $this->view->serverUrl($this->view->basePath('/files'));
+
         // The base url for some other ids to quick process.
-        $this->_baseUrl = $this->view->iiifUrl($item, 'iiifserver/uri', '2', [
+        $this->baseUrlIiif = $this->view->iiifUrl($item, 'iiifserver/uri', '2', [
             'type' => 'annotation-page',
             'name' => '',
         ]);
-        $this->_baseUrl = mb_substr($this->_baseUrl, 0, (int) mb_strpos($this->_baseUrl, '/annotation-page'));
-        $this->_baseUrlImageServer = rtrim($this->view->setting('iiifserver_media_api_url'), '/ ') ?: $this->_baseUrl;
+        $this->baseUrlIiif = mb_substr($this->baseUrlIiif, 0, (int) mb_strpos($this->baseUrlIiif, '/annotation-page'));
 
         $metadata = $this->iiifMetadata($item);
         $manifest['metadata'] = $metadata;
@@ -160,31 +203,39 @@ class IiifManifest2 extends AbstractHelper
         $label = html_entity_decode($label, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5);
         $manifest['label'] = $label;
 
-        $descriptionProperty = $this->view->setting('iiifserver_manifest_description_property');
+        $descriptionProperty = $this->setting->__invoke('iiifserver_manifest_summary_property');
         if ($descriptionProperty) {
-            $description = strip_tags((string) $item->value($descriptionProperty, ['type' => 'literal', 'default' => '']));
+            $description = $descriptionProperty === 'template'
+                ? strip_tags((string) $item->displayDescription())
+                : strip_tags((string) $item->value($descriptionProperty, ['default' => '']));
         } else {
             $description = '';
         }
         $manifest['description'] = $description;
 
+        // A license url is not a requirement in v2.1, but a recommandation.
         $license = $this->rightsResource($item);
-        if ($license) {
-            $manifest['license'] = $license;
-        }
+        $isLicenseUrl = $license
+            && (substr($license, 0, 8) === 'https://' || substr($license, 0, 7) === 'http://');
 
-        $attributionProperty = $this->view->setting('iiifserver_manifest_attribution_property');
+        $attributionProperty = $this->setting->__invoke('iiifserver_manifest_attribution_property');
         if ($attributionProperty) {
-            $attribution = strip_tags((string) $item->value($attributionProperty, ['type' => 'literal', 'default' => '']));
+            $attribution = strip_tags((string) $item->value($attributionProperty, ['default' => '']));
         }
         if (empty($attribution)) {
-            $attribution = $this->view->setting('iiifserver_manifest_attribution_default');
+            $attribution = $isLicenseUrl || empty($license)
+                ? $this->setting->__invoke('iiifserver_manifest_attribution_default')
+                : $license;
         }
         $manifest['attribution'] = $attribution;
 
-        $logo = $this->view->setting('iiifserver_manifest_logo_default');
+        if ($license && $attribution !== $license) {
+            $manifest['license'] = $license;
+        }
+
+        $logo = $this->setting->__invoke('iiifserver_manifest_logo_default');
         if ($logo) {
-            $manifest['logo'] = (object) ['@id' => $logo];
+            $manifest['logo'] = ['@id' => $logo];
         }
 
         /*
@@ -295,6 +346,36 @@ class IiifManifest2 extends AbstractHelper
         // Thumbnail of the whole work.
         $manifest['thumbnail'] = $this->_mainThumbnail($item, $is3dModel);
 
+        // The viewing direction and hint can be set in manifest and sequence.
+        $viewingDirectionProperty = $this->setting->__invoke('iiifserver_manifest_viewing_direction_property');
+        if ($viewingDirectionProperty) {
+            $viewingDirection = strip_tags((string) $item->value($viewingDirectionProperty));
+        }
+        if (empty($viewingDirection)) {
+            $viewingDirection = $this->setting->__invoke('iiifserver_manifest_viewing_direction_default');
+        }
+        if (in_array($viewingDirection, ['left-to-right', 'right-to-left', 'top-to-bottom', 'bottom-to-top'])) {
+            $manifest['viewingDirection'] = $viewingDirection;
+        }
+
+        $allowedViewingHintManifest = ['individuals', 'paged', 'continuous'];
+        $viewingHintProperty = $this->setting->__invoke('iiifserver_manifest_behavior_property');
+        if ($viewingHintProperty) {
+            $viewingHint = strip_tags((string) $item->value($viewingHintProperty));
+        }
+        if (empty($viewingHint)) {
+            $viewingHint = $this->setting->__invoke('iiifserver_manifest_behavior_default', []);
+            if (in_array('none', $viewingHint)) {
+                $viewingHint = 'none';
+            } else {
+                $viewingHint = array_intersect($viewingHint, $allowedViewingHintManifest);
+                $viewingHint = reset($viewingHint) ?: 'none';
+            }
+        }
+        if (in_array($viewingHint, $allowedViewingHintManifest)) {
+            $manifest['viewingHint'] = $viewingHint;
+        }
+
         // Process images, except if they belong to a 3D model.
         if (!$is3dModel) {
             $imageNumber = 0;
@@ -304,9 +385,7 @@ class IiifManifest2 extends AbstractHelper
                 // TODO Add other content.
                 /*
                 $otherContent = [];
-                $otherContent = (object) $otherContent;
-
-                $canvas->otherContent = $otherContent;
+                $canvas['otherContent'] = $otherContent;
                 */
 
                 $canvases[] = $canvas;
@@ -339,16 +418,31 @@ class IiifManifest2 extends AbstractHelper
                         $render['@id'] = $media->originalUrl();
                         $render['format'] = $mediaType;
                         $render['label'] = $translate('Download as PDF'); // @translate
-                        $render = (object) $render;
                         $rendering[] = $render;
                         break;
 
+                    case 'application/xml':
                     case 'text/xml':
                         $render = [];
                         $render['@id'] = $media->originalUrl();
                         $render['format'] = $mediaType;
                         $render['label'] = $translate('Download as XML'); // @translate
-                        $render = (object) $render;
+                        $rendering[] = $render;
+                        break;
+
+                    case 'application/alto+xml':
+                        $render = [];
+                        $render['@id'] = $media->originalUrl();
+                        $render['format'] = $mediaType;
+                        $render['label'] = $translate('Download as ALTO XML'); // @translate
+                        $rendering[] = $render;
+                        break;
+
+                    case 'text/plain':
+                        $render = [];
+                        $render['@id'] = $media->originalUrl();
+                        $render['format'] = $mediaType;
+                        $render['label'] = $translate('Download as text'); // @translate
                         $rendering[] = $render;
                         break;
                 }
@@ -430,60 +524,43 @@ class IiifManifest2 extends AbstractHelper
         // Manage the exception: the media sequence with threejs 3D model.
         if ($is3dModel && $mediaSequencesElements) {
             $mediaSequence = [];
-            $mediaSequence['@id'] = $this->_baseUrl . '/sequence/s0';
+            $mediaSequence['@id'] = $this->baseUrlIiif . '/sequence/s0';
             $mediaSequence['@type'] = 'ixif:MediaSequence';
             $mediaSequence['label'] = 'XSequence 0';
             $mediaSequence['elements'] = $mediaSequencesElements;
-            $mediaSequence = (object) $mediaSequence;
             $mediaSequences[] = $mediaSequence;
         }
         // When there are images.
         elseif ($totalImages) {
             $sequence = [];
-            $sequence['@id'] = $this->_baseUrl . '/sequence/normal';
+            $sequence['@id'] = $this->baseUrlIiif . '/sequence/normal';
             $sequence['@type'] = 'sc:Sequence';
             $sequence['label'] = 'Current Page Order';
 
-            $viewingDirectionProperty = $this->view->setting('iiifserver_manifest_viewing_direction_property');
-            if ($viewingDirectionProperty) {
-                $viewingDirection = strip_tags((string) $item->value($viewingDirectionProperty));
-            }
-            if (empty($viewingDirection)) {
-                $viewingDirection = $this->view->setting('iiifserver_manifest_viewing_direction_default');
-            }
-            if (in_array($viewingDirection, ['left-to-right', 'right-to-left', 'top-to-bottom', 'bottom-to-top'])) {
+            // The viewing direction and hint can be set in manifest and sequence.
+            // Manifest and sequence follow the same rules, so just copy it,
+            // even if it is useless when they are the same.
+            if (!empty($manifest['viewingDirection'])) {
                 $sequence['viewingDirection'] = $viewingDirection;
             }
-
-            $viewingHintProperty = $this->view->setting('iiifserver_manifest_behavior_property');
-            if ($viewingHintProperty) {
-                $viewingHint = strip_tags((string) $item->value($viewingHintProperty));
-            }
-            if (empty($viewingHint)) {
-                $viewingHint = $this->view->setting('iiifserver_manifest_behavior_default', []);
-                $viewingHint = in_array('none', $viewingHint) ? 'none' : reset($viewingHint);
-            }
-            if ($viewingHint !== 'none') {
-                $sequence['viewingHint'] = $totalImages > 1 ? $viewingHint : 'non-paged';
+            if (!empty($manifest['viewingHint'])) {
+                $sequence['viewingHint'] = $viewingHint;
             }
 
             if ($rendering) {
                 $sequence['rendering'] = $rendering;
             }
             $sequence['canvases'] = $canvases;
-            $sequence = (object) $sequence;
-
             $sequences[] = $sequence;
         }
 
         // Sequences when there is no image (special content).
         elseif ($mediaSequencesElements) {
             $mediaSequence = [];
-            $mediaSequence['@id'] = $this->_baseUrl . '/sequence/s0';
+            $mediaSequence['@id'] = $this->baseUrlIiif . '/sequence/s0';
             $mediaSequence['@type'] = 'ixif:MediaSequence';
             $mediaSequence['label'] = 'XSequence 0';
             $mediaSequence['elements'] = $mediaSequencesElements;
-            $mediaSequence = (object) $mediaSequence;
             $mediaSequences[] = $mediaSequence;
 
             // Add a sequence in case of the media cannot be read.
@@ -501,7 +578,6 @@ class IiifManifest2 extends AbstractHelper
                 $render['@id'] = $this->view->assetUrl($placeholder, 'IiifServer');
                 $render['format'] = 'image/jpeg';
                 $render['label'] = $translate('Unsupported content.'); // @translate
-                $render = (object) $render;
                 $rendering[] = $render;
             }
             */
@@ -518,13 +594,35 @@ class IiifManifest2 extends AbstractHelper
             $manifest['sequences'] = $sequences;
         }
 
-        $stProperty = $this->view->setting('iiifserver_manifest_structures_property');
-        if ($stProperty) {
-            $literalStructure = (string) $item->value($stProperty, ['type' => 'literal', 'default' => '']);
+        // TODO Flat structure is currently not skipped in iiif v2.
+        // $appendFlatStructure = !$this->setting->__invoke('iiifserver_manifest_structures_skip_flat');
+        $structureProperty = $this->setting->__invoke('iiifserver_manifest_structures_property');
+
+        if ($structureProperty) {
+            // Only the first sequence is used in iiif v2.
+            $literalStructure = (string) $item->value($structureProperty);
             if ($literalStructure) {
-                $structures = $this->extractStructure($literalStructure, $canvases);
-                if (count($structures) > 0) {
-                    $manifest['structures'] = $structures;
+                // Check if a structure is stored as xml or toc code.
+                // Json is currently unsupported.
+                $toc = $this->extractStructure($literalStructure);
+                if (!empty($toc)) {
+                    $this->rangeToArray = $this->view->plugin('rangeToArray');
+                    $indexMedias = [];
+                    foreach ($canvases as $index => $sequenceCanvas) {
+                        $id = $sequenceCanvas['images'][0]['resource']['service']['@id']
+                            ?? $sequenceCanvas['images'][0]['resource']['service']['id']
+                            ?? null;
+                        if ($id) {
+                            // The basename of the service id is the media id.
+                            $indexView = $index + 1;
+                            $indexMedias[$indexView] = (int) basename($id);
+                        }
+                    }
+                    $ranges = $this->finalizeToc($toc, $indexMedias);
+                    $structure = $this->convertStructure($ranges, $indexMedias, $canvases);
+                    if (count($structure) > 0) {
+                        $manifest['structures'] = $structure;
+                    }
                 }
             }
         }
@@ -560,7 +658,7 @@ class IiifManifest2 extends AbstractHelper
         // Remove all empty values (there is no "0" or "null" at first level).
         $manifest = array_filter($manifest);
 
-        return (object) $manifest;
+        return $manifest;
     }
 
     /**
@@ -605,8 +703,8 @@ class IiifManifest2 extends AbstractHelper
 
         $blacklist = $settingHelper($map[$jsonLdType]['blacklist'], []);
 
-        if ($this->view->setting('iiifserver_manifest_structures_property')) {
-            $blacklist[] = $this->view->setting('iiifserver_manifest_structures_property');
+        if ($settingHelper('iiifserver_manifest_structures_property')) {
+            $blacklist[] = $settingHelper('iiifserver_manifest_structures_property');
         }
 
         if ($blacklist) {
@@ -619,7 +717,7 @@ class IiifManifest2 extends AbstractHelper
 
         // TODO Remove automatically special properties, and only for values that are used (check complex conditions…).
 
-        return $this->view->setting('iiifserver_manifest_html_descriptive')
+        return $settingHelper('iiifserver_manifest_html_descriptive')
             ? $this->valuesAsHtml($values)
             : $this->valuesAsPlainText($values);
     }
@@ -639,12 +737,12 @@ class IiifManifest2 extends AbstractHelper
             $valueMetadata['label'] = $propertyData['alternate_label'] ?: $propertyData['property']->label();
             $valueValues = array_filter(array_map(function ($v) use ($publicResourceUrl) {
                 $vr = null;
-                return strpos($v->type(), 'resource') === 0 && $vr = $v->valueResource()
+                return strpos($v->type(), 'resource') === 0 && ($vr = $v->valueResource())
                     ? $publicResourceUrl($vr, true)
                     : (string) $v;
             }, $propertyData['values']), 'strlen');
             $valueMetadata['value'] = count($valueValues) <= 1 ? reset($valueValues) : $valueValues;
-            $metadata[] = (object) $valueMetadata;
+            $metadata[] = $valueMetadata;
         }
         return $metadata;
     }
@@ -663,7 +761,7 @@ class IiifManifest2 extends AbstractHelper
             $valueMetadata = [];
             $valueMetadata['label'] = $propertyData['alternate_label'] ?: $propertyData['property']->label();
             $valueValues = array_filter(array_map(function ($v) use ($publicResourceUrl) {
-                if (strpos($v->type(), 'resource') === 0 && $vr = $v->valueResource()) {
+                if (strpos($v->type(), 'resource') === 0 && ($vr = $v->valueResource())) {
                     return '<a class="resource-link" href="' . $publicResourceUrl($vr, true) . '">'
                         . '<span class="resource-name">' . $vr->displayTitle() . '</span>'
                         . '</a>';
@@ -671,7 +769,7 @@ class IiifManifest2 extends AbstractHelper
                 return $v->asHtml();
             }, $propertyData['values']), 'strlen');
             $valueMetadata['value'] = count($valueValues) <= 1 ? reset($valueValues) : $valueValues;
-            $metadata[] = (object) $valueMetadata;
+            $metadata[] = $valueMetadata;
         }
         return $metadata;
     }
@@ -693,7 +791,7 @@ class IiifManifest2 extends AbstractHelper
         if ($media->hasThumbnails()) {
             $imageUrl = $media->thumbnailUrl('medium');
             $size = $this->getView()->imageSize($media, 'medium');
-            if ($size) {
+            if ($size['width']) {
                 $thumbnail = [
                     '@id' => $imageUrl,
                     '@type' => 'dctypes:Image',
@@ -701,7 +799,7 @@ class IiifManifest2 extends AbstractHelper
                     'width' => $size['width'],
                     'height' => $size['height'],
                 ];
-                return (object) $thumbnail;
+                return $thumbnail;
             }
         }
 
@@ -714,9 +812,9 @@ class IiifManifest2 extends AbstractHelper
             // In Image API 3.0, @context can be a list, https://iiif.io/api/image/3.0/#52-technical-properties.
             $imageApiContextUri = is_array($mediaData['@context']) ? array_pop($mediaData['@context']) : $mediaData['@context'];
             $imageComplianceLevelUri = is_array($mediaData['profile']) ? $mediaData['profile'][0] : $mediaData['profile'];
-            $imageComplianceLevel = $this->_iiifComplianceLevel($mediaData['profile']);
-            $imageUrl = $this->_iiifThumbnailUrl($imageBaseUri, $imageApiContextUri, $imageComplianceLevel);
-            $service = $this->_iiifImageService($imageBaseUri, $imageApiContextUri, $imageComplianceLevelUri);
+            $imageComplianceLevel = $this->iiifComplianceLevel($mediaData['profile']);
+            $imageUrl = $this->iiifThumbnailUrl($imageBaseUri, $imageApiContextUri, $imageComplianceLevel);
+            $service = $this->iiifImageService($imageBaseUri, $imageApiContextUri, $imageComplianceLevelUri);
             $thumbnail = [
                 'id' => $imageUrl,
                 '@type' => 'dctypes:Image',
@@ -725,7 +823,7 @@ class IiifManifest2 extends AbstractHelper
                 'height' => $this->defaultHeight,
                 'service' => $service,
             ];
-            return (object) $thumbnail;
+            return $thumbnail;
         }
 
         return null;
@@ -739,8 +837,8 @@ class IiifManifest2 extends AbstractHelper
      */
     protected function _iiifThumbnailAsset(AssetRepresentation $asset)
     {
-        $size = $this->getView()->imageSize($asset);
-        if ($size) {
+        $size = $this->view->imageSize($asset);
+        if ($size['width']) {
             $thumbnail = [
                 '@id' => $asset->assetUrl(),
                 '@type' => 'dctypes:Image',
@@ -748,7 +846,7 @@ class IiifManifest2 extends AbstractHelper
                 'width' => $size['width'],
                 'height' => $size['height'],
             ];
-            return (object) $thumbnail;
+            return $thumbnail;
         }
     }
 
@@ -766,12 +864,11 @@ class IiifManifest2 extends AbstractHelper
     {
         $view = $this->getView();
         if (empty($width) || empty($height)) {
-            $imageSize = $view->imageSize($media, 'original');
-            list($width, $height) = $imageSize ? array_values($imageSize) : [null, null];
+            [$width, $height] = array_values($view->imageSize($media, 'original'));
         }
 
         $image = [];
-        $image['@id'] = $this->_baseUrl . '/annotation/p' . sprintf('%04d', $index) . '-image';
+        $image['@id'] = $this->baseUrlIiif . '/annotation/p' . sprintf('%04d', $index) . '-image';
         $image['@type'] = 'oa:Annotation';
         $image['motivation'] = "sc:painting";
 
@@ -789,23 +886,22 @@ class IiifManifest2 extends AbstractHelper
             // In Image API 3.0, the "@id" property becomes "id".
             $imageComplianceLevelUri = is_array($mediaData['profile']) ? $mediaData['profile'][0] : $mediaData['profile'];
 
-            $imageResource['@id'] = $this->_iiifImageFullUrl($imageBaseUri, $imageApiContextUri);
+            $imageResource['@id'] = $this->iiifImageFullUrl($imageBaseUri, $imageApiContextUri);
             $imageResource['@type'] = 'dctypes:Image';
             $imageResource['format'] = 'image/jpeg';
             $imageResource['width'] = $mediaData['width'];
             $imageResource['height'] = $mediaData['height'];
 
-            $imageResourceService = $this->_iiifImageService($imageBaseUri, $imageApiContextUri, $imageComplianceLevelUri);
+            $imageResourceService = $this->iiifImageService($imageBaseUri, $imageApiContextUri, $imageComplianceLevelUri);
             $imageResource['service'] = $imageResourceService;
-            $imageResource = (object) $imageResource;
 
             $image['resource'] = $imageResource;
             $image['on'] = $canvasUrl;
-            return (object) $image;
+            return $image;
         }
 
         // In api v2, only one service can be set.
-        $supportedVersion = $this->view->setting('iiifserver_media_api_default_supported_version', ['service' => '0', 'level' => '0']);
+        $supportedVersion = $this->setting->__invoke('iiifserver_media_api_default_supported_version', ['service' => '0', 'level' => '0']);
         $service = $supportedVersion['service'];
         $level = $supportedVersion['level'];
 
@@ -813,11 +909,10 @@ class IiifManifest2 extends AbstractHelper
         // "the URL may be the complete URL to a particular size of the image
         // content", so the large one here, and it's always a jpeg.
         // It's not needed to use the full original size.
-        $imageSize = $view->imageSize($media, 'large');
-        list($widthLarge, $heightLarge) = $imageSize ? array_values($imageSize) : [null, null];
+        [$widthLarge, $heightLarge] = array_values($view->imageSize($media, 'large'));
         $imageUrl = $this->view->iiifMediaUrl($media, 'imageserver/media', $service ?: '2', [
             'region' => 'full',
-            'size' => $imageSize
+            'size' => $widthLarge && $heightLarge
                 ? ($widthLarge . ',' . $heightLarge)
                 : ($service === '3' ? 'max' : 'full'),
             'rotation' => 0,
@@ -833,24 +928,21 @@ class IiifManifest2 extends AbstractHelper
 
         if ($service) {
             $imageUrlService = $this->view->iiifMediaUrl($media, 'imageserver/id', $service);
-            $contextUri = $this->_iiifImageServiceUri($service);
-            $profileUri = $this->_iiifImageProfileUri($contextUri, $level);
-            $imageResourceService = $this->_iiifImageService($imageUrlService, $contextUri, $profileUri);
-
+            $contextUri = $this->iiifImageServiceUri($service);
+            $profileUri = $this->iiifImageProfileUri($contextUri, $level);
+            $imageResourceService = $this->iiifImageService($imageUrlService, $contextUri, $profileUri);
             $iiifTileInfo = $view->iiifTileInfo($media);
             if ($iiifTileInfo) {
-                $imageResourceService->tiles = [$iiifTileInfo];
-                $imageResourceService->width = $width;
-                $imageResourceService->height = $height;
+                $imageResourceService['tiles'] = [$iiifTileInfo];
+                $imageResourceService['width'] = $width;
+                $imageResourceService['height'] = $height;
             }
-
             $imageResource['service'] = $imageResourceService;
-            $imageResource = (object) $imageResource;
         }
 
         $image['resource'] = $imageResource;
         $image['on'] = $canvasUrl;
-        return (object) $image;
+        return $image;
     }
 
     /**
@@ -865,7 +957,7 @@ class IiifManifest2 extends AbstractHelper
         $canvas = [];
 
         $prefixIndex = (string) (int) $index === (string) $index ? 'p' : '';
-        $canvasUrl = $this->_baseUrl . '/canvas/' . $prefixIndex . $index;
+        $canvasUrl = $this->baseUrlIiif . '/canvas/' . $prefixIndex . $index;
 
         $canvas['@id'] = $canvasUrl;
         $canvas['@type'] = 'sc:Canvas';
@@ -882,10 +974,25 @@ class IiifManifest2 extends AbstractHelper
         } else {
             // Size of canvas should be the double of small images (< 1200 px),
             // but only when more than one image is used by a canvas.
-            $imageSize = $this->getView()->imageSize($media, 'original');
-            list($width, $height) = $imageSize ? array_values($imageSize) : [null, null];
+            [$width, $height] = array_values($this->getView()->imageSize($media, 'original'));
             $canvas['width'] = $width;
             $canvas['height'] = $height;
+            $seeAlso = $this->seeAlso($media, $index);
+            if ($seeAlso) {
+                $canvas['seeAlso'] = $seeAlso;
+                $otherContent = $this->otherContents($media, $index);
+                if ($otherContent) {
+                    $canvas['otherContent'] = $otherContent;
+                }
+            }
+        }
+
+        // Append annotations from module Annotate.
+        $annotations = $this->otherContentAnnotationList($media, $index);
+        if ($annotations) {
+            empty($canvas['otherContent'])
+                ? $canvas['otherContent'] = $annotations
+                : $canvas['otherContent'] = array_merge($annotations, $canvas['otherContent']);
         }
 
         $image = $this->_iiifImage($media, $index, $canvasUrl, $width, $height);
@@ -899,7 +1006,7 @@ class IiifManifest2 extends AbstractHelper
             $canvas['metadata'] = $metadata;
         }
 
-        return (object) $canvas;
+        return $canvas;
     }
 
     /**
@@ -911,22 +1018,22 @@ class IiifManifest2 extends AbstractHelper
      */
     protected function _iiifCanvasImageLabel(MediaRepresentation $media, $index)
     {
-        $labelOption = $this->view->setting('iiifserver_manifest_canvas_label');
+        $labelOption = $this->setting->__invoke('iiifserver_manifest_canvas_label');
         $fallback = (string) $index;
         switch ($labelOption) {
             case 'property':
-                $labelProperty = $this->view->setting('iiifserver_manifest_canvas_label_property');
+                $labelProperty = $this->setting->__invoke('iiifserver_manifest_canvas_label_property');
                 return (string) $media->value($labelProperty, ['default' => $fallback]);
 
             case 'property_or_source':
-                $labelProperty = $this->view->setting('iiifserver_manifest_canvas_label_property');
+                $labelProperty = $this->setting->__invoke('iiifserver_manifest_canvas_label_property');
                 $label = (string) $media->value($labelProperty, ['default' => '']);
                 if (strlen($label)) {
                     return $label;
                 }
                 // no break;
             case 'source':
-                return (string)$media->displayTitle($fallback);
+                return (string) $media->displayTitle($fallback);
 
             case 'template_or_source':
                 $fallback = (string) $media->displayTitle($fallback);
@@ -934,9 +1041,14 @@ class IiifManifest2 extends AbstractHelper
             case 'template':
                 $template = $media->resourceTemplate();
                 $label = false;
-                if ($template && $template->titleProperty()) {
-                    $labelProperty = $template->titleProperty()->term();
-                    $label = $media->value($labelProperty, ['default' => false]);
+                if ($template) {
+                    $titleProperty = $template->titleProperty();
+                    if ($titleProperty) {
+                        $titlePropertyTerm = $template->titleProperty()->term();
+                        if ($titlePropertyTerm !== 'dcterms:title') {
+                            $label = $media->value($titlePropertyTerm, ['default' => false]);
+                        }
+                    }
                 }
                 if (!$label) {
                     $label = $media->value('dcterms:title', ['default' => $fallback]);
@@ -982,16 +1094,13 @@ class IiifManifest2 extends AbstractHelper
         $imageResource['@type'] = 'dctypes:Image';
         $imageResource['width'] = $imageSize['width'];
         $imageResource['height'] = $imageSize['height'];
-        $imageResource = (object) $imageResource;
+        $imageResource = $imageResource;
 
         $image['resource'] = $imageResource;
         $image['on'] = $serverUrl . $this->view->basePath('/iiif/ixif-message/canvas/c1');
-        $image = (object) $image;
         $images = [$image];
 
         $canvas['images'] = $images;
-
-        $canvas = (object) $canvas;
 
         return $canvas;
     }
@@ -1021,21 +1130,17 @@ class IiifManifest2 extends AbstractHelper
         $mediaSequencesService['@id'] = $mseUrl;
         // See MediaController::contextAction()
         $mediaSequencesService['profile'] = 'http://wellcomelibrary.org/ld/ixif/0/alpha.json';
-        $mediaSequencesService = (object) $mediaSequencesService;
         $mediaSequenceElement['service'] = $mediaSequencesService;
-        $mediaSequenceElement = (object) $mediaSequenceElement;
         return $mediaSequenceElement;
     }
 
     /**
      * Create an IIIF media sequence object for an audio.
-     *
-     * @param MediaRepresentation $media
-     * @param array $values
-     * @return \stdClass|null
      */
-    protected function _iiifMediaSequenceAudio(MediaRepresentation $media, $values)
+    protected function _iiifMediaSequenceAudio(MediaRepresentation $media, $values): array
     {
+        [$derivativeUrl, $derivativeMediaType] = $this->derivativeFile($media, 'audio');
+
         $mediaSequenceElement = [];
         $mediaSequenceElement['@id'] = $media->originalUrl() . '/element/e0';
         $mediaSequenceElement['@type'] = 'dctypes:Sound';
@@ -1055,9 +1160,8 @@ class IiifManifest2 extends AbstractHelper
         // may be converted to multiple format: high and low
         // resolution, webm…
         $mseRendering = [];
-        $mseRendering['@id'] = $media->originalUrl();
-        $mseRendering['format'] = $media->mediaType();
-        $mseRendering = (object) $mseRendering;
+        $mseRendering['@id'] = $derivativeUrl ?? $media->originalUrl();
+        $mseRendering['format'] = $derivativeMediaType ?? $media->mediaType();
         $mseRenderings[] = $mseRendering;
         $mediaSequenceElement['rendering'] = $mseRenderings;
 
@@ -1066,21 +1170,17 @@ class IiifManifest2 extends AbstractHelper
         $mediaSequencesService['@id'] = $mseUrl;
         // See MediaController::contextAction()
         $mediaSequencesService['profile'] = 'http://wellcomelibrary.org/ld/ixif/0/alpha.json';
-        $mediaSequencesService = (object) $mediaSequencesService;
         $mediaSequenceElement['service'] = $mediaSequencesService;
-        $mediaSequenceElement = (object) $mediaSequenceElement;
         return $mediaSequenceElement;
     }
 
     /**
      * Create an IIIF media sequence object for a video.
-     *
-     * @param MediaRepresentation $media
-     * @param array $values
-     * @return \stdClass|null
      */
-    protected function _iiifMediaSequenceVideo(MediaRepresentation $media, $values)
+    protected function _iiifMediaSequenceVideo(MediaRepresentation $media, $values): array
     {
+        [$derivativeUrl, $derivativeMediaType] = $this->derivativeFile($media, 'video');
+
         $mediaSequenceElement = [];
         $mediaSequenceElement['@id'] = $media->originalUrl() . '/element/e0';
         $mediaSequenceElement['@type'] = 'dctypes:MovingImage';
@@ -1096,13 +1196,9 @@ class IiifManifest2 extends AbstractHelper
 
         // Specific to media files.
         $mseRenderings = [];
-        // Only one rendering currently: the file itself, but it
-        // may be converted to multiple format: high and low
-        // resolution, webm…
         $mseRendering = [];
-        $mseRendering['@id'] = $media->originalUrl();
-        $mseRendering['format'] = $media->mediaType();
-        $mseRendering = (object) $mseRendering;
+        $mseRendering['@id'] = $derivativeUrl ?? $media->originalUrl();
+        $mseRendering['format'] = $derivativeMediaType ?? $media->mediaType();
         $mseRenderings[] = $mseRendering;
         $mediaSequenceElement['rendering'] = $mseRenderings;
 
@@ -1111,13 +1207,11 @@ class IiifManifest2 extends AbstractHelper
         $mediaSequencesService['@id'] = $mseUrl;
         // See MediaController::contextAction()
         $mediaSequencesService['profile'] = 'http://wellcomelibrary.org/ld/ixif/0/alpha.json';
-        $mediaSequencesService = (object) $mediaSequencesService;
         $mediaSequenceElement['service'] = $mediaSequencesService;
         // TODO Get the true video width and height, even if it
         // is automatically managed.
         $mediaSequenceElement['width'] = 0;
         $mediaSequenceElement['height'] = 0;
-        $mediaSequenceElement = (object) $mediaSequenceElement;
         return $mediaSequenceElement;
     }
 
@@ -1142,7 +1236,6 @@ class IiifManifest2 extends AbstractHelper
         // Use the thumbnail of the item for the media too.
         $mediaSequenceElement['thumbnail'] = $values['thumbnail'];
         // No media sequence service and no sequences.
-        $mediaSequenceElement = (object) $mediaSequenceElement;
         return $mediaSequenceElement;
     }
 
@@ -1155,9 +1248,9 @@ class IiifManifest2 extends AbstractHelper
     protected function _iiifSequenceUnsupported($rendering = [])
     {
         $sequence = [];
-        $sequence['@id'] = $this->_baseUrl . '/sequence/normal';
+        $sequence['@id'] = $this->baseUrlIiif . '/sequence/normal';
         $sequence['@type'] = 'sc:Sequence';
-        $sequence['label'] = $this->view->translate('Unsupported extension. This manifest is being used as a wrapper for non-IIIF content (e.g., audio, video) and is unfortunately incompatible with IIIF viewers.');
+        $sequence['label'] = $this->view->translate('Unsupported extension. This manifest is being used as a wrapper for non-IIIF v2 content (e.g., audio, video) and is unfortunately incompatible with IIIF v2 viewers.');
         $sequence['compatibilityHint'] = 'displayIfContentUnsupported';
 
         $canvas = $this->_iiifCanvasPlaceholder();
@@ -1169,7 +1262,6 @@ class IiifManifest2 extends AbstractHelper
             $sequence['rendering'] = $rendering;
         }
         $sequence['canvases'] = $canvases;
-        $sequence = (object) $sequence;
 
         return $sequence;
     }
@@ -1183,186 +1275,139 @@ class IiifManifest2 extends AbstractHelper
      *   - canvases (without label)
      *   - members (mix of ranges and canvases, all with label).
      * To manage labels of canvases, the identifiers should be an integer (the
-     * iiif position), or the label itself.
+     * iiif position of the media), or the label itself.
      *
      * @see https://iiif.io/api/presentation/2.1/#range
      * @see https://gitlab.com/Daniel-KM/Omeka-S-module-IiifServer#input-format-of-the-property-for-structures-table-of-contents
+     * @see https://glenrobson.github.io/iiif_stuff/toc/
+     *
+     * @see \IiifServer\Iiif\TraitStructuralStructures::convertStructure()
      */
-    protected function extractStructure(string $literalStructure, array $sequenceCanvases): array
+    protected function convertStructure(array $ranges, array $indexMedias, array $sequenceCanvases): ?array
     {
-        $structure = @json_decode($literalStructure, true);
-        if ($structure && is_array($structure)) {
-            $firstRange = reset($structure);
-            if (!is_array($firstRange)) {
-                return [];
-            }
-            return isset($firstRange['type'])
-                ? $this->convertToStructure2($structure)
-                : $structure;
-        }
-
-        $structure = [];
-        $ranges = [];
-        $rangesChildren = [];
-        $canvases = [];
-
-        $rangeToArray = $this->getView()->plugin('rangeToArray');
-
-        $isInteger = function ($value): bool {
-            return (string) (int) $value === (string) $value;
-        };
-
-        // Convert the literal value and prepare all the ranges.
-
-        // Split by newline code, but don't filter empty lines in order to
-        // keep range indexes in complex cases.
-        $lines = explode("\n", $literalStructure);
-        $matches = [];
-        foreach ($lines as $lineIndex => $line) {
-            $line = trim($line);
-            if (!$line || !preg_match('~^(?<name>[^,]*?)\s*,\s*(?<label>.*?)\s*,\s*(?<children>[^,]+?)$~u', $line, $matches)) {
-                continue;
-            }
-            $name = strlen($matches['name']) === 0 ? 'r' . ($lineIndex + 1) : $matches['name'];
-            $label = $matches['label'];
-            $children = $rangeToArray($matches['children'], 1, null, false, false, ';');
-            if (!count($children)) {
-                continue;
-            }
-
-            $rangeId = $this->_baseUrl . '/range/' . ($isInteger($name) ? 'r' . $name : rawurldecode($name));
-
-            // A line is always a range to display.
-            $ranges[$name] = [
-                '@id' => $rangeId,
-                '@type' => 'sc:Range',
-                'label' => $label,
-            ];
-            $rangesChildren[$name] = $children;
-        }
-
         // If the values wasn't a formatted structure, there is no indexes.
-        if (!count($ranges)) {
-            return [];
+        // A structure of one page is useless for now.
+        if (count($ranges) < 1) {
+            return null;
         }
 
-        // Prepare the list of canvases. This second step is needed because the
-        // list of ranges should be complete to determine if an index is a
-        // range or a canvas.
-        foreach ($rangesChildren as $name => $itemNames) {
-            foreach ($itemNames as $itemName) {
-                $itemName = (string) $itemName;
-                // Manage an exception: protected duplicate name for a canvas
-                // and a range).
-                $isProtected = mb_strlen($itemName) > 1 && mb_substr($itemName, 0, 1) === '"' && mb_substr($itemName, -1, 1) === '"';
-                $cleanItemName = $isProtected
-                    ? trim(mb_substr($itemName, 1, -1))
-                    : $itemName;
-                if ((isset($ranges[$cleanItemName]) && !$isProtected)
-                    || isset($canvases[$cleanItemName])
-                ) {
+        $referencedCanvases = [];
+        foreach (array_keys($indexMedias) as $index) {
+            // Sequence canvas is 0-based, but list of views is 1-based.
+            $sequenceCanvasIndex = $index - 1;
+            $sequenceCanvas = $sequenceCanvases[$sequenceCanvasIndex];
+            $referencedCanvases[$index] = [
+                '@id' => $sequenceCanvas['@id'] ?? $sequenceCanvas['id'],
+                '@type' => 'sc:Canvas',
+                // This is the label set in the sequence, that may be
+                // different from the label from the table of contents.
+                'label' => $sequenceCanvas['label'] ?? null,
+            ];
+        }
+
+        // Iiif v2 structure does not need to be fully recursive.
+        // There may be multiple "top".
+        $structure = [];
+
+        // In the new process, there is no more members, since views and
+        // ranges are separated.
+        // Nevertheless, it is used for flat toc, because it can display labels.
+
+        // Conform to specs, but not working in standard viewers.
+        // TODO Better: members should list ranges included canvas of each range. See iiif v3. But not compliant with Mirador v2.
+
+        // When there is no subranges, it means a short table of contents
+        // (labels and view number), in which case the table is flat and a
+        // specific top is needed.
+        $isFlatToc = !array_filter(array_column($ranges, 'ranges', 'name'));
+
+        /*
+        if ($isFlatToc) {
+            reset($ranges);
+            $topKey = key($ranges);
+            $rangeData = $ranges[$topKey];
+            $range = [
+                '@id' => $rangeData['@id'],
+                '@type' => 'sc:Range',
+                'label' => $rangeData['label'] ?? $this->view->translate('[Content]'), // @translate
+                'viewingHint' => 'top',
+                'members' => [],
+            ];
+            // Use the labels from the toc, not from the referenced canvases.
+            $isFirst = true;
+            foreach ($ranges as $subRangeData) {
+                if ($isFirst) {
+                    $isFirst = false;
                     continue;
                 }
-                // Unlike iiif v3, the label is required when part of members,
-                // so get it from the sequence.
-                // It is computed one time, even if it is useless when children
-                // are all canvases, but they may be used in multiple lines.
-                $canvasId = null;
-                $canvasLabel = null;
-                $canvasIdIsInteger = $isInteger($cleanItemName);
-                $canvasIdCheck = $canvasIdIsInteger ? 'p' . $cleanItemName : $cleanItemName;
-                foreach ($sequenceCanvases as $sequenceCanvas) {
-                    if ($canvasIdCheck === basename($sequenceCanvas->{'@id'})
-                        || $canvasIdCheck === $sequenceCanvas->label
-                    ) {
-                        $canvasId = $sequenceCanvas->{'@id'};
-                        $canvasLabel = $sequenceCanvas->label;
-                        break;
+                $firstView = reset($subRangeData['views']);
+                if ($firstView && isset($referencedCanvases[$firstView])) {
+                    $member = $referencedCanvases[$firstView];
+                    $label = $subRangeData['label'] ?? $member['label'] ?? null;
+                    if ($label !== null && $label !== '') {
+                        $member['label'] = $label;
+                        $range['members'][] = $member;
                     }
                 }
-                if (!$canvasId) {
-                    $canvasId = $this->_baseUrl . '/canvas/' . ($canvasIdIsInteger ? 'p' . $cleanItemName : rawurldecode($cleanItemName));
-                    $canvasLabel = $canvasIdIsInteger ? '[' . $cleanItemName . ']' : $cleanItemName;
-                }
-                $canvases[$itemName] = [
-                    '@id' => $canvasId,
-                    '@type' => 'sc:Canvas',
-                    'label' => $canvasLabel,
-                ];
             }
+            if (!count($range['members'])) {
+                return [];
+            }
+            $structure[] = $range;
+            return $structure;
+        }
+        */
+
+        // Prepare all range ids one time.
+        $isInteger = fn ($value): bool => (string) (int) $value === (string) $value;
+        foreach ($ranges as $name => &$rangeData) {
+            $rangeData['@id'] = $this->baseUrlIiif . '/range/' . ($isInteger($name) ? 'r' . $name : rawurldecode($name));
+        }
+        unset($rangeData);
+
+        $isFirst = true;
+        foreach ($ranges as $rangeData) {
+            if (!count($rangeData['ranges']) && !count($rangeData['views'])) {
+                continue;
+            }
+
+            $range = [
+                '@id' => $rangeData['@id'],
+                '@type' => 'sc:Range',
+                'label' => $rangeData['label'],
+            ];
+
+            if ($isFirst && !$isFlatToc) {
+                $range['viewingHint'] = 'top';
+            }
+
+            // When there is no range on top, it means that it is a list of
+            // views, but it is generally an error.
+
+            if (count($rangeData['ranges'])) {
+                foreach ($rangeData['ranges'] as $subRangeName) {
+                    $range['ranges'][] = $ranges[$subRangeName]['@id'] ?? null;
+                }
+                $range['ranges'] = array_filter($range['ranges']);
+            }
+
+            if (count($rangeData['views'])
+                // According to spec, no views on top, except if there is no
+                // ranges.
+                && !($isFirst && count($rangeData['ranges']))
+            ) {
+                foreach ($rangeData['views'] as $view) {
+                    $range['canvases'][] = $referencedCanvases[$view]['@id'] ?? null;
+                }
+                $range['canvases'] = array_filter($range['canvases']);
+            }
+
+            $isFirst = false;
+
+            $structure[] = $range;
         }
 
-        // TODO Improve process to avoid recursive process (one loop and by-reference variables).
-
-        $appendItem = function (&$range, $itemsType, $itemName, $ranges, $canvases) {
-            switch ($itemsType) {
-                case 'canvases':
-                    $range['canvases'][] = $canvases[$itemName]['@id'];
-                    break;
-                case 'ranges':
-                    $range['ranges'][] = $ranges[$itemName];
-                    break;
-                case 'members':
-                default:
-                    $range['members'][] = $canvases[$itemName] ?? $ranges[$itemName];
-                    break;
-            }
-        };
-
-        $buildStructure = function (array $itemNames, &$parentRange, array &$ascendants) use ($ranges, $canvases, $rangesChildren, $isInteger, $appendItem, &$buildStructure): void {
-            // Determine the type of range items.
-            $childrenAsKeys = array_flip($itemNames);
-            if (!array_diff_key($childrenAsKeys, $canvases)) {
-                $itemsType = 'canvases';
-            } elseif (!array_diff_key($childrenAsKeys, $ranges)) {
-                $itemsType = 'ranges';
-            } else {
-                $itemsType = 'members';
-            }
-
-            foreach ($itemNames as $itemName) {
-                if (isset($canvases[$itemName])) {
-                    $appendItem($parentRange, $itemsType, $itemName, $ranges, $canvases);
-                    continue;
-                }
-                // TODO The type may be a canvas part (fragment of an image, etc.).
-                // The index is a range.
-                // Check if the item is in ascendants to avoid an infinite loop.
-                // TODO In that case, the type of items may be wrong, and the items too…
-                if (in_array($itemName, $ascendants)) {
-                    $canvases[$itemName] = [
-                        '@id' => $this->_baseUrl . '/canvas/' . ($isInteger($itemName) ? 'p' . $itemName : rawurlencode($itemName)),
-                        '@type' => 'sc:Canvas',
-                        'label' => $ranges[$itemName],
-                    ];
-                    $appendItem($parentRange, $itemsType, $itemName, $ranges, $canvases);
-                    continue;
-                }
-                $ascendants[] = $itemName;
-                $range = $ranges[$itemName];
-                $buildStructure($rangesChildren[$itemName], $range, $ascendants);
-                $ranges[$itemName] = $range;
-                $appendItem($parentRange, $itemsType, $itemName, $ranges, $canvases);
-                array_pop($ascendants);
-            }
-        };
-
-        $allIndexes = array_fill_keys(array_merge(...array_values($rangesChildren)), true);
-        $rangesToBuild = array_keys(array_diff_key($ranges, $allIndexes));
-        $ascendants = [];
-        $buildStructure($rangesToBuild, $structure, $ascendants);
-
-        $structure = reset($structure);
-
         return $structure;
-    }
-
-    /**
-     * @todo Convert a v3 structure into a v2 structure.
-     */
-    protected function convertToStructure2(array $structure): array
-    {
-        return [];
     }
 
     /**
@@ -1464,7 +1509,7 @@ class IiifManifest2 extends AbstractHelper
             if ($result !== false) {
                 $result = getimagesize($tempPath);
                 if ($result) {
-                    list($width, $height) = $result;
+                    [$width, $height] = $result;
                 }
             }
             unlink($tempPath);
@@ -1473,7 +1518,7 @@ class IiifManifest2 extends AbstractHelper
         elseif (file_exists($filepath)) {
             $result = getimagesize($filepath);
             if ($result) {
-                list($width, $height) = $result;
+                [$width, $height] = $result;
             }
         }
 
@@ -1498,7 +1543,7 @@ class IiifManifest2 extends AbstractHelper
      * supported by the server
      * @return string IIIF thumbnail URL
      */
-    protected function _iiifThumbnailUrl($baseUri, $contextUri, $complianceLevel)
+    protected function iiifThumbnailUrl($baseUri, $contextUri, $complianceLevel): string
     {
         // NOTE: this function does not support level0 implementations (need to use `sizes` from the info.json)
         // TODO handle square thumbnails, depending on server capabilities (see 'regionSquare' feature https://iiif.io/api/image/2.1/#profile-description): e.g. $baseUri . '/square/200,200/0/default.jpg';
@@ -1528,7 +1573,7 @@ class IiifManifest2 extends AbstractHelper
      * server, as stated by the JSON-LD context URI
      * @return string IIIF full size URL of the image
      */
-    protected function _iiifImageFullUrl($baseUri, $contextUri)
+    protected function iiifImageFullUrl($baseUri, $contextUri): string
     {
         switch ($contextUri) {
             case '1.1':
@@ -1551,7 +1596,7 @@ class IiifManifest2 extends AbstractHelper
      * @param string $service
      * @return string Context uri of  the service.
      */
-    protected function _iiifImageServiceUri($service): string
+    protected function iiifImageServiceUri($service): string
     {
         $serviceToUris = [
             // TODO Check what is the real 0.
@@ -1570,17 +1615,24 @@ class IiifManifest2 extends AbstractHelper
      * Helper to set the compliance level to the IIIF Image API, based on the
      * compliance level URI.
      *
+     *@see https://iiif.io/api/image/1.1/compliance/
+     *
+     * Copy:
+     * @see \IiifServer\Iiif\Annotation\Body::iiifComplianceLevel()
+     * @see \IiifServer\Iiif\TraitDescriptiveThumbnail::iiifComplianceLevel()
+     * @see \IiifServer\View\Helper\IiifManifest2::iiifComplianceLevel()
+     *
      * @param array|string $profile Contents of the `profile` property from the
      * info.json
      * @return string Image API compliance level (returned value: level0 | level1 | level2)
      */
-    protected function _iiifComplianceLevel($profile)
+    protected function iiifComplianceLevel($profile): string
     {
         // In Image API 2.1, the profile property is a list, and the first entry
         // is the compliance level URI.
         // In Image API 1.1 and 3.0, the profile property is a string.
         if (is_array($profile)) {
-            $profile = $profile[0];
+            $profile = reset($profile);
         }
 
         $profileToLevels = [
@@ -1611,7 +1663,7 @@ class IiifManifest2 extends AbstractHelper
      * @param string $level
      * @return string Image API profile uri.
      */
-    protected function _iiifImageProfileUri($contextUri, $level)
+    protected function iiifImageProfileUri($contextUri, $level): string
     {
         $contextUriToLevels = [
             'http://library.stanford.edu/iiif/image-api/1.0/context.json' => [
@@ -1649,6 +1701,10 @@ class IiifManifest2 extends AbstractHelper
     /**
      * Helper to create the IIIF Image API service block.
      *
+     * Copy:
+     * @see \IiifServer\Iiif\TraitDescriptiveThumbnail::iiifImageService()
+     * @see \IiifServer\View\Helper\IiifManifest2::iiifImageService()
+     *
      * @param string $baseUri IIIF base URI of the image (including the
      * identifier slot)
      * @param string $contextUri Version of the API Image supported by the
@@ -1658,17 +1714,17 @@ class IiifManifest2 extends AbstractHelper
      * @return object $service IIIF Image API service block to be appended to
      * the Manifest
      */
-    protected function _iiifImageService($baseUri, $contextUri, $complianceLevelUri)
+    protected function iiifImageService($baseUri, $contextUri, $complianceLevelUri): array
     {
         $service = [];
         $service['@context'] = $contextUri;
         $service['@id'] = $baseUri;
         $service['profile'] = $complianceLevelUri;
-        return (object) $service;
+        return $service;
     }
 
     /**
-     * Added in order to use trait TraitRights.
+     * Added in order to use trait TraitDescriptiveRights.
      */
     protected function context(): ?string
     {
@@ -1687,5 +1743,144 @@ class IiifManifest2 extends AbstractHelper
             && $json['metadata']['generator'] === 'io_three';
         }
         return false;
+    }
+
+    /**
+     * @todo Factorize.
+     */
+    protected function seeAlso(MediaRepresentation $media, int $indexOne): ?array
+    {
+        $relatedMedia = $this->view->iiifMediaRelatedOcr($media, $indexOne);
+        if (!$relatedMedia) {
+            return null;
+        }
+        return [
+            '@id' => $relatedMedia->originalUrl(),
+            'profile' => 'http://www.loc.gov/standards/alto/v4/alto.xsd',
+            'format' => 'application/alto+xml',
+            'label' => 'ALTO XML',
+        ];
+    }
+
+    /**
+     * @todo Factorize.
+     *
+     * Note: multiple other content may be returned, so it's an array of arrays,
+     * even if there is only one currently.
+     */
+    protected function otherContents(MediaRepresentation $media, int $indexOne): ?array
+    {
+        $relatedMedia = $this->view->iiifMediaRelatedOcr($media, $indexOne);
+        if (!$relatedMedia) {
+            return null;
+        }
+        $id = $this->view->iiifUrl($relatedMedia->item(), 'iiifserver/uri', '2', [
+            'type' => 'annotation-page',
+            'name' => $media->id(),
+            'subtype' => 'line',
+        ]);
+        return [[
+            '@id' => $id,
+            '@type' => 'sc:AnnotationList',
+            'label' => $this->view->translate('Text of current page'), // @ŧranslate
+        ]];
+    }
+
+    /**
+     * The annotation list is a reference to the list of the annotations of the
+     * module Annotate. There is only one list, so don't return an array of
+     * arrays.
+     */
+    protected function otherContentAnnotationList(MediaRepresentation $media, int $indexOne): ?array
+    {
+        static $api;
+        static $oaHasSelector;
+
+        if ($api === null) {
+            $plugins = $this->view->getHelperPluginManager();
+            $api = $plugins->has('annotations') ? $plugins->get('api') : false;
+            if (!$api) {
+                return null;
+            }
+            $oaHasSelector = $api->searchOne('properties', ['term' => 'oa:hasSelector'])->getContent();
+            if (!$oaHasSelector) {
+                $api = false;
+                return null;
+            }
+            $oaHasSelector = $oaHasSelector->id();
+        } elseif (!$api) {
+            return null;
+        }
+
+        // Check if media has at least one annotation via oa:hasSelector to set
+        // the reference to the list.
+        $has = $api->search('annotations', [
+            'property' => [[
+                'property' => $oaHasSelector,
+                'type' => 'res',
+                'text' => (string) $media->id(),
+            ]],
+            'limit' => 0,
+        ], ['initialize' => false, 'finalize' => false])->getTotalResults();
+
+        if (!$has) {
+            return null;
+        }
+
+        $id = $this->view->iiifUrl($media->item(), 'iiifserver/uri', '2', [
+            'type' => 'annotation-list',
+            'name' => $media->id(),
+        ]);
+        return [
+            '@id' => $id,
+            '@type' => 'sc:AnnotationList',
+            'label' => $this->view->translate('Annotations'), // @ŧranslate
+        ];
+    }
+
+    /**
+     * Use derivative files for non-standard files (wmv, asf,  apple, etc.).
+     *
+     *  Requires the files available in media data, that are done through module
+     *  Derivative Media.
+     *
+     * @return array Array with derivative url and derivative media type.
+     */
+    protected function derivativeFile(MediaRepresentation $media, string $type): array
+    {
+        // TODO Use view helper DerivativeList.
+
+        $derivatives = [
+            'audio' => [
+                'mp3' => 'audio/mpeg',
+                'ogg' => 'audio/ogg',
+            ],
+            'video' => [
+                'mp4' => 'video/mp4',
+                'webm' => 'video/webm',
+            ],
+        ];
+
+        $data = $media->mediaData();
+        $hasDerivative = isset($data['derivative']) && count($data['derivative']);
+        if (!$hasDerivative || !isset($derivatives[$type])) {
+            return [null, null];
+        }
+
+        $enabled = $this->setting->__invoke('derivativemedia_enable', []);
+        if (!in_array($type, $enabled)) {
+            return [null, null];
+        }
+
+        foreach ($derivatives[$type] as $folder => $mediaType) {
+            if (isset($data['derivative'][$folder])) {
+                $derivative = $data['derivative'][$folder];
+                $derivativeUrl = $this->baseUrlFiles . '/' . $folder . '/' . $derivative['filename'];
+                $derivativeMediaType = empty($derivative['type']) ? $mediaType : $derivative['type'];
+                return [$derivativeUrl, $derivativeMediaType];
+            }
+        }
+
+        return [null, null];
     }
 }

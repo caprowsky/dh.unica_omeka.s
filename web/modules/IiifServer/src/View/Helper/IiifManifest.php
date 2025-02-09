@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2021 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  * Copyright 2016-2017 BibLibre
  *
  * This software is governed by the CeCILL license under French law and abiding
@@ -57,7 +57,7 @@ class IiifManifest extends AbstractHelper
         if ($resourceName == 'items') {
             return $version === '2'
                 ? $view->iiifManifest2($resource)
-                :  $view->iiifManifest3($resource);
+                : $view->iiifManifest3($resource);
         }
 
         if ($resourceName == 'item_sets') {

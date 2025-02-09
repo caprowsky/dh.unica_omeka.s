@@ -16,7 +16,7 @@ trait HttpClientTrait
     /**
      * @var string
      */
-    protected $userAgent = 'Omeka S - module BulkImport version 3.3.29.0';
+    protected $userAgent = 'Omeka S - module BulkImport version 3.3.34';
 
     /**
      * @var \Laminas\Http\Client
@@ -46,7 +46,7 @@ trait HttpClientTrait
      * @param HttpClient $httpClient
      * @return self
      */
-    public function setHttpClient(HttpClient $httpClient): \BulkImport\Reader\Reader
+    public function setHttpClient(HttpClient $httpClient): self
     {
         $this->httpClient = $httpClient;
         return $this;
@@ -65,7 +65,7 @@ trait HttpClientTrait
         return $this->httpClient;
     }
 
-    public function setEndpoint($endpoint): \BulkImport\Reader\Reader
+    public function setEndpoint($endpoint): self
     {
         $this->endpoint = $endpoint;
         return $this;
@@ -81,6 +81,10 @@ trait HttpClientTrait
         ?string $contentType = null,
         ?string $charset = null
     ): bool {
+        if (!$this->endpoint && !strlen($path) && !strlen($subpath)) {
+            $this->lastErrorMessage = new PsrMessage('No file, url or endpoint was defined.'); // @translate
+            return false;
+        }
         try {
             $response = $this->fetchData($path, $subpath, $params);
         } catch (\Laminas\Http\Exception\RuntimeException $e) {
@@ -99,6 +103,10 @@ trait HttpClientTrait
      */
     protected function isValidDirectUrl(string $url, ?string $contentType = null, ?string $charset = null): bool
     {
+        if (!strlen($url)) {
+            $this->lastErrorMessage = new PsrMessage('No url was defined.'); // @translate
+            return false;
+        }
         try {
             $response = $this->fetchUrl($url);
         } catch (\Laminas\Http\Exception\RuntimeException $e) {
@@ -154,7 +162,7 @@ trait HttpClientTrait
         return true;
     }
 
-    protected function initArgs(): \BulkImport\Reader\Reader
+    protected function initArgs(): self
     {
         $this->endpoint = $this->getParam('endpoint');
         return $this;

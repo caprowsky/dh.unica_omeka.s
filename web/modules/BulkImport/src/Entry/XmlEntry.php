@@ -6,22 +6,86 @@ use SimpleXMLElement;
 
 class XmlEntry extends BaseEntry
 {
+    protected $xmlOptions = LIBXML_BIGLINES
+        | LIBXML_COMPACT
+        | LIBXML_NOBLANKS
+        // | LIBXML_NOCDATA
+        | LIBXML_NOENT
+        | LIBXML_PARSEHUGE
+        | LIBXML_HTML_NOIMPLIED
+        | LIBXML_HTML_NODEFDTD
+        | LIBXML_NOERROR
+        | LIBXML_NOWARNING
+        // This option is not working on old versions of php.
+        | LIBXML_NOXMLDECL
+        | LIBXML_NSCLEAN
+    ;
+
     protected function init(): void
     {
+        // To check xml:
+        // echo $this->data->getSimpleXMLElement()->asXML();
+        // $this->logger->debug($this->data->getSimpleXMLElement()->asXML());
+
+        // Convert the data according to the mapping here.
+        if (!empty($this->options['is_formatted'])
+            || empty($this->options['metaMapper'])
+        ) {
+            return;
+        }
+
+        if (is_null($this->data)) {
+            $this->data = [];
+            return;
+        }
+
+        /** @var \BulkImport\Stdlib\MetaMapper $metaMapper */
+        $metaMapper = $this->options['metaMapper'];
+
         /** @var \XMLReaderNode $data */
         $simpleData = $this->data->getSimpleXMLElement();
         $namespaces = [null] + $simpleData->getNamespaces(true);
 
         // Fix issue with cdata (no: it will escape html tags).
-        $simpleData = new SimpleXMLElement($simpleData->asXML(), LIBXML_BIGLINES | LIBXML_COMPACT | LIBXML_NOBLANKS
-                | /* LIBXML_NOCDATA | */ LIBXML_NOENT | LIBXML_PARSEHUGE);
+        $simpleData = new SimpleXMLElement($simpleData->asXML(), $this->xmlOptions);
 
-        $array = $this->attributes($simpleData);
-
-        if ($this->options['transformSource']) {
-            $this->initWithTransformSource($simpleData);
+        if (!$metaMapper->getMetaMapping()) {
+            $this->extractWithoutMapping($simpleData, $namespaces);
             return;
         }
+
+        // TODO Manage multiple resources inside one file.
+        // Remove wrapper to keep mapping simple with xpath adapted to source.
+        $unwrappedData = null;
+        foreach ($simpleData->xpath('/resource/child::*[1]') as $node) {
+            // Avoid warning on missing namespaces. But here, it doesn't matter.
+            // TODO Log warning on missing namespaces instead of output.
+            $unwrappedData = @new SimpleXMLElement($node->asXML());
+            break;
+        }
+        if (!$unwrappedData) {
+            $this->data = [];
+            return;
+        }
+
+        // The real resource type is set via config or via processor.
+        $resource = $metaMapper->convert($unwrappedData);
+
+        // Filter duplicated and null values.
+        foreach ($resource as &$datas) {
+            $datas = array_values(array_unique(array_filter(array_map('strval', $datas), 'strlen')));
+        }
+        unset($datas);
+
+        $this->data = $resource;
+    }
+
+    /**
+     * @todo Important: For xml entry, convert this simple internal mapping into a hidden mapping to use with metaMapper.
+     */
+    protected function extractWithoutMapping($simpleData, $namespaces)
+    {
+        $array = $this->attributes($simpleData);
 
         foreach ($namespaces as $prefix => $namespace) {
             $nsElements = $namespace
@@ -29,6 +93,7 @@ class XmlEntry extends BaseEntry
                 : $simpleData->children();
             foreach ($nsElements as $element) {
                 $term = ($prefix ? $prefix . ':' : '') . $element->getName();
+                $singleValue = false;
                 switch ($term) {
                     case 'o:item_set':
                         $value = $this->initItemSet($element);
@@ -36,13 +101,31 @@ class XmlEntry extends BaseEntry
                     case 'o:media':
                         $value = $this->initMedia($element);
                         break;
+                    case 'o:class':
+                        $term = 'o:resource_class';
+                        // no break.
+                    case 'o:resource_class':
+                        $singleValue = true;
+                        $value = $this->innerXml($element);
+                        break;
+                    case 'o:template':
+                        $term = 'o:resource_template';
+                        // no break.
+                    case 'o:resource_template':
+                        $singleValue = true;
+                        $value = $this->innerXml($element);
+                        break;
                     // Properties.
                     default:
                         $value = $this->initPropertyValue($element, $prefix);
                         break;
                 }
                 if ($value) {
-                    $array[$term][] = $value;
+                    if ($singleValue) {
+                        $array[$term] = $value;
+                    } else {
+                        $array[$term][] = $value;
+                    }
                 }
             }
         }
@@ -149,20 +232,17 @@ class XmlEntry extends BaseEntry
                 : $resource;
         }
 
-        $ingester = $resource['o:ingester'] ?? 'url';
+        $ingester = $resource['o:ingester'] ?? 'file ';
         switch ($ingester) {
             default:
-            case 'url':
-                $resource += [
-                    'resource_name' => 'media',
-                    'o:ingester' => 'url',
-                    'ingest_url' => $value,
-                    'o:source' => $value,
-                ];
-                break;
-
+            case 'tile':
+                // Deprecated: "tile" is only a renderer, no more an ingester
+                // since ImageServer version 3.6.13. All images are
+                // automatically tiled, so "tile" is a format similar to large/medium/square,
+                // but different.
             case 'file':
                 if ($this->isUrl($value)) {
+                    $resource['o:ingester'] = 'url';
                     $resource += [
                         'resource_name' => 'media',
                         'o:ingester' => 'url',
@@ -170,6 +250,7 @@ class XmlEntry extends BaseEntry
                         'o:source' => $value,
                     ];
                 } else {
+                    $resource['o:ingester'] = 'sideload';
                     $resource += [
                         'resource_name' => 'media',
                         'o:ingester' => 'sideload',
@@ -179,7 +260,28 @@ class XmlEntry extends BaseEntry
                 }
                 break;
 
+            case 'url':
+                $resource += [
+                    'resource_name' => 'media',
+                    'o:ingester' => 'url',
+                    'ingest_url' => $value,
+                    'o:source' => $value,
+                ];
+                break;
+
+            case 'sideload':
+                $resource += [
+                    'resource_name' => 'media',
+                    'o:ingester' => 'sideload',
+                    'ingest_filename' => $value,
+                    'o:source' => $value,
+                ];
+                break;
+
             case 'directory':
+                $resource['o:ingester'] = 'sideload_dir';
+                // no break.
+            case 'sideload_dir':
                 $resource += [
                     'resource_name' => 'media',
                     'o:ingester' => 'sideload_dir',
@@ -209,6 +311,7 @@ class XmlEntry extends BaseEntry
                 ];
                 return true;
 
+            /*
             case 'tile':
                 $resource += [
                     'resource_name' => 'media',
@@ -217,6 +320,7 @@ class XmlEntry extends BaseEntry
                     'o:source' => $value,
                 ];
                 break;
+            */
         }
 
         return $resource;
@@ -260,7 +364,7 @@ class XmlEntry extends BaseEntry
                 // Module Custom Vocab.
 
             case substr($type, 0, 12) === 'customvocab:':
-                // TODO Manage items by type "customvocab.
+                // TODO Manage items and uri by type for customvocab.
                 $value = [
                     'type' => $type,
                     '@value' => $string,
@@ -278,6 +382,7 @@ class XmlEntry extends BaseEntry
                 break;
 
                 // Module Data type Rdf.
+
             case 'html':
             case 'rdf:HTML':
             case 'http://www.w3.org/1999/02/22-rdf-syntax-ns#HTML':
@@ -308,11 +413,27 @@ class XmlEntry extends BaseEntry
 
                 // Module DataTypeGeometry.
 
+            case 'geography':
+            case 'geometry':
+            case 'geography:coordinates':
+            case 'geometry:coordinates':
+            case 'geometry:position':
+            case 'http://www.opengis.net/ont/geosparql#wktLiteral':
+            case 'geometry:geography:coordinates':
+            case 'geometry:geometry:coordinates':
+            case 'geometry:geometry:position':
             case 'geometry:geography':
             case 'geometry:geometry':
-            case 'http://www.opengis.net/ont/geosparql#wktLiteral':
+                $geotypes = [
+                    'geometry:geometry' => 'geometry',
+                    'geometry:geography' => 'geography',
+                    'geometry:geometry:position' => 'geometry:position',
+                    'geometry:geometry:coordinates' => 'geometry:coordinates',
+                    'geometry:geography:coordinates' => 'geography:coordinates',
+                    'http://www.opengis.net/ont/geosparql#wktLiteral' => 'geography',
+                ];
                 $value = [
-                    'type' => $type === 'http://www.opengis.net/ont/geosparql#wktLiteral' ? 'geometry:geometry' : $type,
+                    'type' => $geotypes[$type] ?? $type,
                     '@value' => $string,
                     '@language' => null,
                 ];
@@ -421,41 +542,6 @@ class XmlEntry extends BaseEntry
     }
 
     /**
-     * @see \BulkImport\Entry\JsonEntry::init()
-     */
-    protected function initWithTransformSource(SimpleXMLElement $data): void
-    {
-        /** @var \BulkImport\Mvc\Controller\Plugin\TransformSource $transformSource */
-        $transformSource = $this->options['transformSource'];
-
-        // Remove wrapper to keep mapping simple with xpath adapted to source.
-        $unwrappedData = null;
-        foreach ($data->xpath('/resource/child::*[1]') as $node) {
-            $unwrappedData = new \SimpleXMLElement($node->asXML());
-            break;
-        }
-        if (!$unwrappedData) {
-            $this->data = [];
-            return;
-        }
-
-        // The real resource type is set via config or via processor.
-        $resource = [];
-        $resource = $transformSource->convertMappingSectionXml('default', $resource, $unwrappedData, true);
-        $resource = $transformSource->convertMappingSectionXml('mapping', $resource, $unwrappedData);
-
-        // Filter duplicated and null values.
-        foreach ($resource as &$datas) {
-            $datas = array_values(array_unique(array_filter(array_map('strval', $datas), 'strlen')));
-        }
-        unset($datas);
-
-        // Cf. JsonEntry to manage files (check urls).
-
-        $this->data = $resource;
-    }
-
-    /**
      * Get the inner string from an xml, in particular for cdata.
      *
      * @link https://stackoverflow.com/questions/1937056/php-simplexml-get-innerxml.
@@ -470,17 +556,42 @@ class XmlEntry extends BaseEntry
 
         /*
         $value = '';
-        foreach (dom_import_simplexml($element)->childNodes as $child) {
-            $value .= $child->ownerDocument->saveXML($child);
+        $doc = dom_import_simplexml($element);
+        $doc->preserveWhiteSpace = false;
+        $doc->formatOutput = true;
+        foreach ($doc->childNodes as $child) {
+            $value .= $child->ownerDocument->saveXML($child, $this->xmlOptions) . PHP_EOL;
         }
         $value = trim($value);
         */
+
         $value = trim((string) $element->asXml());
         $pos = mb_strpos($value, '>');
         $value = trim(mb_substr($value, $pos + 1, mb_strrpos($value, '</') - $pos - 1));
-        return mb_substr($value, 0, 9) === '<![CDATA[' && mb_substr($value, -3) === ']]>'
-            ? mb_substr($value, 9, -3)
-            : $value;
+
+        if (mb_substr($value, 0, 9) === '<![CDATA[' && mb_substr($value, -3) === ']]>') {
+            $value = trim(mb_substr($value, 9, -3));
+        }
+
+        // If string is an xml output, indent it because simpleXml removes it.
+        if (mb_substr($value, 0, 1) !== '<' || mb_substr($value, -1) !== '>') {
+            return $value;
+        }
+
+        $doc = new \DomDocument();
+        $doc->preserveWhiteSpace = false;
+        $doc->formatOutput = true;
+        $result = $doc->loadXML($value, $this->xmlOptions);
+        if (!$result) {
+            $result = $doc->loadHTML($value, $this->xmlOptions);
+            return $result
+                ? $doc->saveHTML()
+                : $value;
+        }
+        $output = $doc->saveXML(null, $this->xmlOptions);
+        return mb_substr($output, 0, 2) === '<?'
+            ? trim(mb_substr($output, mb_strpos($output, '?>') + 2))
+            : $output;
     }
 
     /**

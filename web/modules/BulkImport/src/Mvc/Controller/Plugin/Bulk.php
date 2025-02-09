@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2017-2022 Daniel Berthereau
+ * Copyright 2017-2023 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -33,11 +33,15 @@ use Laminas\Log\Logger;
 use Laminas\Mvc\Controller\Plugin\AbstractPlugin;
 use Laminas\ServiceManager\ServiceLocatorInterface;
 use Log\Stdlib\PsrMessage;
+use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 
 /**
- * Adapted from the controller plugin of the module Csv Import
+ * Manage all common fnctions to manage resources.
  *
- * @see \CSVImport\Mvc\Controller\Plugin\FindResourcesFromIdentifiers
+ * @todo Separate generic methods and specific ones in two.
+ *
+ * @see \AdvancedResourceTemplate\Mvc\Controller\Plugin\Bulk
+ * @see \BulkImportResourceTemplate\Mvc\Controller\Plugin\Bulk
  */
 class Bulk extends AbstractPlugin
 {
@@ -72,6 +76,18 @@ class Bulk extends AbstractPlugin
     protected $findResourcesFromIdentifiers;
 
     /**
+     * @var \Omeka\I18n\Translator
+     */
+    protected $translator;
+
+    /**
+     * Base path of the files.
+     *
+     * @var string
+     */
+    protected $basePath;
+
+    /**
      * @var bool
      */
     protected $allowDuplicateIdentifiers = false;
@@ -81,7 +97,7 @@ class Bulk extends AbstractPlugin
      */
     protected $identifierNames = [
         'o:id',
-        'dcterms:identifier',
+        // 'dcterms:identifier',
     ];
 
     /**
@@ -118,8 +134,12 @@ class Bulk extends AbstractPlugin
     {
         $this->services = $services;
         $this->logger = $services->get('Omeka\Logger');
+        $this->translator = $services->get('MvcTranslator');
         $this->connection = $services->get('Omeka\Connection');
         $this->dataTypeManager = $services->get('Omeka\DataTypeManager');
+
+        $config = $services->get('Config');
+        $this->basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
 
         // The controller is not yet available here.
         $pluginManager = $services->get('ControllerPluginManager');
@@ -135,6 +155,16 @@ class Bulk extends AbstractPlugin
     public function __invoke(): self
     {
         return $this;
+    }
+
+    /**
+     * Base path of the files.
+     *
+     * @var string
+     */
+    public function getBasePath(): string
+    {
+        return $this->basePath;
     }
 
     /**
@@ -189,6 +219,7 @@ class Bulk extends AbstractPlugin
             return $this->properties;
         }
 
+        /** @var \Doctrine\DBAL\Query\QueryBuilder $qb */
         $qb = $this->connection->createQueryBuilder();
         $qb
             ->select(
@@ -546,7 +577,7 @@ class Bulk extends AbstractPlugin
     /**
      * Check if a string is a managed data type.
      */
-    public function isDataType($dataType): bool
+    public function isDataType(?string $dataType): bool
     {
         return array_key_exists($dataType, $this->getDataTypeNames());
     }
@@ -554,7 +585,7 @@ class Bulk extends AbstractPlugin
     /**
      * Get a data type object.
      */
-    public function getDataType($dataType): ?\Omeka\DataType\DataTypeInterface
+    public function getDataType(?string $dataType): ?\Omeka\DataType\DataTypeInterface
     {
         $dataType = $this->getDataTypeName($dataType);
         return $dataType
@@ -565,8 +596,11 @@ class Bulk extends AbstractPlugin
     /**
      * Check if a datatype exists and normalize its name.
      */
-    public function getDataTypeName($dataType): ?string
+    public function getDataTypeName(?string $dataType): ?string
     {
+        if (!$dataType) {
+            return null;
+        }
         $datatypes = $this->getDataTypeNames();
         return $datatypes[$dataType]
             // Manage exception for customvocab, that may use label as name.
@@ -627,9 +661,17 @@ class Bulk extends AbstractPlugin
             'resource:annotation' => 'resource',
             'annotation' => 'resource',
             // Module DataTypeGeometry.
-            'geometry:geography:coordinates' => 'literal',
+            'geography' => 'literal',
+            'geography:coordinates' => 'literal',
+            'geometry' => 'literal',
+            'geometry:coordinates' => 'literal',
+            'geometry:position' => 'literal',
+            // Module DataTypeGeometry (deprecated).
             'geometry:geography' => 'literal',
+            'geometry:geography:coordinates' => 'literal',
             'geometry:geometry' => 'literal',
+            'geometry:geometry:coordinates' => 'literal',
+            'geometry:geometry:position' => 'literal',
             // Module DataTypePlace.
             'place' => 'literal',
             // Module DataTypeRdf.
@@ -749,12 +791,22 @@ class Bulk extends AbstractPlugin
             $customVocabs[$customVocabDataType]['cv'] = $customVocab->id();
 
             // Support in v1.4.0, but v1.3.0 supports Omeka 3.0.0.
-            if (method_exists($customVocabs[$customVocabDataType]['cv'], 'uris') && $uris = $customVocab->uris()) {
-                $uris = array_filter(array_map('trim', explode("\n", $uris)));
-                $list = [];
-                foreach ($uris as $uriLabel) {
-                    $list[] = $uriLabel;
-                    $list[] = strtok($uriLabel, ' ');
+            // TODO Simplify custom vocabs in Omeka v4.
+            if (method_exists($customVocab, 'uris') && $uris = $customVocab->uris()) {
+                if (method_exists($customVocab, 'listUriLabels')) {
+                    $uris = $customVocab->listUriLabels();
+                    $list = [];
+                    foreach ($uris as $uri => $label) {
+                        $list[] = trim($uri . ' ' . $label);
+                        $list[] = $uri;
+                    }
+                } else {
+                    $uris = array_filter(array_map('trim', explode("\n", $uris)));
+                    $list = [];
+                    foreach ($uris as $uriLabel) {
+                        $list[] = $uriLabel;
+                        $list[] = strtok($uriLabel, ' ');
+                    }
                 }
                 $customVocabs[$customVocabDataType]['type'] = 'uri';
                 $customVocabs[$customVocabDataType]['uris'] = $list;
@@ -764,7 +816,9 @@ class Bulk extends AbstractPlugin
                 $customVocabs[$customVocabDataType]['item_set_id'] = (int) $itemSet->id();
             } else {
                 $customVocabs[$customVocabDataType]['type'] = 'literal';
-                $customVocabs[$customVocabDataType]['terms'] = array_filter(array_map('trim', explode("\n", $customVocab->terms())), 'strlen');
+                $customVocabs[$customVocabDataType]['terms'] = method_exists($customVocab, 'listTerms')
+                    ? $customVocab->terms()
+                    : array_filter(array_map('trim', explode("\n", $customVocab->terms())), 'strlen');
             }
         }
 
@@ -824,9 +878,14 @@ class Bulk extends AbstractPlugin
 
     /**
      * Get a user id by email or id or name.
+     *
+     * @var string|int $emailOrIdOrName
      */
     public function getUserId($emailOrIdOrName): ?int
     {
+        if (empty($emailOrIdOrName) || !is_scalar($emailOrIdOrName)) {
+            return null;
+        }
         if (is_numeric($emailOrIdOrName)) {
             $data = ['id' => $emailOrIdOrName];
         } elseif (filter_var($emailOrIdOrName, FILTER_VALIDATE_EMAIL)) {
@@ -844,6 +903,7 @@ class Bulk extends AbstractPlugin
     public function getEntityClass($name): ?string
     {
         $entityClasses = [
+            'assets' => \Omeka\Entity\Asset::class,
             'items' => \Omeka\Entity\Item::class,
             'item_sets' => \Omeka\Entity\ItemSet::class,
             'media' => \Omeka\Entity\Media::class,
@@ -853,26 +913,42 @@ class Bulk extends AbstractPlugin
             'resource:itemset' => \Omeka\Entity\ItemSet::class,
             'resource:media' => \Omeka\Entity\Media::class,
             'resource:annotation' => \Annotate\Entity\Annotation::class,
+            'value_annotations' => \Omeka\Entity\ValueAnnotation::class,
             // Avoid a check and make the plugin more flexible.
+            \Omeka\Api\Representation\AssetRepresentation::class => \Omeka\Entity\Asset::class,
+            \Omeka\Api\Representation\ItemRepresentation::class => \Omeka\Entity\Item::class,
+            \Omeka\Api\Representation\ItemSetRepresentation::class => \Omeka\Entity\ItemSet::class,
+            \Omeka\Api\Representation\MediaRepresentation::class => \Omeka\Entity\Media::class,
+            \Omeka\Api\Representation\ResourceReference::class => '',
+            \Omeka\Api\Representation\ValueAnnotationRepresentation::class => \Omeka\Entity\ValueAnnotation::class,
+            \Annotate\Api\Representation\AnnotationRepresentation::class => \Annotate\Entity\Annotation::class,
+            \Omeka\Entity\Asset::class => \Omeka\Entity\Asset::class,
             \Omeka\Entity\Item::class => \Omeka\Entity\Item::class,
             \Omeka\Entity\ItemSet::class => \Omeka\Entity\ItemSet::class,
             \Omeka\Entity\Media::class => \Omeka\Entity\Media::class,
             \Omeka\Entity\Resource::class => '',
+            \Omeka\Entity\ValueAnnotation::class => \Omeka\Entity\ValueAnnotation::class,
             \Annotate\Entity\Annotation::class => \Annotate\Entity\Annotation::class,
+            'o:asset' => \Omeka\Entity\Asset::class,
             'o:item' => \Omeka\Entity\Item::class,
             'o:item_set' => \Omeka\Entity\ItemSet::class,
             'o:media' => \Omeka\Entity\Media::class,
+            'o:Asset' => \Omeka\Entity\Asset::class,
             'o:Item' => \Omeka\Entity\Item::class,
             'o:ItemSet' => \Omeka\Entity\ItemSet::class,
             'o:Media' => \Omeka\Entity\Media::class,
+            'o:Resource' => '',
+            'o:ValueAnnotation'=> \Omeka\Entity\ValueAnnotation::class,
             'o:Annotation' => \Annotate\Entity\Annotation::class,
             // Other resource types or badly written types.
+            'asset' => \Omeka\Entity\Asset::class,
             'item' => \Omeka\Entity\Item::class,
             'item_set' => \Omeka\Entity\ItemSet::class,
             'item-set' => \Omeka\Entity\ItemSet::class,
             'itemset' => \Omeka\Entity\ItemSet::class,
             'resource:item_set' => \Omeka\Entity\ItemSet::class,
             'resource:item-set' => \Omeka\Entity\ItemSet::class,
+            'value-annotation'=> \Omeka\Entity\ValueAnnotation::class,
             'annotation' => \Annotate\Entity\Annotation::class,
         ];
         return $entityClasses[$name] ?? null;
@@ -882,11 +958,24 @@ class Bulk extends AbstractPlugin
     {
         $entityClass = $this->getEntityClass($name);
         $tableResources = [
+            \Omeka\Entity\Asset::class => 'asset',
             \Omeka\Entity\Item::class => 'item',
             \Omeka\Entity\ItemSet::class => 'item_set',
             \Omeka\Entity\Media::class => 'media',
+            \Omeka\Entity\ValueAnnotation::class => 'value_annotation',
+            \Annotate\Entity\Annotation::class => 'annotation',
         ];
         return $tableResources[$entityClass] ?? null;
+    }
+
+    public function isFileSideloadActive(): bool
+    {
+        $moduleName = 'FileSideload';
+        /** @var \Omeka\Module\Manager $moduleManager */
+        $moduleManager = $this->services->get('Omeka\ModuleManager');
+        $module = $moduleManager->getModule($moduleName);
+        return $module
+            && $module->getState() === \Omeka\Module\Manager::STATE_ACTIVE;
     }
 
     /**
@@ -898,12 +987,35 @@ class Bulk extends AbstractPlugin
     }
 
     /**
+     * Get each line of a multi-line string separately.
+     *
+     * Empty lines are removed.
+     */
+    public function stringToList($string): array
+    {
+        return array_filter(array_map('trim', explode("\n", $this->fixEndOfLine($string))), 'strlen');
+    }
+
+    /**
+     * Clean the text area from end of lines.
+     *
+     * This method fixes Windows and Apple copy/paste from a textarea input.
+     */
+    public function fixEndOfLine($string): string
+    {
+        return str_replace(["\r\n", "\n\r", "\r"], ["\n", "\n", "\n"], (string) $string);
+    }
+
+    /**
      * Check if a string seems to be an url.
      *
      * Doesn't use FILTER_VALIDATE_URL, so allow non-encoded urls.
      */
     public function isUrl($string): bool
     {
+        if (empty($string)) {
+            return false;
+        }
         return strpos($string, 'https:') === 0
             || strpos($string, 'http:') === 0
             || strpos($string, 'ftp:') === 0
@@ -917,6 +1029,7 @@ class Bulk extends AbstractPlugin
     public function label($resourceName): ?string
     {
         $labels = [
+            'assets' => 'asset', // @translate
             'items' => 'item', // @translate
             'item_sets' => 'item set', // @translate
             'media' => 'media', // @translate
@@ -937,6 +1050,7 @@ class Bulk extends AbstractPlugin
     public function labelPlural($resourceName): ?string
     {
         $labels = [
+            'assets' => 'assets', // @translate
             'items' => 'items', // @translate
             'item_sets' => 'item sets', // @translate
             'media' => 'media', // @translate
@@ -986,6 +1100,8 @@ class Bulk extends AbstractPlugin
         // TODO Remove message store.
         ?\BulkImport\Stdlib\MessageStore $messageStore = null
     ) {
+        // TODO Manage non-resources here? Or a different helper for assets?
+
         $identifierName = $identifierName ?: $this->getIdentifierNames();
         $result = $this->findResourcesFromIdentifiers->__invoke($identifiers, $identifierName, $resourceName, true);
 
@@ -1068,11 +1184,138 @@ class Bulk extends AbstractPlugin
     }
 
     /**
+     * Fully recursive serialization of a resource without issue.
+     *
+     * jsonSerialize() does not serialize all sub-data and an error can occur
+     * with them with some events.
+     * `json_decode(json_encode($resource), true)`cannot be used, because in
+     * some cases, for linked resources, there may be rights issues, or the
+     * resource may be not reloaded but a partial doctrine entity converted into
+     * a partial representation. So there may be missing linked resources, so a
+     * fatal error can occur when converting a value resource to its reference.
+     * So the serialization is done manually.
+     *
+     * @todo Find where the issues occurs (during a spreadsheet update on the second row).
+     * @todo Check if the issue occurs with value annotations.
+     * @todo Check if this issue is still existing in v4.
+     */
+    public function resourceJson(?AbstractResourceEntityRepresentation $resource): array
+    {
+        if (!$resource) {
+            return [];
+        }
+
+        $propertyIds = $this->getPropertyIds();
+
+        // This serialization does not serialize sub-objects as array.
+        $resourceArray = $resource->jsonSerialize();
+
+        // There is only issue for properties.
+        $repr = array_diff_key($resourceArray, $propertyIds);
+        $repr = json_decode(json_encode($repr), true);
+
+        $isOldOmeka = version_compare(\Omeka\Module::VERSION, '4', '<');
+
+        $propertiesWithoutResource = array_intersect_key($resourceArray, $propertyIds);
+        foreach ($propertiesWithoutResource as $term => $values) {
+            /** @var \Omeka\Api\Representation\ValueRepresentation|array $value */
+            foreach ($values as $value) {
+                // In some cases (module event), the value is already an array.
+                if (is_object($value)) {
+                    $valueType = $value->type();
+                    // The issue occurs for linked resources.
+                    try {
+                        $vr = $value->valueResource();
+                        if ($vr) {
+                            $repr[$term][] = [
+                                'type' => $valueType,
+                                'property_id' => $propertyIds[$term],
+                                // 'property_label' => null,
+                                'is_public' => $value->isPublic(),
+                                '@annotations' => $isOldOmeka ? [] : $value->valueAnnotation(),
+                                // '@id' => $vr->apiUrl(),
+                                'value_resource_id' => (int) $vr->id(),
+                                '@language' => $value->lang() ?: null,
+                                // 'url' => null,
+                                // 'display_title' => $vr->displayTitle(),
+                            ];
+                        } else {
+                            $repr[$term][] = json_decode(json_encode($value), true);
+                        }
+                    } catch (\Exception $e) {
+                        if ($this->getMainDataType($valueType) === 'resource') {
+                            $this->logger->warn(
+                                'The {resource} #{id} has a linked resource or an annotation for term {term} that is not available and cannot be serialized.', // @translate
+                                ['resource' => $resource->resourceName(), 'id' => $resource->id(), 'term' => $term]
+                            );
+                        } else {
+                            try {
+                                $repr[$term][] = $value->jsonSerialize();
+                            } catch (\Exception $e) {
+                                $this->logger->warn(
+                                    'The {resource} #{id} has a linked resource or an annotation for term {term} that is not available and cannot be serialized.', // @translate
+                                    ['resource' => $resource->resourceName(), 'id' => $resource->id(), 'term' => $term]
+                                );
+                            }
+                        }
+                    }
+                } else {
+                    $repr[$term][] = $value;
+                }
+            }
+        }
+
+        return $repr;
+    }
+
+    /**
+     * Normalize a list of property values to allow a strict comparaison.
+     *
+     * @todo Add an aggregated value to simplify comparison.
+     */
+    public function normalizePropertyValues(string $term, ?array $values): array
+    {
+        if (!$values) {
+            return [];
+        }
+
+        $propertyId = $this->getPropertyId($term);
+
+        $order = [
+            'type' => null,
+            'property_id' => $propertyId,
+            // 'property_label' => null,
+            'is_public' => true,
+            '@annotations' => [],
+            '@value' => null,
+            '@id' => null,
+            'value_resource_id' => null,
+            '@language' => null,
+        ];
+
+        foreach ($values as $key => $value) {
+            $values[$key] = array_replace($order, array_intersect_key($value, $order));
+            $values[$key] = [
+                'type' => empty($values[$key]['type']) ? 'literal' : (string) $values[$key]['type'],
+                'property_id' => $propertyId,
+                'is_public' => is_null($values[$key]['is_public']) ? true : (bool) $values[$key]['is_public'],
+                '@annotations' => empty($values[$key]['@annotations']) || !is_array($values[$key]['@annotations']) ? [] : $values[$key]['@annotations'],
+                '@value' => is_scalar($values[$key]['@value']) ? (string) $values[$key]['@value'] : $values[$key]['@value'],
+                '@id' => empty($values[$key]['@id']) ? null : (string) $values[$key]['@id'],
+                'value_resource_id' => empty($values[$key]['value_resource_id']) ? null : (int) $values[$key]['value_resource_id'],
+                '@language' => empty($values[$key]['@language']) ? null : (string) $values[$key]['@language'],
+            ];
+        }
+
+        return $values;
+    }
+
+    /**
      * Escape a value for use in XML.
      *
      * From Omeka Classic application/libraries/globals.php
      */
-    public function xml_escape($value): string
+    public function xmlEscape($value): string
     {
         return htmlspecialchars(
             preg_replace('#[\x00-\x08\x0B\x0C\x0E-\x1F]+#', '', (string) $value),
@@ -1083,6 +1326,11 @@ class Bulk extends AbstractPlugin
     public function logger(): \Laminas\Log\Logger
     {
         return $this->logger;
+    }
+
+    public function translate($message, $textDomain = 'default', $locale = null): string
+    {
+        return (string) $this->translator->translate((string) $message, (string) $textDomain, (string) $locale);
     }
 
     /**
@@ -1136,5 +1384,75 @@ class Bulk extends AbstractPlugin
     public function getIdentifierNames(): array
     {
         return $this->identifierNames;
+    }
+
+    /**
+     * Create the unique file name compatible on various os.
+     *
+     * Note: the destination dir is created during install.
+     *
+     * @return string Path to the return path.
+     */
+    public function prepareFile(array $params): ?string
+    {
+        $basename = $params['name'] ?? '';
+        $extension = $params['extension'] ?? '';
+        $appendDate = !empty($params['append_date']);
+
+        $destinationDir = $this->basePath . '/bulk_import';
+
+        $base = (string) preg_replace('/[^A-Za-z0-9-]/', '_', $basename);
+        $base = substr(preg_replace('/_+/', '_', $base), 0, 20);
+
+        if ($appendDate) {
+            if (strlen($base)) {
+                $base .= '-';
+            }
+            $date = (new \DateTime())->format('Ymd-His');
+        } elseif (!strlen($base)) {
+            $base = 'bi';
+            $date = '';
+        } else {
+            $date = '';
+        }
+
+        // Avoid issue on very big base.
+        $i = 0;
+        do {
+            $filename = sprintf(
+                '%s%s%s%s',
+                $base,
+                $date,
+                $i ? '-' . $i : '',
+                $extension ? '.' . $extension : ''
+            );
+
+            $filePath = $destinationDir . '/' . $filename;
+            if (!file_exists($filePath)) {
+                try {
+                    $result = @touch($filePath);
+                } catch (\Exception $e) {
+                    $this->logger->err(
+                        // $this->job->getJob()->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
+                        'Error when saving "{filename}" (temp file: "{tempfile}"): {exception}', // @translate
+                        ['filename' => $filename, 'tempfile' => $filePath, 'exception' => $e]
+                    );
+                    return null;
+                }
+
+                if (!$result) {
+                    // $this->job->getJob()->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
+                    $this->logger->err(
+                        'Error when saving "{filename}" (temp file: "{tempfile}"): {error}', // @translate
+                        ['filename' => $filename, 'tempfile' => $filePath, 'error' => error_get_last()['message']]
+                    );
+                    return null;
+                }
+
+                break;
+            }
+        } while (++$i);
+
+        return $filePath;
     }
 }

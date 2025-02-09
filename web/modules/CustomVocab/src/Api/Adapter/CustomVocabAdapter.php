@@ -8,6 +8,22 @@ use Omeka\Stdlib\ErrorStore;
 
 class CustomVocabAdapter extends AbstractEntityAdapter
 {
+    protected $sortFields = [
+        'id' => 'id',
+        'label' => 'label',
+        'owner' => 'owner',
+    ];
+
+    protected $scalarFields = [
+        'id' => 'id',
+        'label' => 'label',
+        'owner' => 'owner',
+        'lang' => 'lang',
+        'terms' => 'terms',
+        'uris' => 'uris',
+        'item_set' => 'itemSet',
+    ];
+
     public function getResourceName()
     {
         return 'custom_vocabs';
@@ -48,10 +64,13 @@ class CustomVocabAdapter extends AbstractEntityAdapter
         }
         if ($this->shouldHydrate($request, 'o:terms')) {
             $terms = $this->sanitizeTerms($request->getValue('o:terms'));
-            if ('' === $terms) {
-                $terms = null;
-            }
+            $terms = $terms ? array_values($terms) : null;
             $entity->setTerms($terms);
+        }
+        if ($this->shouldHydrate($request, 'o:uris')) {
+            $uris = $this->sanitizeUris($request->getValue('o:uris'));
+            $uris = $uris ?: null;
+            $entity->setUris($uris);
         }
     }
 
@@ -66,18 +85,37 @@ class CustomVocabAdapter extends AbstractEntityAdapter
             $errorStore->addError('o:label', 'The label is already taken.'); // @translate
         }
 
-        if ((null === $entity->getItemSet()) && (false == trim($entity->getTerms()))) {
-            $errorStore->addError('o:terms', 'The item set and terms cannot both be empty.'); // @translate
+        $itemSet = $entity->getItemSet();
+        $terms = $entity->getTerms();
+        $uris = $entity->getUris();
+        if ((null === $itemSet) && null === $terms && null === $uris) {
+            $errorStore->addError('o:terms', 'The item set, terms, and URIs cannot all be empty.'); // @translate
         }
     }
 
     protected function sanitizeTerms($terms)
     {
+        if (null === $terms) {
+            return null;
+        }
         // The str_replace() allows to fix Apple copy/paste.
-        $terms = explode("\n", str_replace(["\r\n", "\n\r", "\r"], ["\n", "\n", "\n"], $terms)); // explode at end of line
+        if (!is_array($terms)) {
+            $terms = explode("\n", str_replace(["\r\n", "\n\r", "\r"], ["\n", "\n", "\n"], $terms)); // explode at end of line
+        }
         $terms = array_map('trim', $terms); // trim all terms
         $terms = array_filter($terms); // remove empty terms
-        $terms = array_unique($terms); // remove duplicate terms
-        return trim(implode("\n", $terms));
+        return array_unique($terms); // remove duplicate terms
+    }
+
+    protected function sanitizeUris($uriLabels)
+    {
+        if (null === $uriLabels) {
+            return null;
+        }
+        // The str_replace() allows to fix Apple copy/paste.
+        if (!is_array($uriLabels)) {
+            $uriLabels = explode("\n", str_replace(["\r\n", "\n\r", "\r"], ["\n", "\n", "\n"], $uriLabels)); // explode at end of line
+        }
+        return array_map('trim', $uriLabels); // trim all terms
     }
 }

@@ -15,8 +15,8 @@ external one, like [Cantaloupe] or [IIP Image].
 
 The full specifications of the [International Image Interoperability Framework]
 standard are supported (service 2 or 3, level 2), so any widget that supports it
-can use it. Rotation, zoom, inside search, etc. may be managed too. Dynamic
-lists of records may be created, for example for browse pages.
+can use it. Rotation, zoom, inside search, text overlay, etc. may be managed
+too. Dynamic lists of records may be created, for example for browse pages.
 
 The IIIF manifests can be displayed with many viewers, the integrated [OpenSeadragon],
 the [Universal Viewer], the advanced [Mirador], or the lighter and themable [Diva],
@@ -30,18 +30,23 @@ Installation
 
 ### Module
 
-Installation can be done:
+See general end user documentation for [installing a module].
+
+The module [Common] must be installed first.
+
+The module uses external libraries, so use the release zip to install it, or
+use and init the source.
 
 * From the zip
 
 Download the last release [IiifServer.zip] from the list of releases (the
-master does not contain the dependencies), uncompress it in the `modules`
-directory, and rename the module folder `IiifServer`.
+master does not contain the dependency), and uncompress it in the `modules`
+directory.
 
-* From the source and for development:
+* From the source and for development
 
-If the module was installed from the source, check if the name of the folder of
-the module is `IiifServer`, go to the root of the module, and run:
+If the module was installed from the source, rename the name of the folder of
+the module to `IiifServer`, go to the root of the module, and run:
 
 ```sh
 composer install --no-dev
@@ -85,11 +90,62 @@ config of the module :
 - disable the advanced option "Use the identifiers from Clean Url";
 - set the "Prefix to use for identifier".
 
+### CORS (Cross-Origin Resource Sharing)
+
+To be able to share manifests and contents with other IIIF servers, the server
+should allow [CORS]. This feature can be enable in the config of the module, in
+the config of the server or in the file `.htaccess`.
+
+**Warning**: the cors headers should be set one time only. If it is set multiple
+times, it will be disabled. This is the purpose of the option in the main config
+of the module.
+
+If you prefer to append cors via the config the server, disable the option in
+the config first. On Apache 2.4, the module "headers" should be enabled:
+
+```sh
+a2enmod headers
+systemctl restart apache2
+```
+
+Then, you have to add the following rules, adapted to your needs, to the file
+`.htaccess` at the root of Omeka S or in the main config of the server:
+
+```
+# CORS access for some files.
+<IfModule mod_headers.c>
+    Header setIfEmpty Access-Control-Allow-Origin "*"
+    Header setIfEmpty Access-Control-Allow-Headers "origin, x-requested-with, content-type"
+    Header setIfEmpty Access-Control-Allow-Methods "GET, POST"
+</IfModule>
+```
+
+It is recommended to use the main config of the server, for example  with the
+directive `<Directory>`.
+
+To fix Amazon cors issues, see the [aws documentation].
+
+### Cache
+
+When your documents are big (more than 100 to 1000 pages, depending on your
+server, your network and your public), you may want to cache manifests in order
+to delivrate them instantly. In that case, check the option in the config.
+
 ### Local access to iiif source
 
 The iiif authentication api is not yet integrated. Anyway, to access iiif
 resources when authenticated, the [fix #omeka/omeka-s/1714] can be patched or
 the module [Guest] can be used.
+
+### IIIF button in a theme
+
+A resource page block is available in the theme settings. Else, you can add the
+view helper in your theme:
+
+```php
+<?= $this->iiifManifestLink($item) ?>
+```
+
 
 Image server
 ------------
@@ -142,6 +198,12 @@ Three params should be set:
   image server. Normally, a regex starting with iiif/ and finishing with the
   supported file extensions is enough.
 
+#### Note for Cantaloupe
+
+In some cases or if not configured, Image Api v3 does not work and images are
+not displayed, so keep Image Api v2 in that case.
+
+
 Notes
 -----
 
@@ -165,7 +227,36 @@ viewer.
 
 ### Config options for manifest
 
+#### Incompatible data
+
+Some extracted texts produce invalid unicode / utf-8 data, so it is recommended
+to exclude the ocr data from the manifest. Anyway, it should not be included to
+follow the iiif specifications: the metadata are only used to display basic data
+about the document.
+
+On new install, these properties are not included: `dcterms:tableOfContents`,
+`bibo:content` and `extracttext:extracted_text`. You may have to add them to
+avoid future issues.
+
+#### Text overlay
+
+For the overlay, only alto xml files are supported currently. They are
+automatically included in the manifest.
+
+To enable it, you may check config of the viewer, for example add plugin "overlay"
+in the site setting of Mirador.
+
+The alto xml files should be attached to the item as a media for now and it
+should have the same source filename than the image (except extension).
+
+A future version will allow to use a linked media or a uri via a property.
+
+A full example of iiif manifest with search, autocomplete and overlay can be
+found in the [Wellcome library](https://iiif.wellcomecollection.org/presentation/v2/b19956435).
+
 #### Input format of the property for structures (table of contents)
+
+IIIF allows to display [structures] of documents.
 
 The default structure is the simple sequential list of iiif medias.
 
@@ -173,35 +264,45 @@ To build structures for a complex document with a table of contents, you can use
 a specific property and fill a value with the needed json, or with a literal
 value with the following format. Each row is a part of the structure:
 
-```
-{id}, {label}, {canvasIndexOrRangeId1}; {canvasIndexOrRangeId2}; ...; {canvasIndexOrRangeIdN}
+```csv
+{id}, {label}, {canvasIndexOrRangeId1}; {canvasIndexOrRangeId2}; …; {canvasIndexOrRangeIdN}
 ```
 
 Example:
 
-```
+```csv
 cover, Front Cover, 1
-r1, Introduction, 2; 3; 4; 5
+r2, Introduction, 2; 3; 4; 5
 backCover, Back Cover, 6
 ```
 
+A new format allows to include the view number in the third column:
+
+```csv
+cover, Front Cover, 1, 1
+r2, Introduction, 2, 2; 3; 4; 5
+backCover, Back Cover, 6, 6
+```
+
+
 The range id (first part of a row) is the name of the range, that will be used
-to create the uri. To avoid collision with other indexes, it should not be a
+to create the uri. To avoid collision with other indexes, it must not be a
 numeric value. It should be a simple alphanumeric name, without space, diacritic
-or any other special character (so stable among all coding standards). It must
-not contain a "/". Anyway, this name is url-encoded in the final uri.
+or any other special character, so it will be stable among all coding standards.
+It must not contain characters `:/?&#%=<>;,`. Ideally, the url-encoded id should be
+the same than the id. Anyway, this name is url-encoded in the final uri.
 
 Furthermore, the range ids must be unique in all the item.
 
 It can be skipped, so the line number will be used. In that case, keep the first
-comma to indicate that there is no specific range name. For example if `r1` was
-not provided above, the range id will be `r2`, so `r` for range and `2` for
-second line. Nevertheless, this possibility is not recommended because the uri
-will change when a new line will be inserted.
+comma to indicate that there is no specific range name. For example if `r2` was
+not provided above, the internal range id will be `r2` anyway, so `r` for range
+and `2` for second line. Nevertheless, this possibility is not recommended
+because the uri will change when a new line will be inserted.
 
-The second part of the row is the label of the range, for example a chapter. If
-empty, it will be used for the structure, but not displayed in the table of the
-viewer.
+The second part of the row is the label of the range, for example the title of
+the chapter. If empty, it will be used for the structure, but not displayed in
+the table of the viewer.
 
 The last part of the row is the list of the top canvases or top ranges that the
 current range contains, so generally a list of images and sub-sections.
@@ -214,13 +315,26 @@ will be managed as range indexes if they are in the list of the range ids (first
 part of the row). If not, it will be a canvas alphanumeric name.
 
 The first range id of the first line is  the root of the tree. There can be only
-one root. If there are multiple roots (see below), a main range is added with
-all the roots as branches.
+one root in iiif v3, but multiple structures. So if there are multiple roots
+(see below), a main range is added with all the roots as main branches.
 
-So it's possible to build complex hierarchical table of contents from this
-literal value, with such an incomplete and incorrect example:
+If you use a xml value with module [DataType Rdf], the structure above will be
+composed of canvases (element `c` here):
 
+```xml
+<c id="cover" label="Front Cover" ranges="1"/>
+<c id="r2" label="Introduction" ranges="2; 3; 4; 5"/>
+<c id="backcover" label="Back Cover" ranges="6"/>
 ```
+
+The ranges can be omitted anyway, since the xml structure itself provide it (see
+nested xml below).
+
+So it is possible to build complex hierarchical table of contents from this
+literal value, even with such an incomplete example, that is automatically
+completed with pages that are not sections:
+
+```csv
 toc, Table of Contents, cover; intro; r1; r2; backcover
     cover, Front cover, cover
     intro, Introduction, 2-5
@@ -232,6 +346,41 @@ toc, Table of Contents, cover; intro; r1; r2; backcover
     backcover, Back cover, "backcover"
 illustration1, First illustration non paginated, illus1
 illustration3, Third illustration non paginated, illus3
+```
+
+equivalent of this nested xml:
+
+```xml
+<c id="toc" label="Table of Contents">
+    <c id="cover" label="Front cover"/>
+    <c id="intro" label="Introduction" range="2-5"/>
+    <c id="r1" label="First chapter" range="6; r1-1; r1-2; 12">
+        <c id="r1-1" label="First section" range="r1-1-1; r1-1-2; illustration1; illus2">
+            <c id="r1-1-1" label="First sub-section" range="8-9"/>
+            <c id="r1-1-2" label="Second sub-section" range="9-10"/>
+            <c id="illustration1" label="First illustration non paginated" range="illus1"/>
+        </c>
+    </c>
+    <c id="r2" label="Second chapter" range="13"/>
+    <c id="backcover" label="Back cover"/>
+</c>
+<c id="illustration3" label="Third illustration non paginated" range="illus3"/>
+```
+
+equivalent of this flat indented xml (not recommended and deprecated):
+
+```xml
+<c id="toc" label="Table of Contents" range="cover; intro; r1; r2; backcover"/>
+    <c id="cover" label="Front cover" range="cover"/>
+    <c id="intro" label="Introduction" range="2-5"/>
+    <c id="r1" label="First chapter" range="6; r1-1; r1-2; 12"/>
+        <c id="r1-1" label="First section" range="r1-1-1; r1-1-2; illustration1; illus2"/>
+            <c id="r1-1-1" label="First sub-section" range="8-9"/>
+            <c id="r1-1-2" label="Second sub-section" range="9-10"/>
+    <c id="r2" label="Second chapter" range="13"/>
+    <c id="backcover" label="Back cover" range="backcover"/>
+<c id="illustration1" label="First illustration non paginated" range="illus1"/>
+<c id="illustration3" label="Third illustration non paginated" range="illus3"/>
 ```
 
 to this json output (iiif v2):
@@ -492,7 +641,7 @@ Notes to understand the conversion and to fix issues from the literal data:
 Take care of nested structures: items must not belong to themselves, else they
 will be managed as canvases.
 
-Of course, if the literal structure is well formed, you don't have to consider
+Of course, if the literal structure is well-formed, you don't have to consider
 these fixes.
 
 Otherwise, in IIIF v3, multiple structures are appended when there are multiple
@@ -569,21 +718,30 @@ the module [Three JS Model viewer].
 TODO / Bugs
 -----------
 
-- [ ] Implements ArrayObject to all classes to simplify events.
-- [ ] When a item set contains non image items, the left panel with the index is displayed only when the first item contains an image (UV).
+- [x] Implements ArrayObject to all classes to simplify events.
+- [ ] Implements ArrayObject to all classes to simplify events for Iiif v2.
+- [x] Use only arrays, not standard objects.
+- [ ] Type of manifest: Use a list of classes or templates to determine the 3D files.
+- [x] Type of manifest: Include pdf as rendering.
+- [ ] Structure: Clarify names of canvases and referenced canvas in the table of contents and list of items.
+- [ ] Structure: Implements recursive ranges in structures for IIIF v2.
+- [ ] Structure: Normalize the format of the structure: csv? ini? yaml? xml? Provide an automatic upgrade too.
+- [ ] Structure: Convert structure v3 to v2 and vice-versa.
+- [x] Structure: Fully support alphanumeric name for canvas id.
+- [ ] Structure: Support translation of structure (use the language of the value?).
+- [ ] Structure: Full support of named canvases.
 - [ ] Use the option "no storage" for url of a media for external server.
-- [ ] Job to update data of [IIIF Image].
-- [ ] Use only arrays, not standard objects.
 - [ ] Manage url prefix.
-- [ ] Implements recursive ranges in structures for IIIF v2.
-- [ ] Normalize the format of the structure: csv? ini? yaml? xml? Provide an automatic upgrade too.
-- [ ] Convert structure v3 to v2 and vice-versa.
-- [x] Fully support alphanumeric name for canvas id.
-- [ ] Support translation of structure (use the language of the value?).
-- [ ] Full support of named canvases.
-- [ ] Use a list of classes or templates to determine the 3D files.
-- [ ] Create a table to cache big iiif manifests (useless for image info.json).
+- [ ] When a item set contains non image items, the left panel with the index is displayed only when the first item contains an image (UV).
+- [ ] Job to update data of [IIIF Image].
+- [x] Create a way to cache big iiif manifests (useless for image info.json).
 - [ ] Always return a thumbnail in iiif v3.
+- [ ] Include thumbnails in canvas to avoid fetching info.json (so cache whole manifest).
+- [x] Check if multiple roots is working for structures in iiif v3. (yes, as multiple structures).
+- [x] Store dimensions on item/media save.
+- [ ] Create a plugin MediaData that will merge MediaDimension, ImageSize, and allows to get media type.
+- [ ] Clarify option for home page with "default site", that may not be a site of the item.
+- [ ] Podcast on iiif v2.
 
 See module [Image Server].
 
@@ -630,7 +788,7 @@ altered, and that no provisions are either added or removed herefrom.
 Copyright
 ---------
 
-* Copyright Daniel Berthereau, 2015-2022 (see [Daniel-KM])
+* Copyright Daniel Berthereau, 2015-2024 (see [Daniel-KM])
 * Copyright BibLibre, 2016-2017
 * Copyright Régis Robineau, 2019 (see [regisrob])
 * Copyright Satoru Nakamura, 2021 (see [nakamura196])
@@ -661,11 +819,17 @@ format.
 [GD]: https://secure.php.net/manual/en/book.image.php
 [Imagick]: https://php.net/manual/en/book.imagick.php
 [ImageMagick]: https://www.imagemagick.org/
+[installing a module]: https://omeka.org/s/docs/user-manual/modules
+[Common]: https://gitlab.com/Daniel-KM/Omeka-S-module-Common
 [IiifServer.zip]: https://gitlab.com/Daniel-KM/Omeka-S-module-IiifServer/-/releases
+[structures]: https://iiif.io/api/presentation/3.0/#54-range
+[DataType Rdf]: https://gitlab.com/Daniel-KM/Omeka-S-module-DataTypeRdf
 [fix #omeka/omeka-s/1714]: https://github.com/omeka/omeka-s/pull/1714
 [Guest]: https://gitlab.com/Daniel-KM/Omeka-S-module-Guest
 [it doesn't allow the url encoded `/`]: https://stackoverflow.com/questions/13834007/url-with-encoded-slashes-goes-to-404/13839424#13839424
 [url encoded slashes]: https://iiif.io/api/image/3.0/#9-uri-encoding-and-decoding
+[CORS]: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+[aws documentation]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/cors.html
 [official list]: https://github.com/IIIF/awesome-iiif/#image-servers
 [internal image server]: #image-server
 [Universal Viewer]: https://gitlab.com/Daniel-KM/Omeka-S-module-UniversalViewer

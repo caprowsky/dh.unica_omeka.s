@@ -14,10 +14,10 @@ class ContentDmReader extends JsonReader
 {
     protected $label = 'Content-DM (Json)';
 
-    protected function initArgs(): \BulkImport\Reader\Reader
+    protected function initArgs(): self
     {
         // Prepare mapper one time.
-        if (isset($this->transformSourceImportParams)) {
+        if ($this->metaMapper) {
             return $this;
         }
 

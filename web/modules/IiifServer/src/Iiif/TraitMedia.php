@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -31,10 +31,12 @@ namespace IiifServer\Iiif;
 
 trait TraitMedia
 {
+    // TODO Use TraitImage and TraitAudioVideo in TraitMedia?
+
     /**
-     * @var \IiifServer\Mvc\Controller\Plugin\MediaDimension
+     * @var \IiifServer\View\Helper\IiifMediaUrl
      */
-    protected $mediaDimension;
+    protected $iiifMediaUrl;
 
     /**
      * @var \IiifServer\Mvc\Controller\Plugin\ImageSize
@@ -42,9 +44,24 @@ trait TraitMedia
     protected $imageSize;
 
     /**
+     * @var \IiifServer\Mvc\Controller\Plugin\MediaDimension
+     */
+    protected $mediaDimension;
+
+    /**
+     * @var \Omeka\Settings\Settings
+     */
+    protected $settings;
+
+    /**
      * @var bool
      */
     protected $isMediaIiif;
+
+    /**
+     * @var array
+     */
+    protected $dimensionsMedia;
 
     protected $formatsToMediaTypes = [
         // @link https://iiif.io/api/image/3.0/#45-format
@@ -90,18 +107,9 @@ trait TraitMedia
         'xhtml' => 'application/xhtml+xml',
         'xml' => 'text/xml',
         // To support a proprietary format that is not supported by many browsers/os:
-        // Add it in config/config.module.php too.
+        // Add it in config/module.config.php too.
         // 'wmv' => 'video/x-ms-wmv',
     ];
-
-    protected function initMedia(): AbstractType
-    {
-        $services = $this->resource->getServiceLocator();
-        $controllerPlugins = $services->get('ControllerPluginManager');
-        $this->mediaDimension = $controllerPlugins->get('mediaDimension');
-        $this->imageSize = $controllerPlugins->get('imageSize');
-        return $this;
-    }
 
     public function isImage(): bool
     {
@@ -135,11 +143,12 @@ trait TraitMedia
     }
 
     /**
-     * Duration is a string, because the format is not defined: time, seconds, or float.
+     * In a previous version, duration was a string, because the format was not
+     * defined: time, seconds, or float. Now, it is always a float.
      */
-    public function duration(): ?string
+    public function duration(): ?float
     {
-        return $this->mediaDimension()['duration'];
+        return $this->mediaDimensions()['duration'];
     }
 
     /**
@@ -173,27 +182,36 @@ trait TraitMedia
         }
 
         $mediaType = $this->resource->mediaType();
-        if ($mediaType) {
-            if ($mediaType === 'text/plain' || $mediaType === 'application/json') {
-                $extension = strtolower(pathinfo((string) $this->resource->source(), PATHINFO_EXTENSION));
-                // TODO Convert old "text/plain" into "application/json" or "model/gltf+json".
-                if ($extension === 'json') {
-                    return 'model/vnd.threejs+json';
-                } elseif ($extension === 'gltf') {
-                    return 'model/gltf+json';
-                }
-            }
-            if ($mediaType === 'application/octet-stream') {
-                $extension = strtolower(pathinfo((string) $this->resource->source(), PATHINFO_EXTENSION));
-                if ($extension === 'glb') {
-                    return 'model/gltf-binary';
-                }
-            }
-            // TODO Don't use the original format for the image?
-            return $this->isImage() ? 'image/jpeg' : $mediaType;
+        if (!$mediaType) {
+            return null;
         }
 
-        return null;
+        if ($mediaType === 'text/plain' || $mediaType === 'application/json') {
+            $extension = strtolower(pathinfo((string) $this->resource->source(), PATHINFO_EXTENSION));
+            // TODO Convert old "text/plain" into "application/json" or "model/gltf+json".
+            if ($extension === 'json') {
+                return 'model/vnd.threejs+json';
+            } elseif ($extension === 'gltf') {
+                return 'model/gltf+json';
+            }
+        }
+        if ($mediaType === 'application/octet-stream') {
+            $extension = strtolower(pathinfo((string) $this->resource->source(), PATHINFO_EXTENSION));
+            if ($extension === 'glb') {
+                return 'model/gltf-binary';
+            }
+        }
+
+        // TODO Don't use the original format for the image?
+        if ($this->isImage()) {
+            return 'image/jpeg';
+        }
+
+        if ($mediaType === 'audio/mpeg' && $this->settings->get('iiifserver_media_api_fix_uv_mp3')) {
+            $mediaType = 'audio/mp4';
+        }
+
+        return $mediaType;
     }
 
     /**
@@ -210,56 +228,50 @@ trait TraitMedia
 
     protected function mediaSize(): array
     {
-        $data = $this->mediaDimension();
+        $data = $this->mediaDimensions();
         return [
             'width' => $data['width'],
             'height' => $data['height'],
         ];
     }
 
-    protected function mediaDimension(): array
+    protected function mediaDimensions(): array
     {
-        if (!array_key_exists('media_dimension', $this->_storage)) {
-            $this->_storage['media_dimension'] = ['width' => null, 'height' => null, 'duration' => null];
-            /** @var ?\Omeka\Api\Representation\MediaRepresentation $media */
-            $media = $this->resource->primaryMedia();
-            if (!$media) {
-                return $this->_storage['media_dimension'];
-            }
-
-            // Automatic check via the ingester.
-            $ingester = $media->ingester();
-            switch ($ingester) {
-                case 'iiif':
-                    // Currently, Omeka manages only images, but doesn't check.
-                    $mediaData = $media->mediaData();
-                    if (isset($mediaData['width'])) {
-                        $this->_storage['media_dimension']['width'] = (int) $mediaData['width'];
-                    }
-                    if (isset($mediaData['height'])) {
-                        $this->_storage['media_dimension']['height'] = (int) $mediaData['height'];
-                    }
-                    if (isset($mediaData['duration'])) {
-                        $this->_storage['media_dimension']['duration'] = (string) $mediaData['duration'];
-                    }
-                    return $this->_storage['media_dimension'];
-                // TODO Manage other type of media (youtube, etc.).
-                default:
-                    break;
-            }
-
-            // Manual check.
-            if ($this->isAudioVideo()) {
-                $this->_storage['media_dimension'] = $this->mediaDimension->__invoke($media);
-            } elseif ($this->isImage()) {
-                $this->_storage['media_dimension'] = $this->imageSize->__invoke($media);
-                $this->_storage['media_dimension']['duration'] = null;
-            }
-            // Data may be stored in a bad format.
-            $this->_storage['media_dimension']['width'] = $this->_storage['media_dimension']['width'] ? (int) $this->_storage['media_dimension']['width'] : null;
-            $this->_storage['media_dimension']['height'] = $this->_storage['media_dimension']['height'] ? (int) $this->_storage['media_dimension']['height'] : null;
-            $this->_storage['media_dimension']['duration'] = $this->_storage['media_dimension']['duration'] ? (string) $this->_storage['media_dimension']['duration'] : null;
+        if (!empty($this->dimensionsMedia)) {
+            return $this->dimensionsMedia;
         }
-        return $this->_storage['media_dimension'];
+
+        /** @var ?\Omeka\Api\Representation\MediaRepresentation $media */
+        $media = $this->resource->primaryMedia();
+        if (!$media) {
+            $this->dimensionsMedia = ['width' => null, 'height' => null, 'duration' => null];
+            return $this->dimensionsMedia;
+        }
+
+        // Automatic check via the ingester.
+        $ingester = $media->ingester();
+        switch ($ingester) {
+            case 'iiif':
+                // Currently, Omeka manages only images, but doesn't check.
+                $mediaData = $media->mediaData();
+                $this->dimensionsMedia['width'] = empty($mediaData['width']) ? null : (int) $mediaData['width'];
+                $this->dimensionsMedia['height'] = empty($mediaData['height']) ? null : (int) $mediaData['height'];
+                $this->dimensionsMedia['duration'] = empty($mediaData['duration']) ? null : (float) $mediaData['duration'];
+                return $this->dimensionsMedia;
+            // TODO Manage other type of media (youtube, etc.).
+            default:
+                break;
+        }
+
+        // Manual check for files.
+        $this->dimensionsMedia = $this->mediaDimension->__invoke($media)
+            + ['width' => null, 'height' => null, 'duration' => null];
+        // Data may be stored in a old format.
+        // TODO Remove this check of media storage of dimensions: they should be good.
+        $this->dimensionsMedia['width'] = empty($this->dimensionsMedia['width']) ? null : (int) $this->dimensionsMedia['width'];
+        $this->dimensionsMedia['height'] = empty($this->dimensionsMedia['height']) ? null : (int) $this->dimensionsMedia['height'];
+        $this->dimensionsMedia['duration'] = empty($this->dimensionsMedia['duration']) ? null : (float) $this->dimensionsMedia['duration'];
+
+        return $this->dimensionsMedia;
     }
 }

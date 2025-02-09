@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -29,6 +29,9 @@
 
 namespace IiifServer\Iiif;
 
+use Common\Stdlib\PsrMessage;
+use IiifServer\Iiif\Exception\RuntimeException;
+use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Api\Representation\MediaRepresentation;
 
 /**
@@ -38,9 +41,14 @@ use Omeka\Api\Representation\MediaRepresentation;
  */
 class ContentResource extends AbstractResourceType
 {
-    use TraitIiifType;
+    use TraitDescriptiveThumbnail;
     use TraitMedia;
-    use TraitThumbnail;
+    use TraitStructuralAnnotations;
+
+    /**
+     * @var string
+     */
+    protected $id = null;
 
     /**
      * This is not the real type and must be set more precisely.
@@ -49,7 +57,7 @@ class ContentResource extends AbstractResourceType
      */
     protected $type = null;
 
-    protected $keys = [
+    protected $propertyRequirements = [
         '@context' => self::NOT_ALLOWED,
 
         'id' => self::REQUIRED,
@@ -84,6 +92,7 @@ class ContentResource extends AbstractResourceType
         'seeAlso' => self::OPTIONAL,
         'service' => self::OPTIONAL,
         'homepage' => self::OPTIONAL,
+        'logo' => self::OPTIONAL,
         'rendering' => self::OPTIONAL,
         'partOf' => self::OPTIONAL,
         'start' => self::NOT_ALLOWED,
@@ -100,13 +109,29 @@ class ContentResource extends AbstractResourceType
         'hidden' => self::OPTIONAL,
     ];
 
-    public function __construct(MediaRepresentation $resource, array $options = null)
+    /**
+     * @var \Omeka\Api\Representation\MediaRepresentation
+     */
+    protected $resource;
+
+    public function setResource(AbstractResourceEntityRepresentation $resource): self
     {
-        parent::__construct($resource, $options);
-        $this->initIiifType();
-        $this->initMedia();
-        $this->initThumbnail();
+        parent::setResource($resource);
+
+        if (!$resource instanceof MediaRepresentation) {
+            $message = new PsrMessage(
+                'Resource #{resource_id}: A media is required to build a ContentResource.', // @translate
+                ['resource_id' => $resource->id()]
+            );
+            $this->logger->err($message->getMessage(), $message->getContext());
+            throw new RuntimeException((string) $message);
+        }
+
+        $this->type = $this->iiifTypeOfMedia->__invoke($resource);
+
         $this->prepareMediaId();
+
+        return $this;
     }
 
     public function hasIdAndType(): bool
@@ -120,6 +145,7 @@ class ContentResource extends AbstractResourceType
             return $this->id;
         }
 
+        // Here, the resource is a media.
         return $this->iiifUrl->__invoke($this->resource->item(), 'iiifserver/uri', '3', [
             'type' => 'content-resource',
             'name' => $this->resource->id(),
@@ -133,7 +159,7 @@ class ContentResource extends AbstractResourceType
      * {@inheritDoc}
      * @see \IiifServer\Iiif\AbstractResourceType::label()
      */
-    public function label(): ?ValueLanguage
+    public function label(): ?array
     {
         if (!$this->type) {
             return null;
@@ -146,10 +172,31 @@ class ContentResource extends AbstractResourceType
         $label = $format
             ? sprintf('%1$s [%2$s]', $this->type, $format)
             : $this->type;
-        return new ValueLanguage(['none' => [$label]]);
+        return ValueLanguage::output(['none' => [$label]]);
     }
 
-    protected function prepareMediaId(): AbstractType
+    public function language(): array
+    {
+        $languages = [];
+
+        $lang = $this->resource->lang();
+        // FIXME Lang may be a code with encoding.
+        if ($lang && strlen($lang) === 2) {
+            $languages[] = $lang;
+        }
+
+        // TODO Use module Table for languages.
+        foreach ($this->resource->value('dcterms:language', ['all' => true]) as $language) {
+            $languageCode = (string) $language;
+            if (strlen($languageCode) === 2) {
+                $languages[] = $languageCode;
+            }
+        }
+
+        return $languages;
+    }
+
+    protected function prepareMediaId(): self
     {
         // FIXME Manage all media Omeka types (Iiif, youtube, etc.)..
         $ingester = $this->resource->ingester();
@@ -166,10 +213,12 @@ class ContentResource extends AbstractResourceType
 
         $this->id = $this->resource->originalUrl();
         if (!$this->id) {
-            $siteSlug = @$this->options['siteSlug'];
+            $siteSlug = $this->options['siteSlug'] ?? null;
             if ($siteSlug) {
                 // TODO Return media page or item page? Add an option or use content-resource url.
-                $this->id = $this->resource->siteUrl($siteSlug, true);
+                // To get the url from resource is slow.
+                // $this->id = $this->resource->siteUrl($siteSlug, true);
+                $this->id = $this->urlHelper->__invoke('site/resource-id', ['site-slug' => $siteSlug, 'controller' => $this->resource->getControllerName(), 'action' => 'show', 'id' => $this->resource->id()], ['force_canonical' => true]);
             }
         }
 

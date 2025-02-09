@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -40,30 +40,49 @@ class Size extends AbstractType
 
     protected $type = 'Size';
 
-    protected $keys = [
+    protected $propertyRequirements = [
         'type' => self::OPTIONAL,
         'width' => self::REQUIRED,
         'height' => self::REQUIRED,
     ];
 
     /**
+     * @var \IiifServer\View\Helper\IiifMediaUrl
+     */
+    protected $iiifMediaUrl;
+
+    /**
+     * @var \IiifServer\Mvc\Controller\Plugin\ImageSize
+     */
+    protected $imageSize;
+
+    /**
      * @var \Omeka\Api\Representation\MediaRepresentation
      */
     protected $resource;
 
-    /**
-     * @var array
-     */
-    protected $options;
-
-    public function __construct(MediaRepresentation $resource, array $options = null)
+    public function setOptions(array $options): self
     {
-        $this->resource = $resource;
-        $this->options = $options ?: [];
+        parent::setOptions($options);
         if (empty($this->options['image_type'])) {
             $this->options['image_type'] = 'original';
         }
-        $this->initImage();
+        return $this;
+    }
+
+    public function setResource(MediaRepresentation $resource): self
+    {
+        // This is an extension of AbstractType, not AbstractResourceType.
+        $this->resource = $resource;
+        $this->services = $resource->getServiceLocator();
+
+        $plugins = $this->services->get('ControllerPluginManager');
+        $viewHelpers = $this->services->get('ViewHelperManager');
+
+        $this->imageSize = $plugins->get('imageSize');
+        $this->iiifMediaUrl = $viewHelpers->get('iiifMediaUrl');
+
+        return $this;
     }
 
     public function isImage(): bool

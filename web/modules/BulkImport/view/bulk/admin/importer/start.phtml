@@ -5,13 +5,17 @@
  * @var \BulkImport\Form\ImporterForm $form
  * @var array $importArgs
  * @var bool $storeAsTask
+ * @var string $messagePre
+ * @var string $messagePost
  */
 
-$translate = $this->plugin('translate');
-$escape = $this->plugin('escapeHtml');
+$plugins = $this->getHelperPluginManager();
+$escape = $plugins->get('escapeHtml');
+$translate = $plugins->get('translate');
 
 $this->htmlElement('body')->appendAttribute('class', 'bulk-importers bulk-imports edit');
 $this->headLink()->appendStylesheet($this->assetUrl('css/bulk-import.css', 'BulkImport'));
+
 $form->prepare();
 
 $storeAsTask = !empty($storeAsTask) && $form->has('start_submit');
@@ -20,14 +24,16 @@ if ($storeAsTask) {
 }
 ?>
 
-<?= $this->pageTitle($storeAsTask ? $translate('Store import') : $translate('Start import'), 1, $translate('Bulk import')) ?>
+<?= $this->pageTitle($translate('Importer'), 1, $translate('Bulk import')) ?>
 
-<div id="content">
+<div id="bulk-import">
     <h2><?= $escape($storeAsTask ? $translate('Store import') : $translate('Start import')) ?></h2>
     <h3><?= $escape(sprintf($translate('Importer: %s'), $importer->label())) ?></h3>
-    <?php if ($form instanceof \BulkImport\Form\Reader\SpreadsheetReaderConfigForm): ?>
-    <p><?= sprintf($translate('See the %sread me%s to learn how to write spreadsheets headers for a quick mapping, with data type and language.'), '<a href="https://gitlab.com/Daniel-KM/Omeka-S-module-BulkImport#spreadsheet">', '</a>') // @translate ?></p>
+
+    <?php if ($messagePre): ?>
+    <div><?= $messagePre ?></div>
     <?php endif; ?>
+
     <?php if (isset($importArgs)): ?>
     <?php $comment = $importArgs['comment']; ?>
     <?php unset($importArgs['comment']); ?>
@@ -42,9 +48,15 @@ if ($storeAsTask) {
         <pre><?= $escape(json_encode($importArgs['processor'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ?></pre>
     </div>
     <?php endif; ?>
+
     <?php
     echo $this->form()->openTag($form);
     echo $this->formCollection($form);
     echo $this->form()->closeTag();
     ?>
+
+    <?php if ($messagePost): ?>
+    <div><?= $messagePost ?></div>
+    <?php endif; ?>
+
 </div>

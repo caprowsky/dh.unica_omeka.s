@@ -2,14 +2,14 @@
 
 namespace BulkImport\Processor;
 
-use Box\Spout\Common\Entity\Style\Color;
-use Box\Spout\Writer\Common\Creator\Style\StyleBuilder;
-use Box\Spout\Writer\Common\Creator\WriterEntityFactory;
 use DomDocument;
 use DOMNodeList;
 use DOMXPath;
 use Laminas\Http\Client\Exception\ExceptionInterface as HttpExceptionInterface;
 use Laminas\Http\ClientStatic;
+use OpenSpout\Common\Entity\Style\Color;
+use OpenSpout\Writer\Common\Creator\Style\StyleBuilder;
+use OpenSpout\Writer\Common\Creator\WriterEntityFactory;
 
 // use SimpleXMLElement;
 
@@ -572,7 +572,7 @@ SQL;
         $list = $this->listDataValues([$sourceTerm => $sourceId], ['valuesuggest'], 'uri', false);
 
         $headers = [
-            'User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/96.0',
+            'User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/116.0',
             'Content-Type' => 'application/xml',
             'Accept-Encoding' => 'gzip, deflate',
         ];
@@ -2197,12 +2197,10 @@ SQL;
         $types = [
             'property_ids' => $this->connection::PARAM_INT_ARRAY,
         ];
-        $stmt = $this->connection->executeQuery($sql, $bind, $types);
-        // Fetch by key pair is not supported by doctrine 2.0.
-        $list = $stmt->fetchAll(\PDO::FETCH_ASSOC);
         // Warning: array_column() is used because values are distinct and all
         // of them are strings.
         // Note that numeric topics ("1918") are automatically casted to integer.
+        $list = $this->connection->executeQuery($sql, $bind, $types)->fetchAllAssociative();
         $list = $asKey
             ? array_column($list, 'r', 'v')
             : array_column($list, 'v');
@@ -3252,7 +3250,7 @@ SQL;
         // Don't use https, or add certificate to omeka config.
         $url = 'http://api.geonames.org/searchJSON';
         $headers = [
-            'User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/96.0',
+            'User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/116.0',
             'Content-Type' => 'application/json',
             'Accept-Encoding' => 'gzip, deflate',
         ];
@@ -3386,7 +3384,7 @@ SQL;
         ];
         $url = 'https://www.idref.fr/Sru/Solr';
         $headers = [
-            'User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/96.0',
+            'User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/116.0',
             'Content-Type' => 'application/json',
             'Accept-Encoding' => 'gzip, deflate',
         ];
@@ -3505,7 +3503,7 @@ SQL;
         ];
         $url = 'https://www.idref.fr/Sru/Solr';
         $headers = [
-            'User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/96.0',
+            'User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/116.0',
             'Content-Type' => 'application/json',
             'Accept-Encoding' => 'gzip, deflate',
         ];
@@ -3621,7 +3619,7 @@ SQL;
      *
      * OpenDocument Spreedsheet is used instead of csv/tsv because there may be
      * values with end of lines. Furthermore, it allows to merge cells when
-     * there are multiple results (but box/spout doesn't manage it).
+     * there are multiple results (but openspout doesn't manage it).
      */
     protected function saveMappingsSourceUris(): void
     {
@@ -3665,25 +3663,13 @@ SQL;
         $baseUrlPath = $this->services->get('Router')->getBaseUrl();
         $baseUrl = $serverUrlHelper($baseUrlPath ? $baseUrlPath . '/' : '/');
 
-        // TODO Remove when patch https://github.com/omeka-s-modules/CSVImport/pull/182 will be included.
-        // Manage compatibility with old version of CSV Import.
-        // For now, it should be first checked.
-        if (class_exists(\Box\Spout\Writer\WriterFactory::class)) {
-            $spreadsheetWriter = \Box\Spout\Writer\WriterFactory::create(\Box\Spout\Common\Type::ODS);
-        } elseif (class_exists(WriterEntityFactory::class)) {
-            /** @var \Box\Spout\Writer\ODS\Writer $spreadsheetWriter */
-            $spreadsheetWriter = WriterEntityFactory::createODSWriter();
-        } else {
-            $this->logger->err(
-                'The library to manage OpenDocument spreadsheet is not available.' // @translate
-            );
-            return;
-        }
+        /** @var \OpenSpout\Writer\ODS\Writer $spreadsheetWriter */
+        $spreadsheetWriter = WriterEntityFactory::createODSWriter();
 
         try {
             @unlink($filepath);
             $spreadsheetWriter->openToFile($filepath);
-        } catch (\Box\Spout\Common\Exception\IOException $e) {
+        } catch (\OpenSpout\Common\Exception\IOException $e) {
             $this->hasError = true;
             $this->logger->err(
                 'File "{filename}" cannot be created.', // @translate
@@ -3707,7 +3693,7 @@ SQL;
         $tableHeaders = array_values(array_merge($headers, $extraColumns));
         $emptyRow = array_fill_keys($tableHeaders, '');
 
-        /** @var \Box\Spout\Common\Entity\Row $row */
+        /** @var \OpenSpout\Common\Entity\Row $row */
         $row = WriterEntityFactory::createRowFromArray($tableHeaders, (new StyleBuilder())->setFontBold()->build());
         $spreadsheetWriter->addRow($row);
 
@@ -3939,7 +3925,7 @@ HTML;
         $resources = '';
         foreach ($resourceIds as $id) {
             $resources .= sprintf(
-                '<a href="%sadmin/item/%s" target="_blank">#%s</a>' . " \n",
+                '<a href="%sadmin/item/%s" target="_blank" rel="noopener">#%s</a>' . " \n",
                 $baseUrl, $id, $id
             );
         }
@@ -3956,7 +3942,7 @@ HTML;
                 $html .= "                <tr>\n";
             }
             $code = (string) basename(rtrim($uri, '/'));
-            $html .= sprintf('                    <td><a href="%s" target="_blank">%s</a></td>', htmlspecialchars($uri, ENT_NOQUOTES | ENT_HTML5), htmlspecialchars($code, ENT_NOQUOTES | ENT_HTML5)) . "\n";
+            $html .= sprintf('                    <td><a href="%s" target="_blank" rel="noopener">%s</a></td>', htmlspecialchars($uri, ENT_NOQUOTES | ENT_HTML5), htmlspecialchars($code, ENT_NOQUOTES | ENT_HTML5)) . "\n";
 
             $row = array_filter(array_map('strval', $row), 'strlen');
             // The order should be always the same.

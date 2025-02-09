@@ -2,6 +2,8 @@
 
 namespace BulkImport\Reader;
 
+use BulkImport\Entry\BaseEntry;
+use BulkImport\Entry\Entry;
 use BulkImport\Interfaces\Configurable;
 use BulkImport\Interfaces\Parametrizable;
 use BulkImport\Traits\ConfigurableTrait;
@@ -10,10 +12,23 @@ use BulkImport\Traits\ServiceLocatorAwareTrait;
 use Laminas\Form\Form;
 use Laminas\ServiceManager\ServiceLocatorInterface;
 
+/**
+ * @todo The reader itself may be an iterator or an array. Here too?
+ */
 abstract class AbstractReader implements Reader, Configurable, Parametrizable
 {
     // TODO Remove these traits so sub reader won't be all configurable.
     use ConfigurableTrait, ParametrizableTrait, ServiceLocatorAwareTrait;
+
+    /**
+     * @var string
+     */
+    protected $entryClass = BaseEntry::class;
+
+    /**
+     * @var \BulkImport\Stdlib\MetaMapper|null
+     */
+    protected $metaMapper;
 
     /**
      * This is the base path of the files, not the base path of the url.
@@ -33,6 +48,8 @@ abstract class AbstractReader implements Reader, Configurable, Parametrizable
     protected $availableFields = [];
 
     /**
+     * This is the resource name ("resources", "assets").
+     *
      * @var string
      */
     protected $objectType;
@@ -76,14 +93,30 @@ abstract class AbstractReader implements Reader, Configurable, Parametrizable
     protected $paramsKeys = [];
 
     /**
+     * The main iterator to loop on.
+     * May be \IteratorIterator, so the index may be a duplicate, so use it in
+     * conjunction with the main iterator index when needed.
+     *
+     * @var \Iterator|\IteratorIterator
+     */
+    protected $iterator;
+
+    /**
      * @var bool
      */
     protected $isReady = false;
 
     /**
-     * @var int 0 (one-based) or 1 (zero-based).
+     * For spreadsheets, the total entries should not include headers.
+     *
+     * @var int
      */
-    protected $isZeroBased = 0;
+    protected $totalEntries;
+
+    /**
+     * @var mixed
+     */
+    protected $currentData;
 
     /**
      * Reader constructor.
@@ -95,6 +128,7 @@ abstract class AbstractReader implements Reader, Configurable, Parametrizable
         $this->setServiceLocator($services);
         $config = $services->get('Config');
         $this->basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+        $this->metaMapper = $services->get('Bulk\MetaMapper');
     }
 
     public function getLabel(): string
@@ -123,7 +157,7 @@ abstract class AbstractReader implements Reader, Configurable, Parametrizable
         return $this->configFormClass;
     }
 
-    public function handleConfigForm(Form $form)
+    public function handleConfigForm(Form $form): self
     {
         $values = $form->getData();
         $config = array_intersect_key($values, array_flip($this->configKeys));
@@ -137,7 +171,7 @@ abstract class AbstractReader implements Reader, Configurable, Parametrizable
         return $this->paramsFormClass;
     }
 
-    public function handleParamsForm(Form $form)
+    public function handleParamsForm(Form $form): self
     {
         $values = $form->getData();
         $params = array_intersect_key($values, array_flip($this->paramsKeys));
@@ -147,19 +181,19 @@ abstract class AbstractReader implements Reader, Configurable, Parametrizable
         return $this;
     }
 
-    public function setObjectType($objectType): \BulkImport\Reader\Reader
+    public function setObjectType($objectType): self
     {
         $this->objectType = $objectType;
         return $this;
     }
 
-    public function setFilters(?array $filters): \BulkImport\Reader\Reader
+    public function setFilters(?array $filters): self
     {
         $this->filters = $filters ?? [];
         return $this;
     }
 
-    public function setOrders($by, $dir = 'ASC'): \BulkImport\Reader\Reader
+    public function setOrders($by, $dir = 'ASC'): self
     {
         $this->orders = [];
         if (!$by) {
@@ -180,6 +214,66 @@ abstract class AbstractReader implements Reader, Configurable, Parametrizable
         return $this;
     }
 
+    #[\ReturnTypeWillChange]
+    public function current()
+    {
+        $this->isReady();
+        $this->currentData = $this->iterator->current();
+        return $this->currentData
+            ? $this->currentEntry()
+            : null;
+    }
+
+    #[\ReturnTypeWillChange]
+    public function key()
+    {
+        $this->isReady();
+        return $this->iterator->key();
+    }
+
+    public function next(): void
+    {
+        $this->isReady();
+        $this->iterator->next();
+    }
+
+    public function rewind(): void
+    {
+        $this->isReady();
+        $this->iterator->rewind();
+    }
+
+    public function valid(): bool
+    {
+        $this->isReady();
+        return $this->iterator->valid();
+    }
+
+    public function count(): int
+    {
+        $this->isReady();
+        if (is_null($this->totalEntries)) {
+            $this->totalEntries = method_exists($this->iterator, 'count')
+                ? $this->iterator->count()
+                : iterator_count($this->iterator);
+        }
+        return (int) $this->totalEntries;
+    }
+
+    /**
+     * Get the current data mapped as an Entry, by default for an array.
+     */
+    protected function currentEntry(): Entry
+    {
+        $class = $this->entryClass;
+        return new $class(
+            $this->currentData,
+            $this->key(),
+            $this->availableFields,
+            $this->getParams() + ['metaMapper' => $this->metaMapper]
+        );
+    }
+
     /**
      * Check if the reader is ready, or prepare it.
      */
@@ -188,7 +282,6 @@ abstract class AbstractReader implements Reader, Configurable, Parametrizable
         if ($this->isReady) {
             return true;
         }
-
         $this->prepareIterator();
         return $this->isReady;
     }
@@ -196,36 +289,71 @@ abstract class AbstractReader implements Reader, Configurable, Parametrizable
     /**
      * Reset the iterator to allow to use it with different params.
      */
-    protected function reset(): \BulkImport\Reader\Reader
+    protected function reset(): self
     {
         $this->availableFields = [];
         $this->objectType = null;
         $this->lastErrorMessage = null;
         $this->isReady = false;
-        $this->isZeroBased = 0;
+        $this->iterator = null;
+        $this->totalEntries = null;
+        $this->currentData = null;
         return $this;
     }
 
     /**
+     * To prepare an iterator may be a complex process, because source may be
+     * very different and may have various system of pagination.
+     *
      * @throws \Omeka\Service\Exception\RuntimeException
      */
-    protected function prepareIterator(): \BulkImport\Reader\Reader
+    protected function prepareIterator(): self
     {
+        // The params should be checked and valid.
         $this->reset();
         if (!$this->isValid()) {
             throw new \Omeka\Service\Exception\RuntimeException((string) $this->getLastErrorMessage());
         }
+
+        $this->initializeReader();
+        $this->finalizePrepareIterator();
+        $this->prepareAvailableFields();
 
         $this->isReady = true;
         return $this;
     }
 
     /**
+     * Initialize the reader iterator.
+     */
+    abstract protected function initializeReader(): self;
+
+    /**
+     * Called only by prepareIterator() after opening reader.
+     */
+    protected function finalizePrepareIterator(): self
+    {
+        $this->totalEntries = iterator_count($this->iterator);
+        $this->iterator->rewind();
+        return $this;
+    }
+
+    /**
+     * The list of available fields are an array.
+     */
+    protected function prepareAvailableFields(): self
+    {
+        return $this;
+    }
+
+    /**
      * Prepare other internal data.
      */
-    protected function appendInternalParams(): \BulkImport\Reader\Reader
+    protected function appendInternalParams(): self
     {
-        $settings = $this->getServiceLocator()->get('Omeka\Settings');
+        $services = $this->getServiceLocator();
+        $settings = $services->get('Omeka\Settings');
+
         $internalParams = [];
         $internalParams['iiifserver_media_api_url'] = $settings->get('iiifserver_media_api_url', '');
         if ($internalParams['iiifserver_media_api_url']
@@ -233,7 +361,9 @@ abstract class AbstractReader implements Reader, Configurable, Parametrizable
         ) {
             $internalParams['iiifserver_media_api_url'] .= '/';
         }
+
         $this->setParams(array_merge($this->getParams() + $internalParams));
+
         return $this;
     }
 }

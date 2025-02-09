@@ -20,6 +20,11 @@ use JamesHeinrich\GetID3\Utils;
 
 class Swf extends Handler
 {
+	/**
+	 * return all parsed tags if true, otherwise do not return tags not parsed by getID3
+	 *
+	 * @var bool
+	 */
 	public $ReturnAllTagData = false;
 
 	/**
@@ -115,7 +120,7 @@ class Swf extends Handler
 				$CurrentOffset += 4;
 			}
 
-			unset($TagData);
+			$TagData           = array();
 			$TagData['offset'] = $CurrentOffset;
 			$TagData['size']   = $TagLength;
 			$TagData['id']     = $TagID;

@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2021 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  * Copyright 2016-2017 BibLibre
  *
  * This software is governed by the CeCILL license under French law and abiding
@@ -76,8 +76,7 @@ class IiifCanvas2 extends AbstractHelper
 
         // Size of canvas should be the double of small images (< 1200 px), but
         // only when more than one image is used by a canvas.
-        $imageSize = $view->imageSize($resource, 'original');
-        list($width, $height) = $imageSize ? array_values($imageSize) : [null, null];
+        [$width, $height] = array_values($view->imageSize($resource, 'original'));
         $canvas['width'] = $width;
         $canvas['height'] = $height;
 
@@ -92,7 +91,7 @@ class IiifCanvas2 extends AbstractHelper
             $canvas['metadata'] = $metadata;
         }
 
-        return (object) $canvas;
+        return $canvas;
     }
 
     /**
@@ -124,7 +123,7 @@ class IiifCanvas2 extends AbstractHelper
             return [];
         }
 
-        $settingHelper = $this->view->getHelperPluginManager()->get('setting');
+        $settingHelper = $this->view->plugin('setting');
 
         $whitelist = $settingHelper($map[$jsonLdType]['whitelist'], []);
         if ($whitelist === ['none']) {
@@ -169,7 +168,7 @@ class IiifCanvas2 extends AbstractHelper
                     : (string) $v;
             }, $propertyData['values']), 'strlen');
             $valueMetadata['value'] = count($valueValues) <= 1 ? reset($valueValues) : $valueValues;
-            $metadata[] = (object) $valueMetadata;
+            $metadata[] = $valueMetadata;
         }
         return $metadata;
     }
@@ -196,7 +195,7 @@ class IiifCanvas2 extends AbstractHelper
                 return $v->asHtml();
             }, $propertyData['values']), 'strlen');
             $valueMetadata['value'] = count($valueValues) <= 1 ? reset($valueValues) : $valueValues;
-            $metadata[] = (object) $valueMetadata;
+            $metadata[] = $valueMetadata;
         }
         return $metadata;
     }
@@ -211,11 +210,10 @@ class IiifCanvas2 extends AbstractHelper
     {
         $view = $this->getView();
 
-        $imageSize = $view->imageSize($media, 'square');
-        if (empty($imageSize)) {
-            return;
+        [$width, $height] = array_values($view->imageSize($media, 'square'));
+        if (empty($width) || empty($height)) {
+            return null;
         }
-        list($width, $height) = array_values($imageSize);
 
         $thumbnail = [];
 
@@ -233,10 +231,10 @@ class IiifCanvas2 extends AbstractHelper
         $thumbnailServiceUrl = $view->iiifMediaUrl($media, 'imageserver/id', '2');
         $thumbnailService['@id'] = $thumbnailServiceUrl;
         $thumbnailService['profile'] = 'http://iiif.io/api/image/2/level2.json';
-        $thumbnailService = (object) $thumbnailService;
+        $thumbnailService = $thumbnailService;
 
         $thumbnail['service'] = $thumbnailService;
-        $thumbnail = (object) $thumbnail;
+        $thumbnail = $thumbnail;
 
         return $thumbnail;
     }
@@ -258,8 +256,7 @@ class IiifCanvas2 extends AbstractHelper
         $view = $this->getView();
 
         if (empty($width) || empty($height)) {
-            $imageSize = $view->imageSize($media, 'original');
-            list($width, $height) = $imageSize ? array_values($imageSize) : [null, null];
+            [$width, $height] = array_values($view->imageSize($media, 'original'));
         }
 
         $image = [];
@@ -273,8 +270,7 @@ class IiifCanvas2 extends AbstractHelper
         // According to https://iiif.io/api/presentation/2.1/#image-resources,
         // "the URL may be the complete URL to a particular size of the image
         // content", so the large one here, and it's always a jpeg.
-        $imageSize = $view->imageSize($media, 'large');
-        list($widthLarge, $heightLarge) = $imageSize ? array_values($imageSize) : [null, null];
+        [$widthLarge, $heightLarge] = array_values($view->imageSize($media, 'large'));
         $imageUrl = $view->iiifMediaUrl($media, 'imageserver/media', '2', [
             'region' => 'full',
             'size' => $widthLarge . ',' . $heightLarge,
@@ -304,13 +300,13 @@ class IiifCanvas2 extends AbstractHelper
             $imageResourceService['height'] = $height;
         }
 
-        $imageResourceService = (object) $imageResourceService;
+        $imageResourceService = $imageResourceService;
         $imageResource['service'] = $imageResourceService;
-        $imageResource = (object) $imageResource;
+        $imageResource = $imageResource;
 
         $image['resource'] = $imageResource;
         $image['on'] = $canvasUrl;
 
-        return (object) $image;
+        return $image;
     }
 }

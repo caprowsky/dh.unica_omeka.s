@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -29,16 +29,16 @@
 
 namespace IiifServer\Iiif;
 
-use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
-
 /**
  *@link https://iiif.io/api/presentation/3.0/#54-range
  */
 class Range extends AbstractResourceType
 {
+    use TraitStructuralAnnotations;
+
     protected $type = 'Range';
 
-    protected $keys = [
+    protected $propertyRequirements = [
         '@context' => self::OPTIONAL,
 
         'id' => self::REQUIRED,
@@ -73,6 +73,7 @@ class Range extends AbstractResourceType
         'seeAlso' => self::OPTIONAL,
         'service' => self::OPTIONAL,
         'homepage' => self::OPTIONAL,
+        'logo' => self::OPTIONAL,
         'rendering' => self::OPTIONAL,
         'partOf' => self::OPTIONAL,
         'start' => self::OPTIONAL,
@@ -86,30 +87,37 @@ class Range extends AbstractResourceType
     ];
 
     protected $behaviors = [
+        // Temporal behaviors.
         'auto-advance' => self::OPTIONAL,
-        'continuous' => self::OPTIONAL,
-        'facing-pages' => self::NOT_ALLOWED,
-        'individuals' => self::OPTIONAL,
-        'multi-part' => self::NOT_ALLOWED,
         'no-auto-advance' => self::OPTIONAL,
-        'no-nav' => self::OPTIONAL,
-        'no-repeat' => self::NOT_ALLOWED,
-        'non-paged' => self::NOT_ALLOWED,
-        'hidden' => self::NOT_ALLOWED,
-        'paged' => self::OPTIONAL,
         'repeat' => self::NOT_ALLOWED,
+        'no-repeat' => self::NOT_ALLOWED,
+        // Layout behaviors.
+        'unordered' => self::OPTIONAL,
+        'individuals' => self::OPTIONAL,
+        'continuous' => self::OPTIONAL,
+        'paged' => self::OPTIONAL,
+        'facing-pages' => self::NOT_ALLOWED,
+        'non-paged' => self::NOT_ALLOWED,
+        // Collection behaviors.
+        'multi-part' => self::NOT_ALLOWED,
+        'together' => self::NOT_ALLOWED,
+        // Range behaviors.
         'sequence' => self::OPTIONAL,
         'thumbnail-nav' => self::OPTIONAL,
-        'together' => self::NOT_ALLOWED,
-        'unordered' => self::OPTIONAL,
+        'no-nav' => self::OPTIONAL,
+        // Miscellaneous behaviors.
+        'hidden' => self::NOT_ALLOWED,
     ];
 
     /**
      * The option "index" or "target_name" is required.
+     *
+     * @todo Move to construct?
      */
-    public function __construct(AbstractResourceEntityRepresentation $resource, array $options = null)
+    public function setOptions(array $options): self
     {
-        parent::__construct($resource, $options);
+        parent::setOptions($options);
         $this->options['target_type'] = 'range';
         if (empty($this->options['target_name'])) {
             $name = $this->options['index'] ?? '0';
@@ -117,6 +125,7 @@ class Range extends AbstractResourceType
                 ? 'p' . $name
                 : $name;
         }
+        return $this;
     }
 
     public function id(): ?string
@@ -127,10 +136,10 @@ class Range extends AbstractResourceType
         ]);
     }
 
-    public function label(): ?ValueLanguage
+    public function label(): ?array
     {
         return isset($this->options['label'])
-            ? new ValueLanguage($this->options['label'])
+            ? ValueLanguage::output($this->options['label'])
             : null;
     }
 

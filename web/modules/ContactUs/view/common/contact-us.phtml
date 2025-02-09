@@ -5,32 +5,27 @@
  * @var \ContactUs\Form\ContactUsForm $form
  * @var string $heading
  * @var string $html Passed directly from the options.
- * @var string $message
+ * @var ?\Common\Stdlib\PsrMessage $message Message of success or error to the user.
  * @var string $status "success" or "error"
  * @var string $contact "us" or "author"
  */
 
-$escape = $this->plugin('escapeHtml');
+// Note: you may use css grid / flex to quick adapt the form and reorder fields.
 
-$style = '
-.contact-us-block .error {
-    color: red;
-}
-';
-$this->headStyle()->appendStyle($style);
+$escape = $this->plugin('escapeHtml');
 ?>
 
 <div class="contact-us-block">
     <?php if (!empty($heading)): ?>
-    <h2><?= $escape($heading) ?></h2>
+    <h4><?= $escape($heading) ?></h4>
     <?php endif; ?>
 
-    <?= @$html ?>
+    <?= $html ?? '' ?>
 
     <?php if ($message): ?>
     <p class="explanation <?= $status ?>"><?= $message ?></p>
     <?php endif; ?>
-    <?php if ($form): ?>
+    <?php if ($status !== 'success' && $form): ?>
     <?= $this->form($form) ?>
     <?php endif; ?>
 </div>

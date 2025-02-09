@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -48,19 +48,23 @@ class IiifCollectionList3 extends AbstractHelper
      */
     public function __invoke(array $resourcesOrUrls, $url = null)
     {
-        $collection = new CollectionList($resourcesOrUrls, ['iiif_url' => $url]);
-
         // The services cannot be extracted from resources, so set them here.
-        $services = @$this->getView()->getHelperPluginManager()->getServiceLocator();
-        $collection->setServiceLocator($services);
+        $services = @$this->view->getHelperPluginManager()->getServiceLocator();
+
+        $collection = new CollectionList();
+        $collection
+            ->setServiceLocator($services)
+            ->setResources($resourcesOrUrls)
+            ->setOptions(['iiif_url' => $url])
+            ->normalize();
 
         // Give possibility to customize the manifest.
         $resource = $resourcesOrUrls;
         $format = 'collection';
         $type = 'collection';
         $params = compact('format', 'collection', 'resource', 'type');
-        $this->getView()->plugin('trigger')->__invoke('iiifserver.manifest', $params, true);
-        $collection->isValid(true);
+        $this->view->plugin('trigger')->__invoke('iiifserver.manifest', $params, true);
+        $collection->normalize();
         return $collection;
     }
 }

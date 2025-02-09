@@ -52,7 +52,7 @@ SELECT `asset`.`id` AS `d`
 FROM `asset` AS `asset`
 WHERE `asset`.`storage_id` IN ($storageIds);
 SQL;
-        $existingAssets = array_map('intval', $this->connection->executeQuery($sql)->fetchAllFirstColumn());
+        $existingAssets = array_map('intval', $this->connection->executeQuery($sql)->fetchFirstColumn());
 
         $sql = '';
         // Save the ids as storage, it should be unique anyway, except in case
@@ -132,7 +132,7 @@ SQL;
             $storageId = bin2hex(\Laminas\Math\Rand::getBytes(20));
             $extension = substr($source['o:filename'], $pos + 1);
 
-            $result = $this->fetchUrl('asset', $source['o:name'], $source['o:filename'], $storageId, $extension, $source['o:asset_url']);
+            $result = $this->fetchFile('asset', $source['o:name'], $source['o:filename'], $storageId, $extension, $source['o:asset_url']);
             if ($result['status'] !== 'success') {
                 ++$skipped;
                 $this->logger->err($result['message']);

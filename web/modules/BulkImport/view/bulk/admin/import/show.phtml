@@ -5,8 +5,9 @@
  * @var \BulkImport\Api\Representation\ImportRepresentation $resource
  */
 
-$translate = $this->plugin('translate');
-$escape = $this->plugin('escapeHtml');
+$plugins = $this->getHelperPluginManager();
+$escape = $plugins->get('escapeHtml');
+$translate = $plugins->get('translate');
 
 $this->htmlElement('body')->appendAttribute('class', 'bulk-imports show');
 $this->headLink()->appendStylesheet($this->assetUrl('css/bulk-import.css', 'BulkImport'));
@@ -18,7 +19,7 @@ $this->headLink()->appendStylesheet($this->assetUrl('css/bulk-import.css', 'Bulk
     <?= $this->navigation('Laminas\Navigation\BulkImport')->menu() ?>
 </nav>
 
-<div id="content">
+<div id="bulk-import">
     <h3><?= $translate('Status') ?></h3>
     <ul>
         <li><?= sprintf($translate('Importer: %s'), $import->importer()->label()) ?></li>

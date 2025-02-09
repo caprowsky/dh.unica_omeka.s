@@ -2,12 +2,13 @@
 
 namespace IiifServer\Form;
 
-use IiifServer\Form\Element\OptionalUrl;
+use Common\Form\Element as CommonElement;
 use Laminas\EventManager\Event;
 use Laminas\EventManager\EventManagerAwareTrait;
 use Laminas\Form\Element;
+use Laminas\Form\Fieldset;
 use Laminas\Form\Form;
-use Omeka\Form\Element\PropertySelect;
+use Omeka\Form\Element as OmekaElement;
 
 class ConfigForm extends Form
 {
@@ -39,7 +40,7 @@ class ConfigForm extends Form
 
             ->add([
                 'name' => 'iiifserver_manifest_external_property',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Property supplying an external manifest', // @translate
                     'info' => 'External or static manifests can be more customized and may be quicker to be loaded. Usually, the property is "dcterms:hasFormat" or "dcterms:isFormatOf".', // @translate
@@ -55,6 +56,47 @@ class ConfigForm extends Form
             ])
 
             ->add([
+                'name' => 'iiifserver_manifest_append_cors_headers',
+                'type' => Element\Checkbox::class,
+                'options' => [
+                    'label' => 'Append CORS headers to web server response', // @translate
+                    'info' => 'CORS ("Cross Origin Resource Sharing") headers are required to share manifests and media. They are generally managed by the web server, but, if not, they can be added here. They must not be appended multiple times, else they are disabled.', // @translate
+                    'documentation' => 'https://gitlab.com/Daniel-KM/Omeka-S-module-IiifServer#CORS-Cross-Origin-Resource-Sharing)', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_append_cors_headers',
+                ],
+            ])
+
+            ->add([
+                'name' => 'iiifserver_manifest_pretty_json',
+                'type' => Element\Checkbox::class,
+                'options' => [
+                    'label' => 'Output pretty indented json', // @translate
+                    'info' => 'Recommended only if your server zip json automatically.', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_pretty_json',
+                ],
+            ])
+
+            ->add([
+                'name' => 'iiifserver_manifest_cache',
+                'type' => CommonElement\OptionalRadio::class,
+                'options' => [
+                    'label' => 'Cache', // @translate
+                    'info' => 'A cache may be required when there are more than 100 to 1000 media, depending on server, or when there are many visitors.', // @translate
+                    'value_options' => [
+                        '1' => 'Cache manifest for instant access', // @translate'
+                        '0' => 'Create manifest in real time', // @translate'
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_cache',
+                ],
+            ])
+
+            ->add([
                 'name' => 'fieldset_content',
                 'type' => \Laminas\Form\Fieldset::class,
                 'options' => [
@@ -63,17 +105,20 @@ class ConfigForm extends Form
             ])
 
             ->add([
-                'name' => 'iiifserver_manifest_description_property',
-                'type' => PropertySelect::class,
+                'name' => 'iiifserver_manifest_summary_property',
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
-                    'label' => 'Property to use for Description', // @translate
+                    'label' => 'Property to use for summary or description', // @translate
                     'info' => 'If any, the first metadata of the record will be added in all manifests and viewers for main description. It’s recommended to use "Dublin Core:Bibliographic Citation".', // @translate
                     'empty_option' => '',
                     'term_as_value' => true,
+                    'prepend_value_options' => [
+                        'template' => 'Template description', // @translate
+                    ],
                     'use_hidden_element' => true,
                 ],
                 'attributes' => [
-                    'id' => 'iiifserver_manifest_description_property',
+                    'id' => 'iiifserver_manifest_summary_property',
                     'class' => 'chosen-select',
                     'data-placeholder' => 'Select a property…', // @translate
                 ],
@@ -81,7 +126,7 @@ class ConfigForm extends Form
 
             ->add([
                 'name' => 'iiifserver_manifest_attribution_property',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Property to use for Attribution', // @translate
                     'info' => 'If any, the first metadata of the resource will be added in all manifests and viewers to indicate the attribution.', // @translate
@@ -105,6 +150,7 @@ class ConfigForm extends Form
                 ],
                 'attributes' => [
                     'id' => 'iiifserver_manifest_attribution_default',
+                    'data-placeholder' => 'Provided by Example Organization', // @translate
                 ],
             ])
 
@@ -117,7 +163,7 @@ class ConfigForm extends Form
                         'none' => 'No mention', // @translate
                         'text' => 'Specified text below (only for iiif 2.0)', // @translate
                         'url' => 'Specified license below', // @translate
-                        'property' => 'Specified property below', // @translate
+                        'property' => 'Property specified below', // @translate
                         'property_or_text' => 'Property if any, else specified license text (only for iiif 2.0)', // @translate
                         'property_or_url' => 'Property if any, else specified license', // @translate
                     ],
@@ -130,7 +176,7 @@ class ConfigForm extends Form
             ])
             ->add([
                 'name' => 'iiifserver_manifest_rights_property',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Property to use for rights', // @translate
                     'empty_option' => '',
@@ -144,11 +190,77 @@ class ConfigForm extends Form
                 'use_hidden_element' => true,
             ])
             ->add([
+                'name' => 'iiifserver_manifest_rights_uri',
+                'type' => Element\Select::class,
+                'options' => [
+                    'label' => 'Uri of the license or rights', // @translate
+                    // TODO See https://iiif.io/api/presentation/3.0/#rights: uri are http but rendered as https.
+                    // It should be http:// rendered as https by clients, but
+                    // there is an example with https:// in https://iiif.io/api/presentation/3.0/#b-example-manifest-response.
+                    'value_options' => [
+                        '' => 'Uri below', // @translate
+                        // CreativeCommons.
+                        'creative-commons-0' => [
+                            'label' => 'Creative Commons 0', // @translate
+                            'options' => [
+                                'https://creativecommons.org/publicdomain/zero/1.0/' => 'Creative Commons CC0 Universal Public Domain Dedication', // @translate
+                            ],
+                        ],
+                        // v3 international
+                        'creative-commons-3' => [
+                            'label' => 'Creative Commons 3.0 International', // @translate
+                            'options' => [
+                                'https://creativecommons.org/licenses/by/3.0/' => 'Creative Commons Attribution 3.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-sa/3.0/' => 'Creative Commons Attribution-ShareAlike 3.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-nc/3.0' => 'Creative Commons Attribution-NonCommercial 3.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-nc-sa/3.0' => 'Creative Commons Attribution-NonCommercial-ShareAlike 3.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-nc-nd/3.0' => 'Creative Commons Attribution-NonCommercial-NoDerivatives 3.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-nd/3.0' => 'Creative Commons Attribution-NoDerivatives 3.0 International', // @translate
+                            ],
+                        ],
+                        // v4 international
+                        'creative-commons-4' => [
+                            'label' => 'Creative Commons 4.0 International', // @translate
+                            'options' => [
+                                'https://creativecommons.org/licenses/by/4.0/' => 'Creative Commons Attribution 4.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-sa/4.0/' => 'Creative Commons Attribution-ShareAlike 4.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-nc/4.0' => 'Creative Commons Attribution-NonCommercial 4.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-nc-sa/4.0' => 'Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-nc-nd/4.0' => 'Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International', // @translate
+                                'https://creativecommons.org/licenses/by-nd/4.0' => 'Creative Commons Attribution-NoDerivatives 4.0 International', // @translate
+                            ],
+                        ],
+                        // RigthsStatements.
+                        'rigths-statements' => [
+                            'label' => 'Rigths Statements', // @translate
+                            'options' => [
+                                'https://rightsstatements.org/vocab/InC/1.0/' => 'In Copyright', // @translate
+                                'https://rightsstatements.org/vocab/InC-RUU/1.0/' => 'In Copyright - Rights-holder(s) Unlocatable or Unidentifiable', // @translate
+                                'https://rightsstatements.org/vocab/InC-NC/1.0/' => 'In Copyright - Non-Commercial Use Permitted', // @translate
+                                'https://rightsstatements.org/vocab/InC-EDU/1.0/' => 'In Copyright - Educational Use Permitted', // @translate
+                                'https://rightsstatements.org/vocab/InC-OW-EU/1.0/' => 'In Copyright - EU Orphan Work', // @translate
+                                'https://rightsstatements.org/vocab/NoC-OKLR/1.0/' => 'No Copyright - Other Known Legal Restrictions', // @translate
+                                'https://rightsstatements.org/vocab/NoC-CR/1.0/' => 'No Copyright - Contractual Restrictions', // @translate
+                                'https://rightsstatements.org/vocab/NoC-NC/1.0/' => 'No Copyright - Non-Commercial Use Only', // @translate
+                                'https://rightsstatements.org/vocab/NoC-US/1.0/' => 'No Copyright - United States', // @translate
+                                'https://rightsstatements.org/vocab/NKC/1.0/' => 'No Known Copyright', // @translate
+                                'https://rightsstatements.org/vocab/UND/1.0/' => 'Copyright Undetermined', // @translate
+                                'https://rightsstatements.org/vocab/CNE/1.0/' => 'Copyright Not Evaluated', // @translate
+                            ],
+                        ],
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_rights_uri',
+                    'class' => 'chosen-select',
+                ],
+            ])
+            ->add([
                 'name' => 'iiifserver_manifest_rights_url',
                 'type' => Element\Url::class,
                 'options' => [
-                    'label' => 'Url of the license', // @translate
-                    'info' => 'The license of the item must be an url from https://creativecommons.org or https://rightsstatements.org.', // @translate
+                    'label' => 'Uri of the rights/license when unselected above', // @translate
+                    'info' => 'For IIIF v3, the license of the item must be an url from https://creativecommons.org or https://rightsstatements.org.', // @translate
                 ],
                 'attributes' => [
                     'id' => 'iiifserver_manifest_rights_url',
@@ -167,28 +279,29 @@ class ConfigForm extends Form
 
             ->add([
                 'name' => 'iiifserver_manifest_homepage',
-                'type' => Element\Select::class,
+                'type' => Element\MultiCheckbox::class,
                 'options' => [
-                    'label' => 'Resource link', // @translate
+                    'label' => 'Resource page', // @translate
                     'info' => 'In some cases, the resources are external and the link to it may be specific.', // @translate
-                    'empty_option' => '',
                     'value_options' => [
                         'none' => 'No link', // @translate
-                        'site' => 'Homepage', // @translate
-                        'resource' => 'Resource page', // @translate
-                        'property' => 'Specified property below', // @translate
-                        'property_or_resource' => 'Property if any, else resource page', // @translate
-                        'property_and_resource' => 'Property if any, and resource page', // @translate
+                        'property' => 'Property specified below', // @translate
+                        'resource' => 'Resource page (default site)', // @translate
+                        'resources' => 'Resource pages (all sites)', // @translate
+                        'property_or_resource' => 'Property if any, else resource page (defaut site)', // @translate
+                        'property_or_resources' => 'Property if any, else resource pages (all sites)', // @translate
+                        'site' => 'Default site home page (not recommended)', // @translate
+                        'sites' => 'Site home pages (not recommended)', // @translate
+                        'api' => 'Api (not recommended)', // @translate
                     ],
                 ],
                 'attributes' => [
                     'id' => 'iiifserver_manifest_homepage',
-                    'class' => 'chosen-select',
                 ],
             ])
             ->add([
                 'name' => 'iiifserver_manifest_homepage_property',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Property for resource link', // @translate
                     'info' => 'In some cases, the resources are external and the link to it may be specific.', // @translate
@@ -203,8 +316,54 @@ class ConfigForm extends Form
             ])
 
             ->add([
+                'name' => 'iiifserver_manifest_provider',
+                'type' => Element\MultiCheckbox::class,
+                'options' => [
+                    'label' => 'Provider', // @translate
+                    'info' => 'An organization or person that contributed to providing the content of the resource. The address, web site, logo, etc. can be appended.', // @translate
+                    'documentation' => 'https://iiif.io/api/presentation/3.0/#provider',
+                    'value_options' => [
+                        'none' => 'None', // @translate
+                        'property' => 'Property specified below', // @translate
+                        'agent' => 'Agent specified below', // @translate
+                        'simple' => 'Simple data from main parameters', // @translate
+                        'property_or_agent' => 'Property if any, else agent', // @translate
+                        'property_or_simple' => 'Property if any, else simple', // @translate
+                        // TODO Add a resource (and a value resource).
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_provider',
+                ],
+            ])
+            ->add([
+                'name' => 'iiifserver_manifest_provider_property',
+                'type' => OmekaElement\PropertySelect::class,
+                'options' => [
+                    'label' => 'Property for provider', // @translate
+                    'empty_option' => '',
+                    'term_as_value' => true,
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_provider_property',
+                    'class' => 'chosen-select',
+                    'data-placeholder' => 'Select a property…', // @translate
+                ],
+            ])
+            ->add([
+                'name' => 'iiifserver_manifest_provider_agent',
+                'type' => Element\Textarea::class,
+                'options' => [
+                    'label' => 'Provider (as json)', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_provider_agent',
+                ],
+            ])
+
+            ->add([
                 'name' => 'iiifserver_manifest_seealso_property',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Property for machine-readable "See also" links', // @translate
                     'empty_option' => '',
@@ -218,8 +377,81 @@ class ConfigForm extends Form
             ])
 
             ->add([
+                'name' => 'iiifserver_manifest_rendering_media_types',
+                'type' => CommonElement\MediaTypeSelect::class,
+                'options' => [
+                    'label' => 'Media types of files to include in download', // @translate
+                    'prepend_value_options' => [
+                        'none' => 'None', // @translate
+                        'all' => 'All', // @translate
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_rendering_media_types',
+                    'multiple' => true,
+                    'class' => 'chosen-select',
+                    'data-placeholder' => 'Select media-types to download', // @translate
+                ],
+            ])
+
+            ->add([
+                'name' => 'iiifserver_manifest_start_property',
+                'type' => OmekaElement\PropertySelect::class,
+                'options' => [
+                    'label' => 'Property to set the start page (may be an index, a media or a time)', // @translate
+                    'empty_option' => '',
+                    'term_as_value' => true,
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_start_property',
+                    'class' => 'chosen-select',
+                    'data-placeholder' => 'Select a property…', // @translate
+                ],
+            ])
+
+            ->add([
+                'name' => 'iiifserver_manifest_start_primary_media',
+                'type' => Element\Checkbox::class,
+                'options' => [
+                    'label' => 'Use the primary media as start page, except when property above is filled', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_start_primary_media',
+                ],
+            ])
+
+            ->add([
+                'name' => 'iiifserver_manifest_structures_property',
+                'type' => OmekaElement\PropertySelect::class,
+                'options' => [
+                    'label' => 'Property for structures', // @translate
+                    'empty_option' => '',
+                    'term_as_value' => true,
+                    'info' => 'Refer to the following URL for the input format.', // @translate
+                    'documentation' => 'https://gitlab.com/Daniel-KM/Omeka-S-module-IiifServer#input-format-of-the-property-for-structures-table-of-contents',
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_structures_property',
+                    'class' => 'chosen-select',
+                    'data-placeholder' => 'Select a property…', // @translate
+                ],
+            ])
+
+            ->add([
+                'name' => 'iiifserver_manifest_structures_skip_flat',
+                'type' => Element\Checkbox::class,
+                'options' => [
+                    'label' => 'Skip the flat structure appended when no structure is set', // @translate
+                    'info' => 'This flat structure can fix some issues on old versions of viewers.',  // @translate
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_structures_skip_flat',
+                ],
+            ])
+
+            ->add([
                 'name' => 'iiifserver_manifest_viewing_direction_property',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Property to use for viewing direction', // @translate
                     'info' => 'If any, the first value will be added to indicate the viewing direction of the manifest.', // @translate
@@ -253,8 +485,48 @@ class ConfigForm extends Form
             ])
 
             ->add([
+                'name' => 'iiifserver_manifest_placeholder_canvas_property',
+                'type' => OmekaElement\PropertySelect::class,
+                'options' => [
+                    'label' => 'Property to use in item or media to set a placeholder canvas for waiting or warning', // @translate
+                    'info' => 'May be a url to a placeholder file, a list of media to protect, a string with the value below, or a boolean value, in which case the default placeholder canvas is used.', // @translate
+                    'documentation' => 'https://iiif.io/api/presentation/3.0/#placeholdercanvas',
+                    'empty_option' => '',
+                    'term_as_value' => true,
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_placeholder_canvas_property',
+                    'class' => 'chosen-select',
+                    'data-placeholder' => 'Select a property…', // @translate
+                ],
+            ])
+
+            ->add([
+                'name' => 'iiifserver_manifest_placeholder_canvas_value',
+                'type' => Element\Text::class,
+                'options' => [
+                    'label' => 'Value to match to display the placeholder canvas', // @translate
+                    'info' => 'This option is used only when the property above is a string, for example "Informed public". The warning with the url below will be displayed when the property has this value.', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_placeholder_canvas_value',
+                ],
+            ])
+
+            ->add([
+                'name' => 'iiifserver_manifest_placeholder_canvas_default',
+                'type' => Element\Url::class,
+                'options' => [
+                    'label' => 'Url to use as a default placeholder canvas', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_manifest_placeholder_canvas_default',
+                ],
+            ])
+
+            ->add([
                 'name' => 'iiifserver_manifest_behavior_property',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Property to use for behavior (viewing hint)', // @translate
                     'info' => 'If any, the first value will be added to indicate the viewing hint of the manifest and the canvas.', // @translate
@@ -278,22 +550,27 @@ class ConfigForm extends Form
                         // Commented values are not allowed for manifest, neither canvas.
                         // @link https://iiif.io/api/presentation/3.0/#a-summary-of-property-requirements
                         'none' => 'None', // @translate
+                        // Temporal behaviors.
                         'auto-advance' => 'Auto-advance', // @translate
-                        'continuous' => 'Continuous', // @translate
-                        'facing-pages' => 'Facing pages', // @translate
-                        'individuals' => 'Individuals', // @translate
-                        // 'multi-part' => 'Multi-part', // @translate
                         'no-auto-advance' => 'No auto-advance', // @translate
-                        // 'no-nav' => 'No nav', // @translate
-                        'no-repeat' => 'No repeat', // @translate
-                        'non-paged' => 'Non-paged', // @translate
-                        // 'hidden' => 'Hidden', // @translate
-                        'paged' => 'Paged', // @translate
                         'repeat' => 'Repeat', // @translate
-                        // 'sequence' => 'Sequence', // @translate
-                        // 'thumbnail-nav' => 'Thumbnail nav', // @translate
-                        // 'together' => 'Together', // @translate
+                        'no-repeat' => 'No repeat', // @translate
+                        // Layout behaviors.
                         'unordered' => 'Unordered', // @translate
+                        'individuals' => 'Individuals', // @translate
+                        'continuous' => 'Continuous', // @translate
+                        'paged' => 'Paged', // @translate
+                        'facing-pages' => 'Facing pages', // @translate
+                        'non-paged' => 'Non-paged', // @translate
+                        // Collection behaviors.
+                        // 'multi-part' => 'Collection: Multi-part', // @translate
+                        // 'together' => 'Collection: Together', // @translate
+                        // Range behaviors.
+                        // 'sequence' => 'Range: Sequence', // @translate
+                        // 'thumbnail-nav' => 'Range: Thumbnail nav', // @translate
+                        // 'no-nav' => 'Range: No nav', // @translate
+                        // Miscellaneous behaviors.
+                        // 'hidden' => 'Hidden', // @translate
                     ],
                 ],
                 'attributes' => [
@@ -312,7 +589,7 @@ class ConfigForm extends Form
                     'value_options' => [
                         'position' => 'Position in sequence', // @translate
                         'template' => 'Template title', // @translate
-                        'property' => 'Specified property below', // @translate
+                        'property' => 'Property specified below', // @translate
                         'source' => 'File name', // @translate
                         'template_or_source' => 'Template title, else file name', // @translate
                         'property_or_source' => 'Property if any, else file name', // @translate
@@ -326,7 +603,7 @@ class ConfigForm extends Form
             ])
             ->add([
                 'name' => 'iiifserver_manifest_canvas_label_property',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Property for files label', // @translate
                     'empty_option' => '',
@@ -365,7 +642,7 @@ class ConfigForm extends Form
 
             ->add([
                 'name' => 'iiifserver_manifest_properties_collection_whitelist',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Limit properties for collection in manifest', // @translate
                     'info' => 'If empty, all public values will be output.', // @translate
@@ -384,7 +661,7 @@ class ConfigForm extends Form
             ])
             ->add([
                 'name' => 'iiifserver_manifest_properties_item_whitelist',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Limit properties for item in manifest', // @translate
                     'info' => 'If empty, all public values will be output.', // @translate
@@ -403,7 +680,7 @@ class ConfigForm extends Form
             ])
             ->add([
                 'name' => 'iiifserver_manifest_properties_media_whitelist',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Limit properties for media in manifest', // @translate
                     'info' => 'If empty, all public values will be output.', // @translate
@@ -423,7 +700,7 @@ class ConfigForm extends Form
 
             ->add([
                 'name' => 'iiifserver_manifest_properties_collection_blacklist',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Skip properties for collection in manifest', // @translate
                     'empty_option' => '',
@@ -438,7 +715,7 @@ class ConfigForm extends Form
             ])
             ->add([
                 'name' => 'iiifserver_manifest_properties_item_blacklist',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Skip properties for item in manifest', // @translate
                     'empty_option' => '',
@@ -453,7 +730,7 @@ class ConfigForm extends Form
             ])
             ->add([
                 'name' => 'iiifserver_manifest_properties_media_blacklist',
-                'type' => PropertySelect::class,
+                'type' => OmekaElement\PropertySelect::class,
                 'options' => [
                     'label' => 'Skip properties for media in manifest', // @translate
                     'empty_option' => '',
@@ -468,19 +745,70 @@ class ConfigForm extends Form
             ])
 
             ->add([
-                'name' => 'iiifserver_manifest_structures_property',
-                'type' => PropertySelect::class,
+                'name' => 'fieldset_more',
+                'type' => \Laminas\Form\Fieldset::class,
                 'options' => [
-                    'label' => 'Property for structures', // @translate
-                    'empty_option' => '',
-                    'term_as_value' => true,
-                    'info' => 'Please refer to the following URL for the input format.',  // @translate
-                    'documentation' => 'https://gitlab.com/Daniel-KM/Omeka-S-module-IiifServer#input-format-of-the-property-for-structures-table-of-contents',
+                    'label' => 'Other options', // @translate
+                ],
+            ])
+
+            // The option is the same in module IIIF Search.
+            // TODO Make option to match image and xml an option to set in a property of the item.
+            ->add([
+                'name' => 'iiifserver_xml_image_match',
+                'type' => Element\Radio::class,
+                'options' => [
+                    'label' => 'Match images and xmls when they are multiple', // @translate
+                    'value_options' => [
+                        'order' => 'Media order (page_001.jpg, alto_001.xml, page_002.jpg, alto_002.xml, …)', // @translate
+                        'basename' => 'Media source base filename (page_001.jpg, page_002.jpg, page_002.xml, page_001.xml…)', // @translate
+                    ],
                 ],
                 'attributes' => [
-                    'id' => 'iiifserver_manifest_structures_property',
-                    'class' => 'chosen-select',
-                    'data-placeholder' => 'Select a property…', // @translate
+                    'id' => 'iiifserver_xml_image_match',
+                    'value' => 'order',
+                ],
+            ])
+
+            // The option is the same in module IIIF Search.
+            ->add([
+                'name' => 'iiifserver_xml_fix_mode',
+                'type' => Element\Radio::class,
+                'options' => [
+                    'label' => 'Fix bad xml and invalid utf-8 characters', // @translate
+                    'value_options' => [
+                        'no' => 'No', // @translate
+                        'dom' => 'Via DOM (quick)', // @translate
+                        'regex' => 'Via regex (slow)', // @translate
+                        'all' => 'All', // @translate
+                    ],
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_xml_fix_mode',
+                    'value' => 'no',
+                ],
+            ])
+
+            ->add([
+                'name' => 'iiifserver_access_resource_skip',
+                'type' => Element\Checkbox::class,
+                'options' => [
+                    'label' => 'Skip check of access rights to files for module Access', // @translate
+                    'info' => 'If set, all public and restricted files will be displayed.', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_access_resource_skip',
+                ],
+            ])
+
+            ->add([
+                'name' => 'iiifserver_access_ocr_skip',
+                'type' => Element\Checkbox::class,
+                'options' => [
+                    'label' => 'Hide OCR for reserved resources for module Access', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_access_ocr_skip',
                 ],
             ])
 
@@ -573,7 +901,7 @@ class ConfigForm extends Form
 
             ->add([
                 'name' => 'iiifserver_media_api_url',
-                'type' => OptionalUrl::class,
+                'type' => Element\Url::class,
                 'options' => [
                     'label' => 'External image server base url', // @translate
                     'info' => 'This url may be used by external modules when the images are provided via an external server.', // @translate
@@ -641,8 +969,8 @@ class ConfigForm extends Form
                 'name' => 'iiifserver_media_api_prefix',
                 'type' => Element\Text::class,
                 'options' => [
-                    'label' => 'Append a prefix to the url (to be set inside module.config.php currently)', // @translate
-                    'info' => 'If set, the prefix will be added after the version: "iiif/3/xxx".', // @translate
+                    'label' => 'Append a prefix to the url (to be set inside module.config.php currently)', // @ translate
+                    'info' => 'If set, the prefix will be added after the version: "iiif/3/xxx".', // @ translate
                 ],
                 'attributes' => [
                     'id' => 'iiifserver_media_api_prefix',
@@ -655,17 +983,30 @@ class ConfigForm extends Form
                 'type' => Element\Radio::class,
                 'options' => [
                     'label' => 'Media identifier', // @translate
-                    'info' => 'Using the full filename allows to use an image server like Cantaloupe sharing the Omeka original files directory.', // @translate
+                    'info' => 'Using the full filename with extension for images allows to use an image server like Cantaloupe sharing the Omeka original files directory. In other cases, this option is not recommended because the identifier should not have an extension.', // @translate
                     'value_options' => [
                         'default' => 'Default', // @translate
                         'media_id' => 'Media id', // @translate
                         'storage_id' => 'Filename', // @translate
-                        'filename' => 'Filename with extension', // @translate
+                        'filename' => 'Filename with extension (all)', // @translate
+                        'filename_image' => 'Filename with extension (image only)', // @translate
                     ],
                 ],
                 'attributes' => [
                     'id' => 'iiifserver_media_api_identifier',
-                    'required' =>  true,
+                    'required' => true,
+                ],
+            ])
+
+            ->add([
+                'name' => 'iiifserver_media_api_identifier_infojson',
+                'type' => Element\Checkbox::class,
+                'options' => [
+                    'label' => 'Append "info.json" to the image iiif identifier', // @translate
+                    'info' => 'May be required with an external image server that doesn’t manage the url rewriting to /info.json (iiif specification requires a redirection with http 303).', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_media_api_identifier_infojson',
                 ],
             ])
 
@@ -680,6 +1021,86 @@ class ConfigForm extends Form
                     'id' => 'iiifserver_media_api_support_non_image',
                 ],
             ])
+
+            ->add([
+                'name' => 'iiifserver_media_api_fix_uv_mp3',
+                'type' => Element\Checkbox::class,
+                'options' => [
+                    'label' => 'Use "audio/mp4" instead of "audio/mpeg" (fix playing mp3 in Universal Viewer v4)', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'iiifserver_media_api_fix_uv_mp3',
+                ],
+            ])
+        ;
+
+        $this
+            ->add([
+                'name' => 'fieldset_cache',
+                'type' => Fieldset::class,
+                'options' => [
+                    'label' => 'Cache manifests', // @translate
+                ],
+            ]);
+        $fieldset = $this->get('fieldset_cache');
+        $fieldset
+            ->add([
+                'name' => 'query_cache',
+                'type' => Element\Text::class,
+                'options' => [
+                    'label' => 'Query to filter items to cache', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'query_cache',
+                ],
+            ])
+            ->add([
+                'name' => 'process_cache',
+                'type' => Element\Submit::class,
+                'options' => [
+                    'label' => 'Cache selected item manifests in background', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'process_cache',
+                    'value' => 'Process', // @translate
+                ],
+            ])
+        ;
+
+        // Available in module Derivative Media.
+        $this
+            ->add([
+                'name' => 'fieldset_dimensions',
+                'type' => Fieldset::class,
+                'options' => [
+                    'label' => 'Store dimensions', // @translate
+                ],
+            ]);
+        $fieldset = $this->get('fieldset_dimensions');
+        $fieldset
+            ->add([
+                'name' => 'query',
+                'type' => Element\Text::class,
+                'options' => [
+                    'label' => 'Query to filter items to process', // @translate
+                    'info' => 'This query will be used to select all items whose attached images, audio and video files will be prepared in the background.', // @translate
+                    'documentation' => 'https://omeka.org/s/docs/user-manual/sites/site_pages/#browse-preview',
+                ],
+                'attributes' => [
+                    'id' => 'query',
+                ],
+            ])
+            ->add([
+                'name' => 'process_dimensions',
+                'type' => Element\Submit::class,
+                'options' => [
+                    'label' => 'Prepare dimensions for images, audio and videos attached to items selected above in background', // @translate
+                ],
+                'attributes' => [
+                    'id' => 'process_dimensions',
+                    'value' => 'Process', // @translate
+                ],
+            ])
         ;
 
         $addEvent = new Event('form.add_elements', $this);
@@ -692,7 +1113,7 @@ class ConfigForm extends Form
                 'required' => false,
             ])
             ->add([
-                'name' => 'iiifserver_manifest_description_property',
+                'name' => 'iiifserver_manifest_summary_property',
                 'required' => false,
             ])
             ->add([
@@ -708,6 +1129,10 @@ class ConfigForm extends Form
                 'required' => false,
             ])
             ->add([
+                'name' => 'iiifserver_manifest_rights_uri',
+                'required' => false,
+            ])
+            ->add([
                 'name' => 'iiifserver_manifest_rights_url',
                 'required' => false,
             ])
@@ -720,7 +1145,27 @@ class ConfigForm extends Form
                 'required' => false,
             ])
             ->add([
+                'name' => 'iiifserver_manifest_provider',
+                'required' => false,
+            ])
+            ->add([
+                'name' => 'iiifserver_manifest_provider_property',
+                'required' => false,
+            ])
+            ->add([
                 'name' => 'iiifserver_manifest_seealso_property',
+                'required' => false,
+            ])
+            ->add([
+                'name' => 'iiifserver_manifest_rendering_media_types',
+                'required' => false,
+            ])
+            ->add([
+                'name' => 'iiifserver_manifest_start_property',
+                'required' => false,
+            ])
+            ->add([
+                'name' => 'iiifserver_manifest_structures_property',
                 'required' => false,
             ])
             ->add([
@@ -729,6 +1174,14 @@ class ConfigForm extends Form
             ])
             ->add([
                 'name' => 'iiifserver_manifest_viewing_direction_default',
+                'required' => false,
+            ])
+            ->add([
+                'name' => 'iiifserver_manifest_placeholder_canvas_property',
+                'required' => false,
+            ])
+            ->add([
+                'name' => 'iiifserver_manifest_placeholder_canvas_default',
                 'required' => false,
             ])
             ->add([
@@ -776,7 +1229,11 @@ class ConfigForm extends Form
                 'required' => false,
             ])
             ->add([
-                'name' => 'iiifserver_manifest_structures_property',
+                'name' => 'iiifserver_fix_xml_mode',
+                'required' => false,
+            ])
+            ->add([
+                'name' => 'iiifserver_media_api_url',
                 'required' => false,
             ])
             ->add([

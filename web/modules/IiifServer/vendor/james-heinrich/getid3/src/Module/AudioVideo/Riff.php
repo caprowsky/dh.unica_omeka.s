@@ -56,6 +56,7 @@ class Riff extends Handler
 		$thisfile_riff_video       = &$thisfile_riff['video'];
 		$thisfile_riff_WAVE        = array();
 
+		$Original                 = array();
 		$Original['avdataoffset'] = $info['avdataoffset'];
 		$Original['avdataend']    = $info['avdataend'];
 
@@ -213,7 +214,7 @@ class Riff extends Handler
 					$thisfile_audio['bitrate'] = $thisfile_riff_audio[$streamindex]['bitrate'];
 
 					if (empty($info['playtime_seconds'])) { // may already be set (e.g. DTS-WAV)
-						$info['playtime_seconds'] = (float) ((($info['avdataend'] - $info['avdataoffset']) * 8) / $thisfile_audio['bitrate']);
+						$info['playtime_seconds'] =  (float)Utils::SafeDiv(($info['avdataend'] - $info['avdataoffset']) * 8, $thisfile_audio['bitrate']);
 					}
 
 					$thisfile_audio['lossless'] = false;
@@ -296,9 +297,18 @@ class Riff extends Handler
 					// shortcut
 					$thisfile_riff_WAVE_bext_0 = &$thisfile_riff_WAVE['bext'][0];
 
-					$thisfile_riff_WAVE_bext_0['title']          =                         trim(substr($thisfile_riff_WAVE_bext_0['data'],   0, 256));
-					$thisfile_riff_WAVE_bext_0['author']         =                         trim(substr($thisfile_riff_WAVE_bext_0['data'], 256,  32));
-					$thisfile_riff_WAVE_bext_0['reference']      =                         trim(substr($thisfile_riff_WAVE_bext_0['data'], 288,  32));
+					$thisfile_riff_WAVE_bext_0['title']          =                              substr($thisfile_riff_WAVE_bext_0['data'],   0, 256);
+					$thisfile_riff_WAVE_bext_0['author']         =                              substr($thisfile_riff_WAVE_bext_0['data'], 256,  32);
+					$thisfile_riff_WAVE_bext_0['reference']      =                              substr($thisfile_riff_WAVE_bext_0['data'], 288,  32);
+					foreach (array('title','author','reference') as $bext_key) {
+						// Some software (notably Logic Pro) may not blank existing data before writing a null-terminated string to the offsets
+						// assigned for text fields, resulting in a null-terminated string (or possibly just a single null) followed by garbage
+						// Keep only string as far as first null byte, discard rest of fixed-width data
+						// https://github.com/JamesHeinrich/getID3/issues/263
+						$null_terminator_offset = strpos($thisfile_riff_WAVE_bext_0[$bext_key], "\x00");
+						$thisfile_riff_WAVE_bext_0[$bext_key] = substr($thisfile_riff_WAVE_bext_0[$bext_key], 0, $null_terminator_offset);
+					}
+
 					$thisfile_riff_WAVE_bext_0['origin_date']    =                              substr($thisfile_riff_WAVE_bext_0['data'], 320,  10);
 					$thisfile_riff_WAVE_bext_0['origin_time']    =                              substr($thisfile_riff_WAVE_bext_0['data'], 330,   8);
 					$thisfile_riff_WAVE_bext_0['time_reference'] = Utils::LittleEndian2Int(substr($thisfile_riff_WAVE_bext_0['data'], 338,   8));
@@ -307,6 +317,7 @@ class Riff extends Handler
 					$thisfile_riff_WAVE_bext_0['coding_history'] =         explode("\r\n", trim(substr($thisfile_riff_WAVE_bext_0['data'], 601)));
 					if (preg_match('#^([0-9]{4}).([0-9]{2}).([0-9]{2})$#', $thisfile_riff_WAVE_bext_0['origin_date'], $matches_bext_date)) {
 						if (preg_match('#^([0-9]{2}).([0-9]{2}).([0-9]{2})$#', $thisfile_riff_WAVE_bext_0['origin_time'], $matches_bext_time)) {
+							$bext_timestamp = array();
 							list($dummy, $bext_timestamp['year'], $bext_timestamp['month'],  $bext_timestamp['day'])    = $matches_bext_date;
 							list($dummy, $bext_timestamp['hour'], $bext_timestamp['minute'], $bext_timestamp['second']) = $matches_bext_time;
 							$thisfile_riff_WAVE_bext_0['origin_date_unix'] = gmmktime($bext_timestamp['hour'], $bext_timestamp['minute'], $bext_timestamp['second'], $bext_timestamp['month'], $bext_timestamp['day'], $bext_timestamp['year']);
@@ -429,11 +440,11 @@ class Riff extends Handler
 						$thisfile_riff_WAVE['iXML'][0]['parsed'] = $parsedXML;
 						if (isset($parsedXML['SPEED']['MASTER_SPEED'])) {
 							@list($numerator, $denominator) = explode('/', $parsedXML['SPEED']['MASTER_SPEED']);
-							$thisfile_riff_WAVE['iXML'][0]['master_speed'] = $numerator / ($denominator ? $denominator : 1000);
+							$thisfile_riff_WAVE['iXML'][0]['master_speed'] = (int) $numerator / ($denominator ? $denominator : 1000);
 						}
 						if (isset($parsedXML['SPEED']['TIMECODE_RATE'])) {
 							@list($numerator, $denominator) = explode('/', $parsedXML['SPEED']['TIMECODE_RATE']);
-							$thisfile_riff_WAVE['iXML'][0]['timecode_rate'] = $numerator / ($denominator ? $denominator : 1000);
+							$thisfile_riff_WAVE['iXML'][0]['timecode_rate'] = (int) $numerator / ($denominator ? $denominator : 1000);
 						}
 						if (isset($parsedXML['SPEED']['TIMESTAMP_SAMPLES_SINCE_MIDNIGHT_LO']) && !empty($parsedXML['SPEED']['TIMESTAMP_SAMPLE_RATE']) && !empty($thisfile_riff_WAVE['iXML'][0]['timecode_rate'])) {
 							$samples_since_midnight = floatval(ltrim($parsedXML['SPEED']['TIMESTAMP_SAMPLES_SINCE_MIDNIGHT_HI'].$parsedXML['SPEED']['TIMESTAMP_SAMPLES_SINCE_MIDNIGHT_LO'], '0'));
@@ -451,11 +462,66 @@ class Riff extends Handler
 					}
 				}
 
+				if (isset($thisfile_riff_WAVE['guan'][0]['data'])) {
+					// shortcut
+					$thisfile_riff_WAVE_guan_0 = &$thisfile_riff_WAVE['guan'][0];
+					if (!empty($thisfile_riff_WAVE_guan_0['data']) && (substr($thisfile_riff_WAVE_guan_0['data'], 0, 14) == 'GUANO|Version:')) {
+						$thisfile_riff['guano'] = array();
+						foreach (explode("\n", $thisfile_riff_WAVE_guan_0['data']) as $line) {
+							if ($line) {
+								@list($key, $value) = explode(':', $line, 2);
+								if (substr($value, 0, 3) == '[{"') {
+									if ($decoded = @json_decode($value, true)) {
+										if (!empty($decoded) && (count($decoded) == 1)) {
+											$value = $decoded[0];
+										} else {
+											$value = $decoded;
+										}
+									}
+								}
+								$thisfile_riff['guano'] = array_merge_recursive($thisfile_riff['guano'], Utils::CreateDeepArray($key, '|', $value));
+							}
+						}
 
+						// https://www.wildlifeacoustics.com/SCHEMA/GUANO.html
+						foreach ($thisfile_riff['guano'] as $key => $value) {
+							switch ($key) {
+								case 'Loc Position':
+									if (preg_match('#^([\\+\\-]?[0-9]+\\.[0-9]+) ([\\+\\-]?[0-9]+\\.[0-9]+)$#', $value, $matches)) {
+										list($dummy, $latitude, $longitude) = $matches;
+										$thisfile_riff['comments']['gps_latitude'][0]  = floatval($latitude);
+										$thisfile_riff['comments']['gps_longitude'][0] = floatval($longitude);
+										$thisfile_riff['guano'][$key] = floatval($latitude).' '.floatval($longitude);
+									}
+									break;
+								case 'Loc Elevation': // Elevation/altitude above mean sea level in meters
+									$thisfile_riff['comments']['gps_altitude'][0] = floatval($value);
+									$thisfile_riff['guano'][$key] = (float) $value;
+									break;
+								case 'Filter HP':        // High-pass filter frequency in kHz
+								case 'Filter LP':        // Low-pass filter frequency in kHz
+								case 'Humidity':         // Relative humidity as a percentage
+								case 'Length':           // Recording length in seconds
+								case 'Loc Accuracy':     // Estimated Position Error in meters
+								case 'Temperature Ext':  // External temperature in degrees Celsius outside the recorder's housing
+								case 'Temperature Int':  // Internal temperature in degrees Celsius inside the recorder's housing
+									$thisfile_riff['guano'][$key] = (float) $value;
+									break;
+								case 'Samplerate':       // Recording sample rate, Hz
+								case 'TE':               // Time-expansion factor. If not specified, then 1 (no time-expansion a.k.a. direct-recording) is assumed.
+									$thisfile_riff['guano'][$key] = (int) $value;
+									break;
+							}
+						}
+
+					} else {
+						$this->warning('RIFF.guan data not in expected format');
+					}
+				}
 
 				if (!isset($thisfile_audio['bitrate']) && isset($thisfile_riff_audio[$streamindex]['bitrate'])) {
 					$thisfile_audio['bitrate'] = $thisfile_riff_audio[$streamindex]['bitrate'];
-					$info['playtime_seconds'] = (float) ((($info['avdataend'] - $info['avdataoffset']) * 8) / $thisfile_audio['bitrate']);
+					$info['playtime_seconds'] = (float)Utils::SafeDiv((($info['avdataend'] - $info['avdataoffset']) * 8), $thisfile_audio['bitrate']);
 				}
 
 				if (!empty($info['wavpack'])) {
@@ -465,7 +531,7 @@ class Riff extends Handler
 
 					// Reset to the way it was - RIFF parsing will have messed this up
 					$info['avdataend']        = $Original['avdataend'];
-					$thisfile_audio['bitrate'] = (($info['avdataend'] - $info['avdataoffset']) * 8) / $info['playtime_seconds'];
+					$thisfile_audio['bitrate'] = Utils::SafeDiv(($info['avdataend'] - $info['avdataoffset']) * 8, $info['playtime_seconds']);
 
 					$this->fseek($info['avdataoffset'] - 44);
 					$RIFFdata = $this->fread(44);
@@ -566,7 +632,7 @@ class Riff extends Handler
 					}
 				}
 				if ($info['avdataend'] > $info['filesize']) {
-					switch (!empty($thisfile_audio_dataformat) ? $thisfile_audio_dataformat : '') {
+					switch ($thisfile_audio_dataformat) {
 						case 'wavpack': // WavPack
 						case 'lpac':    // LPAC
 						case 'ofr':     // OptimFROG
@@ -606,7 +672,7 @@ class Riff extends Handler
 						$this->warning('Extra null byte at end of MP3 data assumed to be RIFF padding and therefore ignored');
 					}
 				}
-				if (isset($thisfile_audio_dataformat) && ($thisfile_audio_dataformat == 'ac3')) {
+				if ($thisfile_audio_dataformat == 'ac3') {
 					unset($thisfile_audio['bits_per_sample']);
 					if (!empty($info['ac3']['bitrate']) && ($info['ac3']['bitrate'] != $thisfile_audio['bitrate'])) {
 						$thisfile_audio['bitrate'] = $info['ac3']['bitrate'];
@@ -715,15 +781,15 @@ class Riff extends Handler
 					/** @var array $thisfile_riff_video_current */
 					$thisfile_riff_video_current = &$thisfile_riff_video[$streamindex];
 
-					if ($thisfile_riff_raw_avih['dwWidth'] > 0) {
+					if ($thisfile_riff_raw_avih['dwWidth'] > 0) { // @phpstan-ignore-line
 						$thisfile_riff_video_current['frame_width'] = $thisfile_riff_raw_avih['dwWidth'];
 						$thisfile_video['resolution_x']             = $thisfile_riff_video_current['frame_width'];
 					}
-					if ($thisfile_riff_raw_avih['dwHeight'] > 0) {
+					if ($thisfile_riff_raw_avih['dwHeight'] > 0) { // @phpstan-ignore-line
 						$thisfile_riff_video_current['frame_height'] = $thisfile_riff_raw_avih['dwHeight'];
 						$thisfile_video['resolution_y']              = $thisfile_riff_video_current['frame_height'];
 					}
-					if ($thisfile_riff_raw_avih['dwTotalFrames'] > 0) {
+					if ($thisfile_riff_raw_avih['dwTotalFrames'] > 0) { // @phpstan-ignore-line
 						$thisfile_riff_video_current['total_frames'] = $thisfile_riff_raw_avih['dwTotalFrames'];
 						$thisfile_video['total_frames']              = $thisfile_riff_video_current['total_frames'];
 					}
@@ -733,6 +799,7 @@ class Riff extends Handler
 				}
 				if (isset($thisfile_riff['AVI ']['hdrl']['strl']['strh'][0]['data'])) {
 					if (is_array($thisfile_riff['AVI ']['hdrl']['strl']['strh'])) {
+						$thisfile_riff_raw_strf_strhfccType_streamindex = null;
 						for ($i = 0; $i < count($thisfile_riff['AVI ']['hdrl']['strl']['strh']); $i++) {
 							if (isset($thisfile_riff['AVI ']['hdrl']['strl']['strh'][$i]['data'])) {
 								$strhData = $thisfile_riff['AVI ']['hdrl']['strl']['strh'][$i]['data'];
@@ -741,6 +808,9 @@ class Riff extends Handler
 								if (isset($thisfile_riff['AVI ']['hdrl']['strl']['strf'][$i]['data'])) {
 									$strfData = $thisfile_riff['AVI ']['hdrl']['strl']['strf'][$i]['data'];
 
+									if (!isset($thisfile_riff_raw['strf'][$strhfccType][$streamindex])) {
+										$thisfile_riff_raw['strf'][$strhfccType][$streamindex] = null;
+									}
 									// shortcut
 									$thisfile_riff_raw_strf_strhfccType_streamindex = &$thisfile_riff_raw['strf'][$strhfccType][$streamindex];
 
@@ -1068,7 +1138,7 @@ class Riff extends Handler
 /*
 				if (isset($thisfile_riff[$RIFFsubtype]['ID3 '])) {
 					$getid3_temp = new GetID3();
-					$getid3_temp->openfile($this->getid3->filename, null, $this->getid3->fp);
+					$getid3_temp->openfile($this->getid3->filename, $this->getid3->info['filesize'], $this->getid3->fp);
 					$getid3_id3v2 = new ID3v2($getid3_temp);
 					$getid3_id3v2->StartingOffset = $thisfile_riff[$RIFFsubtype]['ID3 '][0]['offset'] + 8;
 					if ($thisfile_riff[$RIFFsubtype]['ID3 '][0]['valid'] = $getid3_id3v2->Analyze()) {
@@ -1169,7 +1239,7 @@ class Riff extends Handler
 
 				if (!empty($thisfile_riff['CDXA']['data'][0]['size'])) {
 					$getid3_temp = new GetID3();
-					$getid3_temp->openfile($this->getid3->filename, null, $this->getid3->fp);
+					$getid3_temp->openfile($this->getid3->filename, $this->getid3->info['filesize'], $this->getid3->fp);
 					$getid3_mpeg = new Mpeg($getid3_temp);
 					$getid3_mpeg->Analyze();
 					if (empty($getid3_temp->info['error'])) {
@@ -1253,7 +1323,7 @@ class Riff extends Handler
 
 				if (isset($thisfile_riff[$RIFFsubtype]['id3 '])) {
 					$getid3_temp = new GetID3();
-					$getid3_temp->openfile($this->getid3->filename, null, $this->getid3->fp);
+					$getid3_temp->openfile($this->getid3->filename, $this->getid3->info['filesize'], $this->getid3->fp);
 					$getid3_id3v2 = new ID3v2($getid3_temp);
 					$getid3_id3v2->StartingOffset = $thisfile_riff[$RIFFsubtype]['id3 '][0]['offset'] + 8;
 					if ($thisfile_riff[$RIFFsubtype]['id3 '][0]['valid'] = $getid3_id3v2->Analyze()) {
@@ -1281,10 +1351,10 @@ class Riff extends Handler
 		if (!isset($info['playtime_seconds'])) {
 			$info['playtime_seconds'] = 0;
 		}
-		if (isset($thisfile_riff_raw['strh'][0]['dwLength']) && isset($thisfile_riff_raw['avih']['dwMicroSecPerFrame'])) {
+		if (isset($thisfile_riff_raw['strh'][0]['dwLength']) && isset($thisfile_riff_raw['avih']['dwMicroSecPerFrame'])) { // @phpstan-ignore-line
 			// needed for >2GB AVIs where 'avih' chunk only lists number of frames in that chunk, not entire movie
 			$info['playtime_seconds'] = $thisfile_riff_raw['strh'][0]['dwLength'] * ($thisfile_riff_raw['avih']['dwMicroSecPerFrame'] / 1000000);
-		} elseif (isset($thisfile_riff_raw['avih']['dwTotalFrames']) && isset($thisfile_riff_raw['avih']['dwMicroSecPerFrame'])) {
+		} elseif (isset($thisfile_riff_raw['avih']['dwTotalFrames']) && isset($thisfile_riff_raw['avih']['dwMicroSecPerFrame'])) { // @phpstan-ignore-line
 			$info['playtime_seconds'] = $thisfile_riff_raw['avih']['dwTotalFrames'] * ($thisfile_riff_raw['avih']['dwMicroSecPerFrame'] / 1000000);
 		}
 
@@ -1506,8 +1576,11 @@ class Riff extends Handler
 	public function ParseRIFF($startoffset, $maxoffset) {
 		$info = &$this->getid3->info;
 
-		$RIFFchunk = false;
+		$RIFFchunk = array();
 		$FoundAllChunksWeNeed = false;
+		$LISTchunkParent = null;
+		$LISTchunkMaxOffset = null;
+		$AC3syncwordBytes = pack('n', Ac3::syncword); // 0x0B77 -> "\x0B\x77"
 
 		try {
 			$this->fseek($startoffset);
@@ -1551,7 +1624,7 @@ class Riff extends Handler
 										// MP3
 										if (Mp3::MPEGaudioHeaderBytesValid($FirstFourBytes)) {
 											$getid3_temp = new GetID3();
-											$getid3_temp->openfile($this->getid3->filename, null, $this->getid3->fp);
+											$getid3_temp->openfile($this->getid3->filename, $this->getid3->info['filesize'], $this->getid3->fp);
 											$getid3_temp->info['avdataoffset'] = $this->ftell() - 4;
 											$getid3_temp->info['avdataend']    = $this->ftell() + $AudioChunkSize;
 											$getid3_mp3 = new Mp3($getid3_temp, __CLASS__);
@@ -1569,11 +1642,11 @@ class Riff extends Handler
 											unset($getid3_temp, $getid3_mp3);
 										}
 
-									} elseif (strpos($FirstFourBytes, Ac3::syncword) === 0) {
+									} elseif (strpos($FirstFourBytes, $AC3syncwordBytes) === 0) {
 
 										// AC3
 										$getid3_temp = new GetID3();
-										$getid3_temp->openfile($this->getid3->filename, null, $this->getid3->fp);
+										$getid3_temp->openfile($this->getid3->filename, $this->getid3->info['filesize'], $this->getid3->fp);
 										$getid3_temp->info['avdataoffset'] = $this->ftell() - 4;
 										$getid3_temp->info['avdataend']    = $this->ftell() + $AudioChunkSize;
 										$getid3_ac3 = new Ac3($getid3_temp);
@@ -1634,7 +1707,7 @@ class Riff extends Handler
 									// Probably is MP3 data
 									if (Mp3::MPEGaudioHeaderBytesValid(substr($testData, 0, 4))) {
 										$getid3_temp = new GetID3();
-										$getid3_temp->openfile($this->getid3->filename, null, $this->getid3->fp);
+										$getid3_temp->openfile($this->getid3->filename, $this->getid3->info['filesize'], $this->getid3->fp);
 										$getid3_temp->info['avdataoffset'] = $info['avdataoffset'];
 										$getid3_temp->info['avdataend']    = $info['avdataend'];
 										$getid3_mp3 = new Mp3($getid3_temp, __CLASS__);
@@ -1646,12 +1719,12 @@ class Riff extends Handler
 										unset($getid3_temp, $getid3_mp3);
 									}
 
-								} elseif (($isRegularAC3 = (substr($testData, 0, 2) == Ac3::syncword)) || substr($testData, 8, 2) == strrev(Ac3::syncword)) {
+								} elseif (($isRegularAC3 = (substr($testData, 0, 2) == $AC3syncwordBytes)) || substr($testData, 8, 2) == strrev($AC3syncwordBytes)) {
 
 									// This is probably AC-3 data
 									$getid3_temp = new GetID3();
 									if ($isRegularAC3) {
-										$getid3_temp->openfile($this->getid3->filename, null, $this->getid3->fp);
+										$getid3_temp->openfile($this->getid3->filename, $this->getid3->info['filesize'], $this->getid3->fp);
 										$getid3_temp->info['avdataoffset'] = $info['avdataoffset'];
 										$getid3_temp->info['avdataend']    = $info['avdataend'];
 									}
@@ -1667,6 +1740,8 @@ class Riff extends Handler
 											$ac3_data .= substr($testData, 8 + $i + 1, 1);
 											$ac3_data .= substr($testData, 8 + $i + 0, 1);
 										}
+										$getid3_ac3->getid3->info['avdataoffset'] = 0;
+										$getid3_ac3->getid3->info['avdataend']    = strlen($ac3_data);
 										$getid3_ac3->AnalyzeString($ac3_data);
 									}
 
@@ -1685,7 +1760,7 @@ class Riff extends Handler
 
 									// This is probably DTS data
 									$getid3_temp = new GetID3();
-									$getid3_temp->openfile($this->getid3->filename, null, $this->getid3->fp);
+									$getid3_temp->openfile($this->getid3->filename, $this->getid3->info['filesize'], $this->getid3->fp);
 									$getid3_temp->info['avdataoffset'] = $info['avdataoffset'];
 									$getid3_dts = new Dts($getid3_temp);
 									$getid3_dts->Analyze();
@@ -1726,6 +1801,8 @@ class Riff extends Handler
 							case 'indx':
 							case 'MEXT':
 							case 'DISP':
+							case 'wamd':
+							case 'guan':
 								// always read data in
 							case 'JUNK':
 								// should be: never read data in
@@ -1831,7 +1908,7 @@ class Riff extends Handler
 									if (isset($RIFFchunk[$chunkname][$thisindex]) && empty($RIFFchunk[$chunkname][$thisindex])) {
 										unset($RIFFchunk[$chunkname][$thisindex]);
 									}
-									if (isset($RIFFchunk[$chunkname]) && empty($RIFFchunk[$chunkname])) {
+									if (count($RIFFchunk[$chunkname]) === 0) {
 										unset($RIFFchunk[$chunkname]);
 									}
 									$RIFFchunk[$LISTchunkParent][$chunkname][$thisindex]['data'] = $this->fread($chunksize);
@@ -1855,7 +1932,7 @@ class Riff extends Handler
 			}
 		}
 
-		return $RIFFchunk;
+		return !empty($RIFFchunk) ? $RIFFchunk : false;
 	}
 
 	/**
@@ -1952,7 +2029,7 @@ class Riff extends Handler
 		foreach ($RIFFinfoKeyLookup as $key => $value) {
 			if (isset($RIFFinfoArray[$key])) {
 				foreach ($RIFFinfoArray[$key] as $commentid => $commentdata) {
-					if (trim($commentdata['data']) != '') {
+					if (!empty($commentdata['data']) && trim($commentdata['data']) != '') {
 						if (isset($CommentsTargetArray[$value])) {
 							$CommentsTargetArray[$value][] =     trim($commentdata['data']);
 						} else {
@@ -2070,6 +2147,7 @@ class Riff extends Handler
 	 */
 	public static function ParseBITMAPINFOHEADER($BITMAPINFOHEADER, $littleEndian=true) {
 
+		$parsed                    = array();
 		$parsed['biSize']          = substr($BITMAPINFOHEADER,  0, 4); // number of bytes required by the BITMAPINFOHEADER structure
 		$parsed['biWidth']         = substr($BITMAPINFOHEADER,  4, 4); // width of the bitmap in pixels
 		$parsed['biHeight']        = substr($BITMAPINFOHEADER,  8, 4); // height of the bitmap in pixels. If biHeight is positive, the bitmap is a 'bottom-up' DIB and its origin is the lower left corner. If biHeight is negative, the bitmap is a 'top-down' DIB and its origin is the upper left corner
@@ -2080,7 +2158,7 @@ class Riff extends Handler
 		$parsed['biYPelsPerMeter'] = substr($BITMAPINFOHEADER, 28, 4); // vertical resolution, in pixels per metre, of the target device
 		$parsed['biClrUsed']       = substr($BITMAPINFOHEADER, 32, 4); // actual number of color indices in the color table used by the bitmap. If this value is zero, the bitmap uses the maximum number of colors corresponding to the value of the biBitCount member for the compression mode specified by biCompression
 		$parsed['biClrImportant']  = substr($BITMAPINFOHEADER, 36, 4); // number of color indices that are considered important for displaying the bitmap. If this value is zero, all colors are important
-		$parsed = array_map('Utils::'.($littleEndian ? 'Little' : 'Big').'Endian2Int', $parsed);
+		$parsed = array_map('JamesHeinrich\\GetID3\\Utils::'.($littleEndian ? 'Little' : 'Big').'Endian2Int', $parsed);
 
 		$parsed['fourcc']          = substr($BITMAPINFOHEADER, 16, 4);  // compression identifier
 

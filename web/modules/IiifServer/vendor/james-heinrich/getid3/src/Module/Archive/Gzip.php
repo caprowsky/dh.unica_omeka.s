@@ -28,12 +28,11 @@ class Gzip extends Handler
 {
 	/**
 	 * Optional file list - disable for speed.
-	 *
 	 * Decode gzipped files, if possible, and parse recursively (.tar.gz for example).
 	 *
 	 * @var bool
 	 */
-	public $option_gzip_parse_contents = false;
+	public $parse_contents = false;
 
 	/**
 	 * @return bool
@@ -60,7 +59,7 @@ class Gzip extends Handler
 		$num_members = 0;
 		while (true) {
 			$is_wrong_members = false;
-			$num_members = intval(count($arr_members));
+			$num_members = count($arr_members);
 			for ($i = 0; $i < $num_members; $i++) {
 				if (strlen($arr_members[$i]) == 0) {
 					continue;
@@ -85,13 +84,13 @@ class Gzip extends Handler
 
 		$fpointer = 0;
 		$idx = 0;
-		for ($i = 0; $i < $num_members; $i++) {
-			if (strlen($arr_members[$i]) == 0) {
+		foreach ($arr_members as $member) {
+			if (strlen($member) == 0) {
 				continue;
 			}
 			$thisInfo = &$info['gzip']['member_header'][++$idx];
 
-			$buff = "\x1F\x8B\x08".$arr_members[$i];
+			$buff = "\x1F\x8B\x08". $member;
 
 			$attr = unpack($unpack_header, substr($buff, 0, $start_length));
 			$thisInfo['filemtime']      = Utils::LittleEndian2Int($attr['mtime']);
@@ -201,7 +200,7 @@ class Gzip extends Handler
 
 			$info['gzip']['files'] = Utils::array_merge_clobber($info['gzip']['files'], Utils::CreateDeepArray($thisInfo['filename'], '/', $thisInfo['filesize']));
 
-			if ($this->option_gzip_parse_contents) {
+			if ($this->parse_contents) {
 				// Try to inflate GZip
 				$csize = 0;
 				$inflated = '';

@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2020 Daniel Berthereau
+ * Copyright 2015-2023 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -69,7 +69,7 @@ class ProcessXslt extends AbstractPlugin
      * @return string|null Path to the output file if ok, null else.
      * @throws \Exception
      */
-    public function __invoke($uri, $stylesheet, $output = '', array $parameters = [])
+    public function __invoke($uri, $stylesheet, $output = '', array $parameters = []): ?string
     {
         // The readability is a very common error, so it is checked separately.
         // Furthermore, the input should be local to be processed by php or cli.
@@ -114,7 +114,7 @@ class ProcessXslt extends AbstractPlugin
     protected function processXsltViaPhp($uri, $stylesheet, $output = '', array $parameters = [])
     {
         if (empty($output)) {
-            $output = @tempnam($this->tempDir, 'omk_xsl_');
+            $output = @tempnam($this->tempDir, 'omk_xsl_') . '.xml';
         }
 
         try {
@@ -128,7 +128,7 @@ class ProcessXslt extends AbstractPlugin
         $proc->importStyleSheet($domXsl);
         $proc->setParameter('', $parameters);
         $result = $proc->transformToURI($domXml, $output);
-        @chmod($output, 0640);
+        @chmod($output, 0664);
 
         // There is no specific message for error with this processor.
         if ($result === false) {
@@ -188,7 +188,7 @@ class ProcessXslt extends AbstractPlugin
     protected function processXsltViaExternal($uri, $stylesheet, $output = '', $parameters = [])
     {
         if (empty($output)) {
-            $output = @tempnam($this->tempDir, 'omk_xsl_');
+            $output = @tempnam($this->tempDir, 'omk_xsl_') . '.xml';
         }
 
         $command = sprintf($this->command, escapeshellarg($uri), escapeshellarg($stylesheet), escapeshellarg($output));

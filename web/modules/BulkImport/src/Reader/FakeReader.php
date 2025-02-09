@@ -2,6 +2,9 @@
 
 namespace BulkImport\Reader;
 
+use BulkImport\Entry\BaseEntry;
+use BulkImport\Entry\Entry;
+
 class FakeReader extends AbstractReader
 {
     protected $label = 'Fake reader'; // @translate
@@ -13,48 +16,35 @@ class FakeReader extends AbstractReader
         return [];
     }
 
-    public function isReady(): bool
-    {
-        return true;
-    }
-
     public function count(): int
     {
         return 0;
     }
 
-    #[\ReturnTypeWillChange]
-    public function current()
+    protected function currentEntry(): Entry
     {
-        return null;
+        return new BaseEntry([], $this->key(), []);
     }
 
-    #[\ReturnTypeWillChange]
-    public function key()
+    protected function isReady(): bool
     {
-        return null;
+        return true;
     }
 
-    public function next(): void
-    {
-    }
-
-    public function valid(): bool
-    {
-        return false;
-    }
-
-    public function rewind(): void
-    {
-    }
-
-    protected function reset(): \BulkImport\Reader\Reader
+    protected function reset(): self
     {
         return $this;
     }
 
-    protected function prepareIterator(): \BulkImport\Reader\Reader
+    protected function initializeReader(): self
     {
+        $this->iterator = new \ArrayIterator([]);
+        return $this;
+    }
+
+    protected function prepareIterator(): self
+    {
+        $this->totalEntries = 0;
         return $this;
     }
 }

@@ -3,11 +3,11 @@
 namespace ImageServer\Job;
 
 use AmazonS3\File\Store\AwsS3;
+use Common\Stdlib\PsrMessage;
 use Omeka\Api\Representation\MediaRepresentation;
 use Omeka\Job\AbstractJob;
 use Omeka\Job\Exception\InvalidArgumentException;
 use Omeka\Job\Exception\RuntimeException;
-use Omeka\Stdlib\Message;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 
@@ -212,7 +212,7 @@ $storeOriginal
 WHERE `id` = $mediaId;
 SQL;
         $connection = $this->getServiceLocator()->get('Omeka\Connection');
-        $connection->exec($sql);
+        $connection->executeStatement($sql);
 
         if ($this->hasAmazonS3) {
             if (file_exists($this->sourcePath)) {
@@ -223,9 +223,9 @@ SQL;
 
         // If there is an issue in the tiling itself, the cleaning should be done.
         if ($result && empty($result['result'])) {
-            throw new RuntimeException((string) new Message(
-                'An error occurred during the tiling of media #%d.', // @translate
-                $mediaId
+            throw new RuntimeException((string) new PsrMessage(
+                'An error occurred during the tiling of media #{media_id}.', // @translate
+                ['media_id' => $mediaId]
             ));
         }
     }
@@ -283,6 +283,7 @@ SQL;
         $skipLength = mb_strlen($baseDir) + 1;
         $tileDir = $baseDir . '/' . $services->get('Omeka\Settings')->get('imageserver_image_tile_dir');
 
+        // The key is "ingesters", even if "tile" is no more an ingester.
         $suffixes = $config['archiverepertory']['ingesters']['tile']['extension'];
         $rmdir = [];
         $rmfile = [];
@@ -335,7 +336,7 @@ SQL;
         if (file_exists($path)) {
             if (is_dir($path)) {
                 @chmod($path, 0775);
-                if (is_writable($path)) {
+                if (is_writeable($path)) {
                     return true;
                 }
                 $msg = $this->translate('Error directory non writable: "%s".', $path);

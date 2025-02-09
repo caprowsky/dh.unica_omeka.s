@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -45,15 +45,20 @@ class IiifCanvas3 extends AbstractHelper
      */
     public function __invoke(MediaRepresentation $media, $index)
     {
-        $canvas = new Canvas($media, ['index' => $index]);
+        $canvas = new Canvas();
+        $canvas
+            // TODO Options should be set first for now for init, done in setResource().
+            ->setOptions(['index' => $index])
+            ->setResource($media)
+            ->normalize();
 
         // Give possibility to customize the manifest.
         $resource = $media;
         $format = 'canvas';
         $type = 'media';
         $params = compact('format', 'canvas', 'resource', 'type');
-        $this->getView()->plugin('trigger')->__invoke('iiifserver.manifest', $params, true);
-        $canvas->isValid(true);
+        $this->view->plugin('trigger')->__invoke('iiifserver.manifest', $params, true);
+        $canvas->normalize();
         return $canvas;
     }
 }

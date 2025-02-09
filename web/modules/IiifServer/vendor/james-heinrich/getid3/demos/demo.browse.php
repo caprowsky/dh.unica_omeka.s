@@ -19,6 +19,7 @@ require __DIR__ . "/../vendor/autoload.php";
 
 die('For security reasons, this demo has been disabled. It can be enabled by removing line '.__LINE__.' in demos/'.basename(__FILE__));
 
+
 define('GETID3_DEMO_BROWSE_ALLOW_EDIT_LINK',   false); // if enabled, shows "edit" links (to /demos/demo.write.php) to allow ID3/APE/etc tag editing on applicable file types
 define('GETID3_DEMO_BROWSE_ALLOW_DELETE_LINK', false); // if enabled, shows "delete" links to delete files from the browse interface
 define('GETID3_DEMO_BROWSE_ALLOW_MD5_LINK',    false); // if enabled, shows "enable" link for MD5 hashes for file/data/source
@@ -32,7 +33,10 @@ $writescriptfilename = 'demo.write.php';
 
 // Initialize getID3 engine
 $getID3 = new GetID3\GetID3;
-$getID3->setOption(array('encoding' => $PageEncoding));
+$getID3->setOption(array(
+	'encoding' => $PageEncoding,
+	'options_audiovideo_quicktime_ReturnAtomData' => true,
+));
 
 $getID3checkColor_Head           = 'CCCCDD';
 $getID3checkColor_DirectoryLight = 'FFCCCC';
@@ -456,7 +460,7 @@ function table_var_dump($variable, $wrap_in_td=false, $encoding='') {
 	global $FileSystemEncoding;
 	$encoding = ($encoding ? $encoding : $FileSystemEncoding);
 	$returnstring = '';
-	switch (gettype($variable)) {
+	switch (strtolower(gettype($variable))) {
 		case 'array':
 			$returnstring .= ($wrap_in_td ? '<td>' : '');
 			$returnstring .= '<table class="dump" cellspacing="0" cellpadding="2">';

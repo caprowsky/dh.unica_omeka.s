@@ -2,26 +2,28 @@
 
 namespace BulkImport;
 
-use Omeka\Mvc\Controller\Plugin\Messenger;
+use Omeka\Module\Exception\ModuleCannotInstallException;
 use Omeka\Stdlib\Message;
 
 /**
  * @var Module $this
- * @var \Laminas\ServiceManager\ServiceLocatorInterface $serviceLocator
+ * @var \Laminas\ServiceManager\ServiceLocatorInterface $services
  * @var string $newVersion
  * @var string $oldVersion
  *
+ * @var \Omeka\Api\Manager $api
+ * @var \Omeka\Settings\Settings $settings
  * @var \Doctrine\DBAL\Connection $connection
  * @var \Doctrine\ORM\EntityManager $entityManager
- * @var \Omeka\Settings\Settings $settings
- * @var \Omeka\Api\Manager $api
+ * @var \Omeka\Mvc\Controller\Plugin\Messenger $messenger
  */
-$services = $serviceLocator;
-$connection = $services->get('Omeka\Connection');
-$entityManager = $services->get('Omeka\EntityManager');
 $plugins = $services->get('ControllerPluginManager');
-$config = $services->get('Config');
 $api = $plugins->get('api');
+$config = $services->get('Config');
+$settings = $services->get('Omeka\Settings');
+$connection = $services->get('Omeka\Connection');
+$messenger = $plugins->get('messenger');
+$entityManager = $services->get('Omeka\EntityManager');
 
 if (version_compare($oldVersion, '3.0.1', '<')) {
     $this->checkDependency();
@@ -31,7 +33,7 @@ if (version_compare($oldVersion, '3.0.1', '<')) {
     $module = $moduleManager->getModule('Log');
     $version = $module->getDb('version');
     if (version_compare($version, '3.2.2', '<')) {
-        throw new \Omeka\Module\Exception\ModuleCannotInstallException(
+        throw new ModuleCannotInstallException(
             'BulkImport requires module Log version 3.2.2 or higher.' // @translate
         );
     }
@@ -191,7 +193,7 @@ $migrate_3_3_22_0 = function () use ($services, $connection, $config): void {
             'This module requires the module "%s", version %s or above.', // @translate
             'Log', '3.3.12.7'
         );
-        throw new \Omeka\Module\Exception\ModuleCannotInstallException((string) $message);
+        throw new ModuleCannotInstallException((string) $message);
     }
 
     $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
@@ -200,7 +202,7 @@ $migrate_3_3_22_0 = function () use ($services, $connection, $config): void {
             'The directory "%s" is not writeable.', // @translate
             $basePath . '/xsl'
         );
-        throw new \Omeka\Module\Exception\ModuleCannotInstallException((string) $message);
+        throw new ModuleCannotInstallException((string) $message);
     }
 
     if (!$this->checkDestinationDir($basePath . '/bulk_import')) {
@@ -208,7 +210,7 @@ $migrate_3_3_22_0 = function () use ($services, $connection, $config): void {
             'The directory "%s" is not writeable.', // @translate
             $basePath . '/bulk_import'
         );
-        throw new \Omeka\Module\Exception\ModuleCannotInstallException((string) $message);
+        throw new ModuleCannotInstallException((string) $message);
     }
 
     $sql = <<<'SQL'
@@ -386,7 +388,6 @@ SQL;
 }
 
 if (version_compare($oldVersion, '3.3.30.0', '<')) {
-    $messenger = new Messenger();
     $message = new Message(
         'It’s now possible to upload files and directories in bulk in item form.' // @translate
     );
@@ -454,7 +455,7 @@ SQL;
     $connection->executeStatement($sql);
 
     // Module resources are not available during upgrade.
-    // Update mapping files.
+    // Update importer files.
     $qb = $connection->createQueryBuilder();
     $qb
         ->select('bulk_importer.id', 'bulk_importer.reader_config')
@@ -500,7 +501,6 @@ SQL;
         ]);
     }
 
-    $messenger = new Messenger();
     $message = new Message(
         'It’s now possible to edit online the mappings between any json or xml source and omeka resources.' // @translate
     );
@@ -527,7 +527,24 @@ CHANGE `processor_class` `processor_class` VARCHAR(190) DEFAULT NULL,
 CHANGE `processor_config` `processor_config` LONGTEXT DEFAULT NULL COMMENT '(DC2Type:json)'
 ;
 SQL;
-    $connection->executeStatement($sql);
+    try {
+        $connection->executeStatement($sql);
+    } catch (\Doctrine\DBAL\Exception\TableNotFoundException $e) {
+        // May be an issue with an old install. So reinstall it.
+        $filepath = dirname(__DIR__) . '/install/schema.sql';
+        if (!file_exists($filepath) || !filesize($filepath) || !is_readable($filepath)) {
+            throw new ModuleCannotInstallException('Install sql file does not exist'); // @translate
+        }
+        $sql = file_get_contents($filepath);
+        $sqls = array_filter(array_map('trim', explode(";\n", $sql)));
+        foreach ($sqls as $sql) {
+            try {
+                // Avoid issue on table exists.
+                $connection->executeStatement($sql);
+            } catch (\Exception $e) {
+            }
+        }
+    }
 
     $sql = <<<'SQL'
 UPDATE `bulk_importer`
@@ -535,4 +552,231 @@ SET `config` = '{}'
 ;
 SQL;
     $connection->executeStatement($sql);
+}
+
+if (version_compare($oldVersion, '3.3.34', '<')) {
+    require_once __DIR__ . '/upgrade_vocabulary.php';
+
+    $messenger->addSuccess($message);
+    $message = new Message(
+        'New mappers where added to import iiif manifests.' // @translate
+    );
+    $messenger->addSuccess($message);
+    $message = new Message(
+        'Two new formats are supported to write mappings: jsonpath and  jmespath. See examples with iiif manifest mappings.' // @translate
+    );
+    $messenger->addSuccess($message);
+}
+
+if (version_compare($oldVersion, '3.3.35', '<')) {
+    $user = $services->get('Omeka\AuthenticationService')->getIdentity();
+
+    // The resource "bulk_importers" is not available during upgrade.
+    require_once dirname(__DIR__, 2) . '/src/Entity/Import.php';
+    require_once dirname(__DIR__, 2) . '/src/Entity/Importer.php';
+
+    $filenames = [
+        'csv - assets.php',
+        'ods - assets.php',
+        'tsv - assets.php',
+    ];
+    foreach ($filenames as $filename) {
+        $filepath = dirname(__DIR__) . '/importers/' . $filename;
+        $data = include $filepath;
+        $data['owner'] = $user;
+        $entity = new \BulkImport\Entity\Importer();
+        foreach ($data as $key => $value) {
+            $method = 'set' . ucfirst($key);
+            $entity->$method($value);
+        }
+        $entityManager->persist($entity);
+    }
+    $entityManager->flush();
+
+    // Check configs for new formats.
+    // Module resources are not available during upgrade.
+    // Update mapping files.
+    $replaceIni = [];
+    $replaceXml = [];
+    $dataTypes = $services->get('Omeka\DataTypeManager')->getRegisteredNames();
+    $dataTypes[] = 'customvocab:';
+    foreach ($dataTypes as $dataType) {
+        $replaceIni[' ; ' . $dataType] = ' ^^' . $dataType;
+        $replaceIni['; ' . $dataType] = ' ^^' . $dataType;
+        $replaceIni[' ;' . $dataType] = ' ^^' . $dataType;
+        $replaceIni[';' . $dataType] = ' ^^' . $dataType;
+        $replaceXml[' ; ' . $dataType] = ' ' . $dataType;
+        $replaceXml['; ' . $dataType] = ' ' . $dataType;
+        $replaceXml[' ;' . $dataType] = ' ' . $dataType;
+        $replaceXml[';' . $dataType] = ' ' . $dataType;
+    }
+    $qb = $connection->createQueryBuilder();
+    $qb
+        ->select('bulk_mapping.id', 'bulk_mapping.mapping')
+        ->from('bulk_mapping', 'bulk_mapping')
+        ->orderBy('bulk_mapping.id', 'asc');
+    $mappingConfigs = $connection->executeQuery($qb)->fetchAllKeyValue();
+    foreach ($mappingConfigs as $id => $mappingConfig) {
+        $mappingConfig = substr(trim($mappingConfigs), 0, 1) === '<'
+            ? str_replace(array_keys($replaceXml), array_values($replaceXml), $mappingConfig)
+            : str_replace(array_keys($replaceIni), array_values($replaceIni), $mappingConfig);
+        $sql = <<<'SQL'
+UPDATE `bulk_importer`
+SET
+    `reader_config` = ?
+WHERE
+    `id` = ?
+;
+SQL;
+        $connection->executeStatement($sql, [
+            $mappingConfig,
+            $id,
+        ]);
+    }
+
+    $message = new Message(
+        'It’s now possible to import and update assets and to attach them to resources.' // @translate
+    );
+    $messenger->addSuccess($message);
+
+    $message = new Message(
+        'The format of destination metadata has been improved: spaces after "^^", "@" and "§" are no more managed; for multiple datatypes, the ";" was replaced by "^^"; for custom vocab with a label, the label should be wrapped by quotes or double quotes. Check your custom configs if needed.' // @translate
+    );
+    $messenger->addWarning($message);
+}
+
+if (version_compare($oldVersion, '3.3.36', '<')) {
+    $user = $services->get('Omeka\AuthenticationService')->getIdentity();
+
+    // The resource "bulk_importers" is not available during upgrade.
+    require_once dirname(__DIR__, 2) . '/src/Entity/Import.php';
+    require_once dirname(__DIR__, 2) . '/src/Entity/Importer.php';
+
+    $filenames = [
+        'xml - mets.php',
+        'xml - mods.php',
+    ];
+    foreach ($filenames as $filename) {
+        $filepath = dirname(__DIR__) . '/importers/' . $filename;
+        $data = include $filepath;
+        $data['owner'] = $user;
+        $entity = new \BulkImport\Entity\Importer();
+        foreach ($data as $key => $value) {
+            $method = 'set' . ucfirst($key);
+            $entity->$method($value);
+        }
+        $entityManager->persist($entity);
+    }
+    $entityManager->flush();
+
+    $message = new Message(
+        'It is now possible to import xml mets and xml mods.' // @translate
+    );
+    $messenger->addSuccess($message);
+}
+
+if (version_compare($oldVersion, '3.3.38', '<')) {
+    $user = $services->get('Omeka\AuthenticationService')->getIdentity();
+
+    // The resource "bulk_importers" is not available during upgrade.
+    require_once dirname(__DIR__, 2) . '/src/Entity/Import.php';
+    require_once dirname(__DIR__, 2) . '/src/Entity/Importer.php';
+
+    $filenames = [
+        'xml - ead.php',
+    ];
+    foreach ($filenames as $filename) {
+        $filepath = dirname(__DIR__) . '/importers/' . $filename;
+        $data = include $filepath;
+        $data['owner'] = $user;
+        $entity = new \BulkImport\Entity\Importer();
+        foreach ($data as $key => $value) {
+            $method = 'set' . ucfirst($key);
+            $entity->$method($value);
+        }
+        $entityManager->persist($entity);
+    }
+    $entityManager->flush();
+
+    $message = new Message(
+        'It is now possible to import xml ead.' // @translate
+    );
+    $messenger->addSuccess($message);
+    $message = new Message(
+        'It is now possible to pass params to xsl conversion for xml sources.' // @translate
+    );
+    $messenger->addSuccess($message);
+    $message = new Message(
+        'It is now possible to create table of contents for IIIF viewer from mets and ead sources.' // @translate
+    );
+    $messenger->addSuccess($message);
+}
+
+if (version_compare($oldVersion, '3.4.39', '<')) {
+    if (PHP_VERSION_ID < 70400) {
+        $message = new Message(
+            'Since version %s, this module requires php 7.4.', // @translate
+            '3.4.39'
+        );
+        throw new ModuleCannotInstallException((string) $message);
+    }
+}
+
+if (version_compare($oldVersion, '3.4.45', '<')) {
+    $message = new Message(
+        'It is now possible to process a bulk import and to upload files at the same time. It allows to bypass complex server config, where it is not possible to drop files on the server or to access an external server. Furthermore, the files can be zipped and they will be automatically unzipped.' // @translate
+    );
+    $messenger->addSuccess($message);
+}
+
+if (version_compare($oldVersion, '3.4.46', '<')) {
+    // Update vocabulary via sql.
+    $sql = <<<SQL
+UPDATE `vocabulary`
+SET
+    `comment` = 'Generic and common properties that are useful in Omeka for the curation of resources. The use of more common or more precise ontologies is recommended when it is possible.'
+WHERE `prefix` = 'curation'
+;
+UPDATE `property`
+JOIN `vocabulary` on `vocabulary`.`id` = `property`.`vocabulary_id`
+SET
+    `property`.`local_name` = 'start',
+    `property`.`label` = 'Start',
+    `property`.`comment` = 'A start related to the resource, for example the start of an embargo.'
+WHERE
+    `vocabulary`.`prefix` = 'curation'
+    AND `property`.`local_name` = 'dateStart'
+;
+UPDATE `property`
+JOIN `vocabulary` on `vocabulary`.`id` = `property`.`vocabulary_id`
+SET
+    `property`.`local_name` = 'end',
+    `property`.`label` = 'End',
+    `property`.`comment` = 'A end related to the resource, for example the end of an embargo.'
+WHERE
+    `vocabulary`.`prefix` = 'curation'
+    AND `property`.`local_name` = 'dateEnd'
+;
+SQL;
+    $connection->executeStatement($sql);
+}
+
+if (version_compare($oldVersion, '3.4.47', '<')) {
+    // Update vocabulary via sql.
+    $sql = <<<SQL
+UPDATE `vocabulary`
+SET
+    `comment` = 'Generic and common properties that are useful in Omeka for the curation of resources. The use of more common or more precise ontologies is recommended when it is possible.'
+WHERE `prefix` = 'curation'
+;
+SQL;
+    $connection->executeStatement($sql);
+
+    $basePath = $services->get('ViewHelperManager')->get('BasePath');
+    $message = new Message(
+        'It is now possible %1$sto bulk upload files%2$s in a directory of the server for future bulk uploads.', // @translate
+        '<a href="' . rtrim($basePath(), '/') . '/admin/bulk/upload/files">', '</a>'
+    );
+    $message->setEscapeHtml(false);
+    $messenger->addSuccess($message);
 }

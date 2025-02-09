@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2021 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  * Copyright 2016-2017 BibLibre
  *
  * This software is governed by the CeCILL license under French law and abiding
@@ -30,9 +30,9 @@
 
 namespace IiifServer\Controller;
 
+use Common\Stdlib\PsrMessage;
 use Laminas\Mvc\Controller\AbstractActionController;
-use Omeka\Mvc\Exception\NotFoundException;
-use Omeka\Stdlib\Message;
+use Omeka\Mvc\Exception as OmekaException;
 
 class PresentationController extends AbstractActionController
 {
@@ -40,7 +40,7 @@ class PresentationController extends AbstractActionController
 
     public function indexAction()
     {
-        return $this->jsonError(new NotFoundException, \Laminas\Http\Response::STATUS_CODE_404);
+        return $this->jsonError(new OmekaException\NotFoundException, \Laminas\Http\Response::STATUS_CODE_404);
     }
 
     public function collectionAction()
@@ -48,7 +48,7 @@ class PresentationController extends AbstractActionController
         // A collection can be an item set or an item with external manifests.
         $resource = $this->fetchResource('resources');
         if (!$resource) {
-            return $this->jsonError(new NotFoundException, \Laminas\Http\Response::STATUS_CODE_404);
+            return $this->jsonError(new OmekaException\NotFoundException, \Laminas\Http\Response::STATUS_CODE_404);
         }
 
         $version = $this->requestedVersion();
@@ -68,7 +68,7 @@ class PresentationController extends AbstractActionController
         // TODO Set the resource type to fetch resources from identifiers?
         $resources = $this->fetchResourcesAndIiifUrls();
         if (!count($resources)) {
-            return $this->jsonError(new NotFoundException, \Laminas\Http\Response::STATUS_CODE_404);
+            return $this->jsonError(new OmekaException\NotFoundException, \Laminas\Http\Response::STATUS_CODE_404);
         }
 
         $query = $this->params()->fromQuery();
@@ -92,18 +92,73 @@ class PresentationController extends AbstractActionController
         // It can be a forward from the module Image Server.
         $resource = $params['resource'] ?? $this->fetchResource('items');
         if (!$resource) {
-            return $this->jsonError(new NotFoundException, \Laminas\Http\Response::STATUS_CODE_404);
+            return $this->jsonError(new OmekaException\NotFoundException, \Laminas\Http\Response::STATUS_CODE_404);
         }
+
+        $viewHelpers = $this->viewHelpers();
 
         $internal = (bool) $this->params()->fromQuery('internal');
         if (!$internal) {
-            $externalManifest = $this->viewHelpers()->get('iiifManifestExternal')->__invoke($resource, true);
+            $externalManifest = $viewHelpers->get('iiifManifestExternal')->__invoke($resource, true);
             if ($externalManifest) {
                 return $this->redirect()->toUrl($externalManifest);
             }
         }
 
+        // Check rights for Access.
+        // Warning: there are checks for media (option iiifserver_access_resource_skip).
+        /** @see \IiifServer\Controller\MediaController::fetchAction() */
+        if ($this->getPluginManager()->has('accessLevel')) {
+            /** @var \Access\Mvc\Controller\Plugin\AccessLevel $accessLevel */
+            $accessLevel = $this->getPluginManager()->get('accessLevel');
+            $accessLevel = $this->accessLevel($resource);
+            if ($accessLevel === 'forbidden') {
+                return $this->jsonError(new OmekaException\PermissionDeniedException, \Laminas\Http\Response::STATUS_CODE_403);
+            }
+            // TODO Manage level reserved. For now, only on media level.
+        }
+
+        // Version may be 2 or 3.
         $version = $this->requestedVersion();
+
+        $manifest = null;
+        $toCache = false;
+
+        $settings = $this->settings();
+        $useCache = (bool) $settings->get('iiifserver_manifest_cache', false);
+        if ($useCache) {
+            $itemId = $resource->id();
+            $config = $resource->getServiceLocator()->get('Config');
+            $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+            $filepath = "$basePath/iiif/$version/$itemId.manifest.json";
+            if (file_exists($filepath) && is_readable($filepath)) {
+                $manifest = file_get_contents($filepath);
+                $manifest = json_decode($manifest, true);
+                return $this->iiifJsonLd($manifest, $version);
+            }
+            $toCache = true;
+        }
+
+        // Compatibility with old version of DerivativeMedia.
+        $useCache = !$toCache && $settings->get('iiifserver_manifest_cache_media', false);
+        if ($useCache && $viewHelpers->has('derivativeList')) {
+            $type = 'iiif-' . (int) $version;
+            $derivative = $viewHelpers->get('derivativeList')->__invoke($resource, ['type' => $type]);
+            if ($derivative) {
+                $config = $resource->getServiceLocator()->get('Config');
+                $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
+                $filepath = $basePath . '/' . $derivative[$type]['file'];
+                if ($derivative[$type]['ready']) {
+                    $manifest = file_get_contents($filepath);
+                    $manifest = json_decode($manifest, true);
+                    return $this->iiifJsonLd($manifest, $version);
+                }
+                if (!$derivative[$type]['in_progress']) {
+                    $toCache = true;
+                }
+            }
+            // Else derivative is not enabled in module DerivativeMedia.
+        }
 
         $iiifManifest = $this->viewHelpers()->get('iiifManifest');
         try {
@@ -112,18 +167,40 @@ class PresentationController extends AbstractActionController
             return $this->jsonError($e, \Laminas\Http\Response::STATUS_CODE_400);
         }
 
+        if ($toCache) {
+            // Ensure dirpath. Don't keep issue, it's only cache.
+            if (!file_exists(dirname($filepath))) {
+                @mkdir(dirname($filepath), 0775, true);
+            }
+            $prettyPrint = (bool) $settings->get('iiifserver_manifest_pretty_json');
+            $prettyJson = $prettyPrint
+                ? JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT
+                : JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
+            // Because the json serialization of the manifest includes checks,
+            // the manifest is kept as simple array to avoid the double json
+            // encoding, here and in iiifJsonLd,
+            $jsonEncoded = json_encode($manifest, $prettyJson);
+            @file_put_contents($filepath, $jsonEncoded);
+            $manifest = json_decode($jsonEncoded, true);
+        }
+
         return $this->iiifJsonLd($manifest, $version);
     }
 
     public function genericAction()
     {
         $type = $this->params('type');
-        if ($type === 'canvas' && $this->params('name')) {
+        $name = $this->params('name');
+        if ($type === 'canvas' && $name) {
             return $this->canvasAction();
+        } elseif ($type === 'annotation-page' && $name && $this->params('subtype')) {
+            return $this->annotationPageLineAction();
+        } elseif ($type === 'annotation-list' && $name) {
+            return $this->annotationListAction();
         }
-        return $this->jsonError(new Message(
-            'The type "%s" is currently only managed as uri, not url', // @translate
-            $type
+        return $this->jsonError(new PsrMessage(
+            'The type "{type}" is currently only managed as uri, not url', // @translate
+            ['type' => $type]
         ), \Laminas\Http\Response::STATUS_CODE_501);
     }
 
@@ -134,17 +211,16 @@ class PresentationController extends AbstractActionController
         // structure. It may be used in Iiif Search too.
         // Note: the position is not the item's one, non-iiif media are skipped.
 
-        // A canvas name can be hard coded in a table of contents, for example "cover".
+        // A canvas name can be hard coded in a table of contents, for example
+        // "cover".
+        // TODO Manage the hard coded index in manifest main iiif items (currently only media index).
 
         $name = $this->params('name');
         if (!$name) {
-            return $this->jsonError(new NotFoundException, \Laminas\Http\Response::STATUS_CODE_404);
+            return $this->jsonError(new OmekaException\NotFoundException, \Laminas\Http\Response::STATUS_CODE_404);
         }
 
-        $version = $this->requestedVersion();
-
         // When the id is a clean url identifier, the id is already extracted.
-
         $id = $this->params('id');
         try {
             $item = $this->api()->read('items', ['id' => $id])->getContent();
@@ -152,13 +228,17 @@ class PresentationController extends AbstractActionController
             return $this->jsonError($e, \Laminas\Http\Response::STATUS_CODE_404);
         }
 
+        $viewHelpers = $this->viewHelpers();
+
+        $version = $this->requestedVersion();
+
         // In the manifest, the position is not the one set by the item.
         // The simplest way to check it is to recreate the manifest.
         // Furthermore, it allows to manage alphanumeric canvas names.
 
         // Normally, the identifier is the same in version 2 and version 3, so
         // use the manifest version 3, that can output the original resource.
-        $viewHelpers = $this->viewHelpers();
+
         /** @var \IiifServer\Iiif\Manifest $manifest */
         try {
             $manifest = $viewHelpers->get('iiifManifest')->__invoke($item, '3');
@@ -166,7 +246,7 @@ class PresentationController extends AbstractActionController
             return $this->jsonError($e, \Laminas\Http\Response::STATUS_CODE_400);
         }
         $found = false;
-        // In iiif, here, items means canvases.
+        // In iiif, here, items means canvases (so one or more files).
         foreach ($manifest->items() as $canvas) {
             if ($name === basename($canvas->id())) {
                 $found = true;
@@ -175,19 +255,102 @@ class PresentationController extends AbstractActionController
         }
 
         if (!$found) {
-            return $this->jsonError(new NotFoundException, \Laminas\Http\Response::STATUS_CODE_404);
+            return $this->jsonError(new OmekaException\NotFoundException, \Laminas\Http\Response::STATUS_CODE_404);
         }
 
         if ($version === '2') {
             $iiifCanvas = $viewHelpers->get('iiifCanvas2');
             try {
-                $canvas = $iiifCanvas($canvas->resource(), $name);
+                $canvas = $iiifCanvas($canvas->getResource(), $name);
             } catch (\IiifServer\Iiif\Exception\RuntimeException $e) {
                 return $this->jsonError($e, \Laminas\Http\Response::STATUS_CODE_400);
             }
         }
 
         return $this->iiifJsonLd($canvas, $version);
+    }
+
+    protected function annotationPageLineAction()
+    {
+        // Unlike canvas, the name is the main media id.
+
+        $name = $this->params('name');
+        if (!$name) {
+            return $this->jsonError(new OmekaException\NotFoundException, \Laminas\Http\Response::STATUS_CODE_404);
+        }
+
+        $api = $this->api();
+
+        // When the id is a clean url identifier, the id is already extracted.
+        $id = $this->params('id');
+        try {
+            $api->read('items', ['id' => $id])->getContent();
+        } catch (\Omeka\Api\Exception\NotFoundException $e) {
+            return $this->jsonError($e, \Laminas\Http\Response::STATUS_CODE_404);
+        }
+
+        try {
+            $media = $api->read('media', ['item' => $id, 'id' => $name])->getContent();
+        } catch (\Omeka\Api\Exception\NotFoundException $e) {
+            return $this->jsonError($e, \Laminas\Http\Response::STATUS_CODE_404);
+        }
+
+        $viewHelpers = $this->viewHelpers();
+        $iiifAnnotationPageLine = $viewHelpers->get('iiifAnnotationPageLine');
+
+        $version = $this->requestedVersion();
+
+        try {
+            $annotationPageLine = $iiifAnnotationPageLine($media, null, $version);
+        } catch (\IiifServer\Iiif\Exception\RuntimeException $e) {
+            return $this->jsonError($e, \Laminas\Http\Response::STATUS_CODE_400);
+        }
+
+        return $this->iiifJsonLd($annotationPageLine, $version);
+    }
+
+    /**
+     * Get the annotations list from module Annotate/Cartography for a media.
+     *
+     * @todo Use url like /item-id/canvas/canvas-id/annotation-list ?
+     */
+    protected function annotationListAction()
+    {
+        // Unlike canvas, the name is the main media id.
+
+        $name = $this->params('name');
+        if (!$name) {
+            return $this->jsonError(new OmekaException\NotFoundException, \Laminas\Http\Response::STATUS_CODE_404);
+        }
+
+        $api = $this->api();
+
+        // When the id is a clean url identifier, the id is already extracted.
+        $id = $this->params('id');
+        try {
+            $api->read('items', ['id' => $id])->getContent();
+        } catch (\Omeka\Api\Exception\NotFoundException $e) {
+            return $this->jsonError($e, \Laminas\Http\Response::STATUS_CODE_404);
+        }
+
+        try {
+            $media = $api->read('media', ['item' => $id, 'id' => $name])->getContent();
+        } catch (\Omeka\Api\Exception\NotFoundException $e) {
+            return $this->jsonError($e, \Laminas\Http\Response::STATUS_CODE_404);
+        }
+
+        $viewHelpers = $this->viewHelpers();
+        $iiifAnnotationList = $viewHelpers->get('iiifAnnotationList');
+
+        $version = $this->requestedVersion();
+
+        try {
+            $annotationPageLine = $iiifAnnotationList($media, null, $version);
+        } catch (\IiifServer\Iiif\Exception\RuntimeException $e) {
+            return $this->jsonError($e, \Laminas\Http\Response::STATUS_CODE_400);
+        }
+
+        return $this->iiifJsonLd($annotationPageLine, $version);
     }
 
     /**

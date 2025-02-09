@@ -12,6 +12,7 @@ use Omeka\Entity\ItemSet;
 
 /**
  * @todo The processor is only parametrizable currently.
+ * @deprecated Use MetaMapper and convert full processors into standard processors and make a multi-processor for full migration.
  */
 abstract class AbstractFullProcessor extends AbstractProcessor implements Parametrizable
 {
@@ -510,7 +511,7 @@ abstract class AbstractFullProcessor extends AbstractProcessor implements Parame
         return $this->paramsFormClass;
     }
 
-    public function handleConfigForm(Form $form)
+    public function handleConfigForm(Form $form): self
     {
         $values = $form->getData();
         $result = array_intersect_key($values, $this->configDefault) + $this->configDefault;
@@ -518,7 +519,7 @@ abstract class AbstractFullProcessor extends AbstractProcessor implements Parame
         return $this;
     }
 
-    public function handleParamsForm(Form $form)
+    public function handleParamsForm(Form $form): self
     {
         $values = $form->getData();
         $result = array_intersect_key($values, $this->paramsDefault) + $this->paramsDefault;
@@ -548,6 +549,7 @@ abstract class AbstractFullProcessor extends AbstractProcessor implements Parame
             $identity = $services->get('ControllerPluginManager')->get('identity');
             $this->owner = $identity();
         } elseif ($ownerIdParam) {
+            // TODO Use getReference() when possible in all the module.
             $this->owner = $this->entityManager->find(\Omeka\Entity\User::class, $ownerIdParam);
         }
         $this->ownerId = $this->owner ? $this->owner->getId() : null;
@@ -1428,8 +1430,12 @@ abstract class AbstractFullProcessor extends AbstractProcessor implements Parame
             ]);
         }
 
+        // TODO Fix issue on value annotation indexing.
         $this->logger->notice('Reindexing full text search. It may take about some minutes to one hour.'); // @translate
-        $this->dispatchJob(\Omeka\Job\IndexFulltextSearch::class);
+        try {
+            $this->dispatchJob(\Omeka\Job\IndexFulltextSearch::class);
+        } catch (\Exception $e) {
+        }
         $this->logger->notice('Full text search reindexed.'); // @translate
 
         // TODO Run derivative files job.
@@ -1447,7 +1453,7 @@ abstract class AbstractFullProcessor extends AbstractProcessor implements Parame
         $dispatcher->dispatch($jobClass, $args, $strategy);
     }
 
-    protected function prepareReader(string $resourceName, bool $clone = false): \BulkImport\Reader\Reader
+    protected function prepareReader(string $resourceName, bool $clone = false): self
     {
         // When no source is set, it means that the reader is disabled.
         // For example, disable processing of items and medias when mediaItems

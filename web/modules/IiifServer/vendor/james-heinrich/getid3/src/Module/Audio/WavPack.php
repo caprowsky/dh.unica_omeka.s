@@ -23,6 +23,14 @@ use JamesHeinrich\GetID3\Utils;
 class WavPack extends Handler
 {
 	/**
+	 * Avoid scanning all frames (break after finding ID_RIFF_HEADER and ID_CONFIG_BLOCK,
+	 * significantly faster for very large files but other data may be missed
+	 *
+	 * @var bool
+	 */
+	public $quick_parsing = false;
+
+	/**
 	 * @return bool
 	 */
 	public function Analyze() {
@@ -30,13 +38,14 @@ class WavPack extends Handler
 
 		$this->fseek($info['avdataoffset']);
 
+		$found_blocks = array();
 		while (true) {
 
 			$wavpackheader = $this->fread(32);
 
 			if ($this->ftell() >= $info['avdataend']) {
 				break;
-			} elseif (feof($this->getid3->fp)) {
+			} elseif ($this->feof()) {
 				break;
 			} elseif (
 				isset($info['wavpack']['blockheader']['total_samples']) &&
@@ -151,16 +160,17 @@ class WavPack extends Handler
 				$info['audio']['lossless'] = !$info['wavpack']['blockheader']['flags']['hybrid'];
 			}
 
-			while (!feof($this->getid3->fp) && ($this->ftell() < ($blockheader_offset + $blockheader_size + 8))) {
+			while (!$this->feof() && ($this->ftell() < ($blockheader_offset + $blockheader_size + 8))) {
 
 				$metablock = array('offset'=>$this->ftell());
 				$metablockheader = $this->fread(2);
-				if (feof($this->getid3->fp)) {
+				if ($this->feof()) {
 					break;
 				}
 				$metablock['id'] = ord($metablockheader[0]);
 				$metablock['function_id'] = ($metablock['id'] & 0x3F);
 				$metablock['function_name'] = $this->WavPackMetablockNameLookup($metablock['function_id']);
+				$found_blocks[$metablock['function_name']] = (isset($found_blocks[$metablock['function_name']]) ? $found_blocks[$metablock['function_name']] : 0) + 1; // cannot use getid3_lib::safe_inc without warnings(?)
 
 				// The 0x20 bit in the id of the meta subblocks (which is defined as
 				// ID_OPTIONAL_DATA) is a permanent part of the id. The idea is that
@@ -235,10 +245,14 @@ class WavPack extends Handler
 
 							$metablock['riff']['original_filesize'] = $original_wav_filesize;
 							$info['wavpack']['riff_trailer_size'] = $original_wav_filesize - $metablock['riff']['WAVE']['data'][0]['size'] - $metablock['riff']['header_size'];
-							$info['playtime_seconds'] = $info['wavpack']['blockheader']['total_samples'] / $info['audio']['sample_rate'];
+							$info['playtime_seconds'] = Utils::SafeDiv($info['wavpack']['blockheader']['total_samples'], $info['audio']['sample_rate']);
 
 							// Safe RIFF header in case there's a RIFF footer later
 							$metablockRIFFheader = $metablock['data'];
+							if ($this->quick_parsing && !empty($found_blocks['RIFF header']) && !empty($found_blocks['Config Block'])) {
+								$this->warning('WavPack quick-parsing enabled (faster at parsing large fules, but may miss some data)');
+								break 2;
+							}
 							break;
 
 
@@ -318,6 +332,10 @@ class WavPack extends Handler
 							} elseif (isset($info['audio']['encoder_options'])) {
 								unset($info['audio']['encoder_options']);
 							}
+							if ($this->quick_parsing && !empty($found_blocks['RIFF header']) && !empty($found_blocks['Config Block'])) {
+								$this->warning('WavPack quick-parsing enabled (faster at parsing large fules, but may miss some data)');
+								break 2;
+							}
 							break;
 
 
@@ -370,7 +388,6 @@ class WavPack extends Handler
 			$info['audio']['dataformat']  = 'wvc';
 
 		}
-
 		return true;
 	}
 

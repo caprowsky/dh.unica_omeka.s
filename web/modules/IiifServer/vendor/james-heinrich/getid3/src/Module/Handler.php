@@ -109,6 +109,8 @@ abstract class Handler {
 	}
 
 	/**
+	 * @phpstan-impure
+	 *
 	 * @return int|bool
 	 */
 	protected function ftell() {
@@ -121,6 +123,8 @@ abstract class Handler {
 	/**
 	 * @param int $bytes
 	 *
+	 * @phpstan-impure
+	 *
 	 * @return string|false
 	 *
 	 * @throws Exception
@@ -129,6 +133,11 @@ abstract class Handler {
 		if ($this->data_string_flag) {
 			$this->data_string_position += $bytes;
 			return substr($this->data_string, $this->data_string_position - $bytes, $bytes);
+		}
+		if ($bytes == 0) {
+			return '';
+		} elseif ($bytes < 0) {
+			throw new Exception('cannot fread('.$bytes.' from '.$this->ftell().')', 10);
 		}
 		$pos = $this->ftell() + $bytes;
 		if (!Utils::intValueSupported($pos)) {
@@ -161,6 +170,8 @@ abstract class Handler {
 	 * @param int $bytes
 	 * @param int $whence
 	 *
+	 * @phpstan-impure
+	 *
 	 * @return int
 	 *
 	 * @throws Exception
@@ -180,22 +191,30 @@ abstract class Handler {
 					$this->data_string_position = $this->data_string_length + $bytes;
 					break;
 			}
-			return 0;
-		} else {
-			$pos = $bytes;
-			if ($whence == SEEK_CUR) {
-				$pos = $this->ftell() + $bytes;
-			} elseif ($whence == SEEK_END) {
-				$pos = $this->getid3->info['filesize'] + $bytes;
-			}
-			if (!Utils::intValueSupported($pos)) {
-				throw new Exception('cannot fseek('.$pos.') because beyond PHP filesystem limit', 10);
-			}
+			return 0; // fseek returns 0 on success
 		}
-		return fseek($this->getid3->fp, $bytes, $whence);
+
+		$pos = $bytes;
+		if ($whence == SEEK_CUR) {
+			$pos = $this->ftell() + $bytes;
+		} elseif ($whence == SEEK_END) {
+			$pos = $this->getid3->info['filesize'] + $bytes;
+		}
+		if (!Utils::intValueSupported($pos)) {
+			throw new Exception('cannot fseek('.$pos.') because beyond PHP filesystem limit', 10);
+		}
+
+		// https://github.com/JamesHeinrich/getID3/issues/327
+		$result = fseek($this->getid3->fp, $bytes, $whence);
+		if ($result !== 0) { // fseek returns 0 on success
+			throw new Exception('cannot fseek('.$pos.'). resource/stream does not appear to support seeking', 10);
+		}
+		return $result;
 	}
 
 	/**
+	 * @phpstan-impure
+	 *
 	 * @return string|false
 	 *
 	 * @throws Exception
@@ -251,6 +270,8 @@ abstract class Handler {
 	}
 
 	/**
+	 * @phpstan-impure
+	 *
 	 * @return bool
 	 */
 	protected function feof() {

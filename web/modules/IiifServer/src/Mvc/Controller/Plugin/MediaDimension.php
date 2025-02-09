@@ -75,7 +75,7 @@ class MediaDimension extends AbstractPlugin
             $media = $this->mediaAdapter->getRepresentation($media);
             return $this->dimensionMedia($media, $type, $force);
         }
-        // For file path.
+        // For file path or url.
         return $this->getDimensions((string) $media);
     }
 
@@ -131,19 +131,28 @@ class MediaDimension extends AbstractPlugin
     }
 
     /**
-     * Helper to get width, height, and/or duration of a media.
+     * Helper to get width, height, and/or duration of a file or url.
      */
     protected function getDimensions(string $filepath): array
     {
-        // An internet path.
-        if (strpos($filepath, 'https://') === 0 || strpos($filepath, 'http://') === 0) {
-            return $this->getDimensionsUrl($filepath);
+        static $cache = [];
+
+        if (!isset($cache[$filepath])) {
+            // An internet path.
+            if (strpos($filepath, 'https://') === 0 || strpos($filepath, 'http://') === 0) {
+                $cache[$filepath] = $this->getDimensionsUrl($filepath);
+            }
+            // A normal path.
+            elseif (file_exists($filepath) && is_file($filepath) && is_readable($filepath) && filesize($filepath)) {
+                $cache[$filepath] = $this->getDimensionsLocal($filepath);
+            }
+            // Invalid path.
+            else {
+                $cache[$filepath] = $this->emptyDimensions;
+            }
         }
-        // A normal path.
-        if (file_exists($filepath) && is_file($filepath) && is_readable($filepath) && filesize($filepath)) {
-            return $this->getDimensionsLocal($filepath);
-        }
-        return $this->emptyDimensions;
+
+        return $cache[$filepath];
     }
 
     protected function getDimensionsUrl(?string $url, ?string $mainMediaType = null): array
@@ -187,7 +196,7 @@ class MediaDimension extends AbstractPlugin
         if ($mainMediaType === 'image') {
             $result = getimagesize($filepath);
             if ($result) {
-                list($width, $height) = $result;
+                [$width, $height] = $result;
                 return [
                     'width' => (int) $width,
                     'height' => (int) $height,
@@ -199,9 +208,14 @@ class MediaDimension extends AbstractPlugin
         $getId3 = new GetId3();
         $data = $getId3->analyze($filepath);
         $data = $this->fixOggDuration($data);
+        // In IIIF, the width and height should be positive integer and duration
+        // should be a positive float.
+        // In a previous version, a string was used instead of the float to
+        // avoid the modification of the value during json conversion, but this
+        // is an event that doesn't occur.
         $width = empty($data['video']['resolution_x']) ? null : (int) $data['video']['resolution_x'];
         $height = !$width || empty($data['video']['resolution_y']) ? null : (int) $data['video']['resolution_y'];
-        $duration = empty($data['playtime_seconds']) ? null : (string) $data['playtime_seconds'];
+        $duration = empty($data['playtime_seconds']) ? null : (float) $data['playtime_seconds'];
 
         return [
             'width' => $width,
@@ -216,6 +230,9 @@ class MediaDimension extends AbstractPlugin
      */
     private function fixOggDuration(array $data): array
     {
+        if (!isset($data['mime_type'])) {
+            return $data;
+        }
         if ($data['mime_type'] !== 'audio/ogg' && $data['mime_type'] !== 'video/ogg') {
             return $data;
         }

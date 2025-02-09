@@ -33,7 +33,7 @@ class TileInfoFactory implements FactoryInterface
                 $tileBaseUrl = $baseUrl;
                 $tileBaseQuery = '';
             } else {
-                list($tileBaseUrl, $tileBaseQuery) = explode('?', $baseUrl, 2);
+                [$tileBaseUrl, $tileBaseQuery] = explode('?', $baseUrl, 2);
             }
         } else {
             // A full url avoids some complexity when Omeka is not the root of
@@ -62,7 +62,8 @@ class TileInfoFactory implements FactoryInterface
             $tileBaseQuery,
             $hasAmazonS3,
             $store,
-            $services->get('ControllerPluginManager')->get('imageSize')
+            $services->get('ControllerPluginManager')->get('imageSize'),
+            $services->get('Omeka\Logger')
         );
     }
 }

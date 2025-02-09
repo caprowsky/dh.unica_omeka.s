@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2017-2021 Daniel Berthereau
+ * Copyright 2017-2023 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -213,7 +213,10 @@ class FindResourcesFromIdentifiers extends AbstractPlugin
             }
         }
         // Next, identifierName is a string or an integer.
-        elseif ($identifierName === 'o:id') {
+        elseif ($identifierName === 'o:id'
+            // "internal_id" is used for compatibitily with module CSV Import.
+            || $identifierName === 'internal_id'
+        ) {
             $identifierType = 'o:id';
             $identifierTypeName = 'o:id';
         } elseif (is_numeric($identifierName)) {
@@ -477,11 +480,10 @@ class FindResourcesFromIdentifiers extends AbstractPlugin
         $qb
             ->setParameters($parameters);
 
-        $stmt = $conn->executeQuery($qb, $qb->getParameters());
-        // $stmt->fetchAll(\PDO::FETCH_KEY_PAIR) cannot be used, because it
-        // replaces the first id by later ids in case of true duplicates.
-        // Anyway, count() is needed now.
-        $result = $stmt->fetchAll();
+        // $stmt->fetchAllKeyValue() cannot be used, because it replaces the
+        // first id by later ids in case of true duplicates. Anyway, count() is
+        // needed now.
+        $result = $conn->executeQuery($qb, $qb->getParameters())->fetchAllAssociative();
 
         return $this->cleanResult($identifiers, $result);
     }
@@ -503,11 +505,11 @@ class FindResourcesFromIdentifiers extends AbstractPlugin
         $parameters = [];
 
         $qb
-            ->select([
+            ->select(
                 'MIN(media.' . $column . ') AS "identifier"',
                 'MIN(media.id) AS "id"',
-                'COUNT(media.' . $column . ') AS "count"',
-            ])
+                'COUNT(media.' . $column . ') AS "count"'
+            )
             ->from('media', 'media')
             // ->andWhere('media.source IN (' . implode(',', array_map([$conn, 'quote'], $identifiers)) . ')')
             ->addGroupBy('media.' . $column)
@@ -546,11 +548,10 @@ class FindResourcesFromIdentifiers extends AbstractPlugin
         $qb
             ->setParameters($parameters);
 
-        $stmt = $conn->executeQuery($qb, $qb->getParameters());
-        // $stmt->fetchAll(\PDO::FETCH_KEY_PAIR) cannot be used, because it
-        // replaces the first id by later ids in case of true duplicates.
-        // Anyway, count() is needed now.
-        $result = $stmt->fetchAll();
+        // $stmt->fetchAllKeyValue() cannot be used, because it replaces the
+        // first id by later ids in case of true duplicates. Anyway, count() is
+        // needed now.
+        $result = $conn->executeQuery($qb, $qb->getParameters())->fetchAllAssociative();
 
         return $this->cleanResult($identifiers, $result);
     }
@@ -569,14 +570,14 @@ class FindResourcesFromIdentifiers extends AbstractPlugin
         $isPartial = $identifierName === 'o:basename';
 
         $qb
-            ->select([
+            ->select(
                 // TODO There may be no extension.
                 $isPartial
                     ? 'CONCAT(SUBSTRING_INDEX(MIN(media.storage_id), "/", -1), ".", MIN(media.extension)) AS "identifier"'
                     : 'CONCAT(MIN(media.storage_id), ".", MIN(media.extension)) AS "identifier"',
                 'MIN(media.id) AS "id"',
-                'COUNT(media.source) AS "count"',
-            ])
+                'COUNT(media.source) AS "count"'
+            )
             ->from('media', 'media')
             ->addOrderBy('MIN(media.id)', 'ASC');
 
@@ -629,11 +630,10 @@ class FindResourcesFromIdentifiers extends AbstractPlugin
         $qb
             ->setParameters($parameters);
 
-        $stmt = $conn->executeQuery($qb, $qb->getParameters());
-        // $stmt->fetchAll(\PDO::FETCH_KEY_PAIR) cannot be used, because it
-        // replaces the first id by later ids in case of true duplicates.
-        // Anyway, count() is needed now.
-        $result = $stmt->fetchAll();
+        // $stmt->fetchAllKeyValues() cannot be used, because it replaces the
+        // first id by later ids in case of true duplicates. Anyway, count() is
+        // needed now.
+        $result = $conn->executeQuery($qb, $qb->getParameters())->fetchAll();
 
         return $this->cleanResult($identifiers, $result);
     }
@@ -690,12 +690,9 @@ class FindResourcesFromIdentifiers extends AbstractPlugin
 
     /**
      * Trim all whitespaces.
-     *
-     * @param string $string
-     * @return string
      */
     protected function trimUnicode($string): string
     {
-        return preg_replace('/^[\s\h\v[:blank:][:space:]]+|[\s\h\v[:blank:][:space:]]+$/u', '', (string) $string);
+        return (string) preg_replace('/^[\s\h\v[:blank:][:space:]]+|[\s\h\v[:blank:][:space:]]+$/u', '', (string) $string);
     }
 }

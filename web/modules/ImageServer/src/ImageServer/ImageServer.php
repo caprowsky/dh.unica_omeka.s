@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2021 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  * Copyright 2016-2017 BibLibre
  *
  * This software is governed by the CeCILL license under French law and abiding
@@ -30,13 +30,13 @@
 
 namespace ImageServer\ImageServer;
 
+use Common\Stdlib\PsrMessage;
 use Laminas\Log\LoggerAwareInterface;
 use Laminas\Log\LoggerAwareTrait;
 use Laminas\Log\LoggerInterface;
 use Omeka\File\Store\StoreInterface;
 use Omeka\File\TempFileFactory;
 use Omeka\Settings\Settings;
-use Omeka\Stdlib\Message;
 
 /**
  * Helper to create an image from another one with IIIF arguments.
@@ -98,9 +98,9 @@ class ImageServer implements LoggerAwareInterface
             '\\ImageServer\\ImageServer\\ImageMagick',
         ];
         if (!in_array($imagerClass, $imagerClasses)) {
-            throw new \RuntimeException((string) new Message(
-                'The imager "%s" is not supported.', // @translate
-                $imagerClass
+            throw new \RuntimeException((string) new PsrMessage(
+                'The imager "{class}" is not supported.', // @translate
+                ['imager' => $imagerClass]
             ));
         }
         $needCli = [

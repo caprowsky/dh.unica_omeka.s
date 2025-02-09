@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2021 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  * Copyright 2016-2017 BibLibre
  *
  * This software is governed by the CeCILL license under French law and abiding
@@ -34,7 +34,6 @@ use Laminas\Log\LoggerAwareInterface;
 use Laminas\Log\LoggerAwareTrait;
 use Omeka\File\Store\StoreInterface;
 use Omeka\File\TempFileFactory;
-use Omeka\Stdlib\Message;
 
 /**
  * Abstract  to manage strategies used to create an image.
@@ -277,23 +276,31 @@ abstract class AbstractImager implements LoggerAwareInterface
             return false;
         }
 
+        // The image should be readable, whether local path or external url.
+        // For external url, normally php just pings the source, so there is no
+        // double download.
+        if (!is_readable($source)) {
+            return false;
+        }
+
         try {
             // A check is added if the file is local: the source can be a local file
             // or an external one (Amazon S3…).
             switch (get_class($this->store)) {
                 case \Omeka\File\Store\Local::class:
-                    if (!is_readable($source)) {
-                        return false;
-                    }
                     $image = $source;
                     break;
 
-                    // When the storage is external, the file is fetched before.
                 default:
+                    // When the storage is external, the file is fetched before.
                     $tempFile = $this->tempFileFactory->build();
                     $tempPath = $tempFile->getTempPath();
                     $tempFile->delete();
-                    $result = copy($source, $tempPath);
+                    try {
+                        $result = copy($source, $tempPath);
+                    } catch (\Exception $e) {
+                        return false;
+                    }
                     if (!$result) {
                         return false;
                     }
@@ -302,9 +309,10 @@ abstract class AbstractImager implements LoggerAwareInterface
                     break;
             }
         } catch (\Exception $e) {
-            $message = new Message('Image Server failed to open the file "%s". Details:
-%s', $source, $e->getMessage()); // @translate
-            $this->getLogger()->err($message);
+            $this->getLogger()->err(
+                "Image Server failed to open the file \"{file}\". Details:\n{message}", // @translate
+                ['file' => $source, 'message' => $e->getMessage()]
+            );
             return false;
         }
 
@@ -337,8 +345,10 @@ abstract class AbstractImager implements LoggerAwareInterface
         $destination = $this->args['destination']['filepath'];
         if (file_exists($destination)) {
             if (!is_writeable($destination)) {
-                $message = new Message('Unable to save the file "%s".', $destination); // @translate
-                $this->getLogger()->err($message);
+                $this->getLogger()->err(
+                    'Unable to save the file in the directory "{dir}".', // @translate
+                    ['dir' => $destination]
+                );
                 return null;
             }
             @unlink($destination);
@@ -348,8 +358,10 @@ abstract class AbstractImager implements LoggerAwareInterface
         $dir = dirname($destination);
         if (file_exists($dir)) {
             if (!is_writeable($dir)) {
-                $message = new Message('Unable to save the file "%s": directory is not writeable.', $destination); // @translate
-                $this->getLogger()->err($message);
+                $this->getLogger()->err(
+                    'Unable to save the file "{dir}": directory is not writeable.', // @translate
+                    ['dir' => $destination]
+                );
                 return null;
             }
             return $destination;

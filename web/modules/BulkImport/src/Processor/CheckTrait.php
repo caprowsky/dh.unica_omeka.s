@@ -26,7 +26,7 @@ trait CheckTrait
     /**
      * @var resource
      */
-    protected $handle;
+    protected $handleLog;
 
     /**
      * Default options for output (tsv).
@@ -39,7 +39,7 @@ trait CheckTrait
         'escape' => 0,
     ];
 
-    protected $columns = [
+    protected $columnsLog = [
         'index' => 'Index', // @translate
         'errors' => 'Total errors', // @translate
         'index_message' => 'Index message', // @translate
@@ -51,7 +51,7 @@ trait CheckTrait
     /**
      * @var string
      */
-    protected $filepathCheck;
+    protected $filepathLog;
 
     /**
      * @var \Omeka\Settings\UserSettings
@@ -73,7 +73,7 @@ trait CheckTrait
      *
      * @todo Use a temporary table or a static table.
      */
-    protected function initializeCheckStore(): \BulkImport\Processor\Processor
+    protected function initializeCheckStore(): self
     {
         $this->purgeCheckStore();
 
@@ -94,19 +94,20 @@ trait CheckTrait
     /**
      * Store a resource to avoid to redo checks and preparation for next step.
      */
-    protected function storeCheckedResource(?ArrayObject $resource, ?int $index = null): \BulkImport\Processor\Processor
+    protected function storeCheckedResource(?ArrayObject $resource, ?int $index = null): self
     {
         if (is_null($index)) {
             $index = $this->indexResource;
         }
         if ($resource) {
             $data = $resource->getArrayCopy();
-            // There should not be any object except message store.
+            $data['has_error'] = $data['has_error'] ?? $data['messageStore']->hasErrors();
+            // There shall not be any object except message store inside array.
             unset($data['messageStore']);
         } else {
             $data = null;
         }
-        $this->userSettings->set($this->keyStore . '_' . $index, $data);
+        $this->userSettings->set($this->keyStore . '_' . str_pad((string) $index, 6, '0', STR_PAD_LEFT), $data);
         return $this;
     }
 
@@ -118,13 +119,15 @@ trait CheckTrait
         if (is_null($index)) {
             $index = $this->indexResource;
         }
-        return $this->userSettings->get($this->keyStore . '_' . $index) ?: null;
+        return $this->userSettings->get($this->keyStore . '_' . str_pad((string) $index, 6, '0', STR_PAD_LEFT)) ?: null;
     }
 
     /**
      * Purge all stored resources, even from previous imports.
+     *
+     * @fixme Check if a job is running before purging (but batch upload is limited to admins).
      */
-    protected function purgeCheckStore(): \BulkImport\Processor\Processor
+    protected function purgeCheckStore(): self
     {
         $connection = $this->getServiceLocator()->get('Omeka\Connection');
         $sql = <<<'SQL'
@@ -144,7 +147,7 @@ SQL;
      * One log or row by message, and one or more specific rows by sub-resource
      * (media for item, etc.).
      */
-    protected function logCheckedResource(?ArrayObject $resource, ?Entry $entry = null): \BulkImport\Processor\Processor
+    protected function logCheckedResource(?ArrayObject $resource, ?Entry $entry = null): self
     {
         static $severities;
 
@@ -174,7 +177,7 @@ SQL;
             $row['severity'] = $this->translator->translate('Info');
             $row['type'] = $this->translator->translate('General'); // @translate
             $row['message'] = $this->translator->translate('Skipped'); // @translate
-            $this->writeRow($row);
+            $this->writeRowLog($row);
             return $this;
         }
 
@@ -187,7 +190,7 @@ SQL;
             $row['severity'] = $this->translator->translate('Notice');
             $row['type'] = $this->translator->translate('General');
             $row['message'] = $this->translator->translate('Empty source'); // @translate
-            $this->writeRow($row);
+            $this->writeRowLog($row);
             return $this;
         }
 
@@ -201,7 +204,7 @@ SQL;
             $row['severity'] = $this->translator->translate('Error');
             $row['type'] = $this->translator->translate('General');
             $row['message'] = $this->translator->translate('Source cannot be converted'); // @translate
-            $this->writeRow($row);
+            $this->writeRowLog($row);
             return $this;
         }
 
@@ -241,15 +244,15 @@ SQL;
 
         $translating = function ($message): string {
             if (is_string($message)) {
-                return $this->translator->translate($message);
+                return (string) $this->translator->translate($message);
             }
             if (method_exists($message, 'translate')) {
-                return $message->translate();
+                return (string) $message->translate();
             }
             if ($message instanceof \Omeka\Stdlib\Message) {
-                return sprintf($this->translator->translate($message->getMessage()), $message->getArgs());
+                return (string) vsprintf($this->translator->translate($message->getMessage()), $message->getArgs());
             }
-            return $this->translator->translate($message);
+            return (string) $this->translator->translate((string) $message);
         };
 
         $row['resource_name'] = $resource['resource_name'] ?? '';
@@ -269,7 +272,7 @@ SQL;
                     $row['severity'] = $severities[$severity];
                     $row['type'] = $name;
                     $row['message'] = $translating($message);
-                    $this->writeRow($row);
+                    $this->writeRowLog($row);
                 }
             }
         }
@@ -282,19 +285,26 @@ SQL;
      *
      * @todo Use a temporary file and copy result at the end of the process.
      */
-    protected function initializeCheckOutput(): \BulkImport\Processor\Processor
+    protected function initializeCheckLog(): self
     {
-        if (empty($this->columns)) {
+        if (empty($this->columnsLog)) {
             return $this;
         }
 
-        $this->prepareFilename();
+        $importId = (int) $this->job->getArg('bulk_import_id');
+        $this->filepathLog = $this->bulk->prepareFile(['name' => $importId . '-log', 'extension' => 'tsv']);
+        if (!$this->filepathLog) {
+            ++$this->totalErrors;
+            $this->job->getJob()->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
+            return $this;
+        }
+
         if ($this->job->getJob()->getStatus() === \Omeka\Entity\Job::STATUS_ERROR) {
             return $this;
         }
 
-        $this->handle = fopen($this->filepathCheck, 'w+');
-        if (!$this->handle) {
+        $this->handleLog = fopen($this->filepathLog, 'w+');
+        if (!$this->handleLog) {
             ++$this->totalErrors;
             $this->job->getJob()->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
             $this->logger->err(
@@ -305,7 +315,7 @@ SQL;
         }
 
         // Prepend the utf-8 bom.
-        fwrite($this->handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fwrite($this->handleLog, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
         if ($this->options['enclosure'] === 0) {
             $this->options['enclosure'] = chr(0);
@@ -316,10 +326,10 @@ SQL;
 
         $translator = $this->getServiceLocator()->get('MvcTranslator');
         $row = [];
-        foreach ($this->columns as $column) {
+        foreach ($this->columnsLog as $column) {
             $row[] = $translator->translate($column);
         }
-        $this->writeRow($row);
+        $this->writeRowLog($row);
 
         return $this;
     }
@@ -327,7 +337,7 @@ SQL;
     /**
      * Fill a row (tsv) in the output file.
      */
-    protected function writeRow(array $row): \BulkImport\Processor\Processor
+    protected function writeRowLog(array $row): self
     {
         static $columnKeys;
         static $total = 0;
@@ -347,7 +357,7 @@ SQL;
         }
 
         if (is_null($columnKeys)) {
-            $columnKeys = array_fill_keys(array_keys($this->columns), null);
+            $columnKeys = array_fill_keys(array_keys($this->columnsLog), null);
         }
 
         // Order row according to the columns when associative array.
@@ -364,7 +374,7 @@ SQL;
             return $v;
         }, $row);
 
-        fputcsv($this->handle, $row, $this->options['delimiter'], $this->options['enclosure'], $this->options['escape']);
+        fputcsv($this->handleLog, $row, $this->options['delimiter'], $this->options['enclosure'], $this->options['escape']);
         return $this;
     }
 
@@ -373,97 +383,40 @@ SQL;
      *
      * @return self
      */
-    protected function finalizeCheckOutput()
+    protected function finalizeCheckLog()
     {
-        if (empty($this->columns)) {
+        if (empty($this->columnsLog)) {
             return $this;
         }
 
         if ($this->job->getJob()->getStatus() === \Omeka\Entity\Job::STATUS_ERROR) {
-            if ($this->handle) {
-                fclose($this->handle);
-                @unlink($this->filepathCheck);
+            if ($this->handleLog) {
+                fclose($this->handleLog);
+                @unlink($this->filepathLog);
             }
             return $this;
         }
 
-        if (!$this->handle) {
+        if (!$this->handleLog) {
             $this->job->getJob()->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
             return $this;
         }
-        fclose($this->handle);
-        $this->messageResultFile();
+        fclose($this->handleLog);
+        $this->messageResultFileLog();
         return $this;
     }
 
     /**
      * Add a  message with the url to the file.
      */
-    protected function messageResultFile(): \BulkImport\Processor\Processor
+    protected function messageResultFileLog(): self
     {
         $services = $this->getServiceLocator();
         $baseUrl = $services->get('Config')['file_store']['local']['base_uri'] ?: $services->get('Router')->getBaseUrl() . '/files';
         $this->logger->notice(
             'Results are available in this spreadsheet: {url}.', // @translate
-            ['url' => $baseUrl . '/bulk_import/' . mb_substr($this->filepathCheck, mb_strlen($this->basePath . '/bulk_import/'))]
+            ['url' => $baseUrl . '/bulk_import/' . mb_substr($this->filepathLog, mb_strlen($this->basePath . '/bulk_import/'))]
         );
-        return $this;
-    }
-
-    /**
-     * Create the unique file name compatible on various os.
-     *
-     * Note: the destination dir is created during install.
-     */
-    protected function prepareFilename(): \BulkImport\Processor\Processor
-    {
-        $destinationDir = $this->basePath . '/bulk_import';
-
-        $base = preg_replace('/[^A-Za-z0-9]/', '_', $this->getLabel());
-        $base = $base ? substr(preg_replace('/_+/', '_', $base), 0, 20) . '-' : '';
-        $date = (new \DateTime())->format('Ymd-His');
-        $extension = 'tsv';
-
-        // Avoid issue on very big base.
-        $i = 0;
-        do {
-            $filename = sprintf(
-                '%s%s%s.%s',
-                $base,
-                $date,
-                $i ? '-' . $i : '',
-                $extension
-            );
-
-            $filePath = $destinationDir . '/' . $filename;
-            if (!file_exists($filePath)) {
-                try {
-                    $result = @touch($filePath);
-                } catch (\Exception $e) {
-                    ++$this->totalErrors;
-                    $this->job->getJob()->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
-                    $this->logger->err(
-                        'Error when saving "{filename}" (temp file: "{tempfile}"): {exception}', // @translate
-                        ['filename' => $filename, 'tempfile' => $filePath, 'exception' => $e]
-                    );
-                    return $this;
-                }
-
-                if (!$result) {
-                    ++$this->totalErrors;
-                    $this->job->getJob()->setStatus(\Omeka\Entity\Job::STATUS_ERROR);
-                    $this->logger->err(
-                        'Error when saving "{filename}" (temp file: "{tempfile}"): {error}', // @translate
-                        ['filename' => $filename, 'tempfile' => $filePath, 'error' => error_get_last()['message']]
-                    );
-                    return $this;
-                }
-
-                break;
-            }
-        } while (++$i);
-
-        $this->filepathCheck = $filePath;
         return $this;
     }
 }

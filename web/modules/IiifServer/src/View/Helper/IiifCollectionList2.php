@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2021 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -29,6 +29,7 @@
 
 namespace IiifServer\View\Helper;
 
+use IiifServer\Iiif\TraitDescriptiveRights;
 use Laminas\View\Helper\AbstractHelper;
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 
@@ -37,7 +38,12 @@ use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
  */
 class IiifCollectionList2 extends AbstractHelper
 {
-    use \IiifServer\Iiif\TraitRights;
+    use TraitDescriptiveRights;
+
+    /**
+     * @var \Omeka\Settings\Settings
+     */
+    protected $settings;
 
     /**
      * Get the IIIF Collection manifest for the specified list of resources or url.
@@ -82,21 +88,23 @@ class IiifCollectionList2 extends AbstractHelper
 
         $manifest['@id'] = $url ?: $this->view->iiifUrl($resourcesOrUrls, 'iiifserver/set', '2');
 
-        $label = $translate('Dynamic list');
+        $label = $translate('Dynamic list'); // @translate
         $manifest['label'] = $label;
 
         // TODO The dynamic list has no metadata. Use the query?
 
-        $this->setting = $this->getView()->getHelperPluginManager()->get('setting');
+        // To init TraitDescriptiveRights requires Settings, so use vocabulary.
+        $this->settings = $this->view->api()->read('vocabularies', ['id' => 1])->getContent()->getServiceLocator()->get('Omeka\Settings');
+
         $license = $this->rightsResource();
         if ($license) {
             $manifest['license'] = $license;
         }
 
-        $attribution = $this->view->setting('iiifserver_manifest_attribution_default');
+        $attribution = $this->settings->get('iiifserver_manifest_attribution_default');
         $manifest['attribution'] = $attribution;
 
-        $manifest['logo'] = $this->view->setting('iiifserver_manifest_logo_default');
+        $manifest['logo'] = $this->settings->get('iiifserver_manifest_logo_default');
 
         /*
         // Omeka api is a service, but not referenced in https://iiif.io/api/annex/services.
@@ -163,7 +171,7 @@ class IiifCollectionList2 extends AbstractHelper
             $manifest['manifests'] = [];
         }
 
-        return (object) $manifest;
+        return $manifest;
     }
 
     /**
@@ -193,9 +201,9 @@ class IiifCollectionList2 extends AbstractHelper
     }
 
     /**
-     * Added in order to use trait TraitRights.
+     * Added in order to use trait TraitDescriptiveRights.
      */
-    protected function getContext()
+    protected function context()
     {
         return 'http://iiif.io/api/presentation/2/context.json';
     }

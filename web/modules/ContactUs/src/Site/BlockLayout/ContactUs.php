@@ -37,14 +37,32 @@ class ContactUs extends AbstractBlockLayout
             $questions = $this->stringToList($data['questions']);
             $data['questions'] = [];
             foreach ($questions as $questionAnswer) {
-                list($question, $answer) = is_array($questionAnswer)
+                [$question, $answer] = is_array($questionAnswer)
                     ? [key($questionAnswer), reset($questionAnswer)]
-                    : array_map('trim', explode('=', $questionAnswer, 2));
+                    : (array_map('trim', explode('=', $questionAnswer, 2)) + ['', '']);
                 if ($question === '' || $answer === '') {
                     $errorStore->addError('questions', 'To create antispam, each question must be separated from the answer by a "=".'); // @translate
                     $hasError = true;
                 }
                 $data['questions'][$question] = $answer;
+            }
+        }
+
+        // The element ArrayTextarea is not managed by block.
+        if (empty($data['fields'])) {
+            $data['fields'] = [];
+        } elseif (!is_array($data['fields'])) {
+            $fields = $this->stringToList($data['fields']);
+            $data['fields'] = [];
+            foreach ($fields as $nameLabel) {
+                [$name, $label] = is_array($nameLabel)
+                    ? [key($nameLabel), reset($nameLabel)]
+                    : (array_map('trim', explode('=', $nameLabel, 2)) + ['', '']);
+                if ($name === '' || $label === '') {
+                    $errorStore->addError('fields', 'To append fields, each row must contain a name and a label separated by a "=".'); // @translate
+                    $hasError = true;
+                }
+                $data['fields'][$name] = $label;
             }
         }
 
@@ -67,7 +85,7 @@ class ContactUs extends AbstractBlockLayout
         $defaultSettings = $services->get('Config')['contactus']['block_settings']['contactUs'];
         $blockFieldset = \ContactUs\Form\ContactUsFieldset::class;
 
-        $data = $block ? $block->data() + $defaultSettings : $defaultSettings;
+        $data = $block ? ($block->data() ?? []) + $defaultSettings : $defaultSettings;
 
         $dataForm = [];
         foreach ($data as $key => $value) {
@@ -77,10 +95,17 @@ class ContactUs extends AbstractBlockLayout
         $fieldset->populateValues($dataForm);
 
         $html = '<p class="explanation">'
-            . $view->translate('Append a form to allow visitors to contact us. Site settings are used when strings are empty.') // @translate
+            . $view->translate('Append a form to allow visitors to contact us. Site settings are used when following fields are empty.') // @translate
             . '</p>';
         $html .= $view->formCollection($fieldset, false);
         return $html;
+    }
+
+    public function prepareRender(PhpRenderer $view): void
+    {
+        $assetUrl = $view->plugin('assetUrl');
+        $view->headLink()
+            ->appendStylesheet($assetUrl('css/contact-us.css', 'ContactUs'));
     }
 
     public function render(PhpRenderer $view, SitePageBlockRepresentation $block)

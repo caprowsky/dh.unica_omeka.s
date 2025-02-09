@@ -9,12 +9,14 @@ class ItemProcessorParamsForm extends ItemProcessorConfigForm
         $this
             ->baseFieldset()
             ->addFieldsets()
-            ->addMapping();
+            ->addMapping()
+            ->addFiles();
 
         $this
             ->baseInputFilter()
             ->addInputFilter()
-            ->addMappingFilter();
+            ->addMappingFilter()
+            ->addFilesFilter();
     }
 
     protected function prependMappingOptions(): array
@@ -35,7 +37,8 @@ class ItemProcessorParamsForm extends ItemProcessorConfigForm
                     'directory' => 'Directory', // @translate
                     'html' => 'Html', // @translate
                     'iiif' => 'IIIF Image', // @translate
-                    'tile' => 'Tile', // @translate
+                    // Removed since Image Server 3.6.13.
+                    // 'tile' => 'Tile', // @translate
                     'o:media {dcterms:title}' => 'Title', // @translate
                     'o:media {o:is_public}' => 'Visibility public/private', // @translate
                 ],
@@ -55,9 +58,11 @@ class ItemProcessorParamsForm extends ItemProcessorConfigForm
             $mapping['item']['options']['o-module-mapping:bounds'] = 'Mapping bounds'; // @translate
         }
 
+        /*
         if (!$this->isModuleActive('ImageServer')) {
             unset($mapping['media']['options']['tile']);
         }
+        */
 
         return $mapping;
     }

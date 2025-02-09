@@ -2,8 +2,7 @@
 
 namespace ContactUs;
 
-use Omeka\Mvc\Controller\Plugin\Messenger;
-use Omeka\Stdlib\Message;
+use Common\Stdlib\PsrMessage;
 
 /**
  * @var Module $this
@@ -11,17 +10,31 @@ use Omeka\Stdlib\Message;
  * @var string $newVersion
  * @var string $oldVersion
  *
+ * @var \Omeka\Api\Manager $api
+ * @var \Omeka\View\Helper\Url $url
+ * @var \Omeka\Settings\Settings $settings
  * @var \Doctrine\DBAL\Connection $connection
  * @var \Doctrine\ORM\EntityManager $entityManager
- * @var \Omeka\Api\Manager $api
+ * @var \Omeka\Mvc\Controller\Plugin\Messenger $messenger
  */
-$settings = $services->get('Omeka\Settings');
-$config = require dirname(dirname(__DIR__)) . '/config/module.config.php';
-$connection = $services->get('Omeka\Connection');
-// $entityManager = $services->get('Omeka\EntityManager');
 $plugins = $services->get('ControllerPluginManager');
+$url = $services->get('ViewHelperManager')->get('url');
 $api = $plugins->get('api');
-// $space = strtolower(__NAMESPACE__);
+$settings = $services->get('Omeka\Settings');
+$translate = $plugins->get('translate');
+$connection = $services->get('Omeka\Connection');
+$messenger = $plugins->get('messenger');
+$entityManager = $services->get('Omeka\EntityManager');
+
+$configModule = require dirname(__DIR__, 2) . '/config/module.config.php';
+
+if (!method_exists($this, 'checkModuleActiveVersion') || !$this->checkModuleActiveVersion('Common', '3.4.59')) {
+    $message = new \Omeka\Stdlib\Message(
+        $translate('The module %1$s should be upgraded to version %2$s or later.'), // @translate
+        'Common', '3.4.59'
+    );
+    throw new \Omeka\Module\Exception\ModuleCannotInstallException((string) $message);
+}
 
 if (version_compare($oldVersion, '3.3.8', '<')) {
     $settings->delete('contactus_html');
@@ -80,7 +93,7 @@ if (version_compare($oldVersion, '3.3.8.4', '<')) {
     $ids = $api->search('sites', [], ['initialize' => false, 'returnScalar' => 'id'])->getContent();
     foreach ($ids as $id) {
         $siteSettings->setTargetId($id);
-        $siteSettings->set('contactus_notify_body', $config['contactus']['site_settings']['contactus_notify_body']);
+        $siteSettings->set('contactus_notify_body', $configModule['contactus']['site_settings']['contactus_notify_body']);
         $siteSettings->set('contactus_notify_subject', $siteSettings->get('contactus_subject'));
         $siteSettings->delete('contactus_subject');
     }
@@ -96,10 +109,9 @@ SQL;
 }
 
 if (version_compare($oldVersion, '3.3.8.5', '<')) {
-    $message = new Message(
+    $message = new PsrMessage(
         'A checkbox for consent has been added to the user form. You may update the default label in site settings' // @translate
     );
-    $messenger = new Messenger();
     $messenger->addNotice($message);
 
     $siteSettings = $services->get('Omeka\Settings\Site');
@@ -109,7 +121,7 @@ if (version_compare($oldVersion, '3.3.8.5', '<')) {
         $siteSettings->delete('contactus_newsletter');
         $siteSettings->delete('contactus_newsletter_label');
         $siteSettings->delete('contactus_attach_file');
-        $siteSettings->set('contactus_consent_label', $config['contactus']['site_settings']['contactus_consent_label']);
+        $siteSettings->set('contactus_consent_label', $configModule['contactus']['site_settings']['contactus_consent_label']);
     }
 
     $sql = <<<'SQL'
@@ -163,15 +175,14 @@ ALTER TABLE `contact_message`
 SQL;
     $connection->executeStatement($sql);
 
-    $settings->set('contactus_to_author_subject', $config['contactus']['site_settings']['contactus_to_author_subject']);
-    $settings->set('contactus_to_author_body', $config['contactus']['site_settings']['contactus_to_author_body']);
+    $settings->set('contactus_to_author_subject', $configModule['contactus']['site_settings']['contactus_to_author_subject']);
+    $settings->set('contactus_to_author_body', $configModule['contactus']['site_settings']['contactus_to_author_body']);
 
-    $messenger = new Messenger();
-    $message = new Message(
+    $message = new PsrMessage(
         'It’s now possible to set a specific message when contacting author.' // @translate
     );
     $messenger->addSuccess($message);
-    $message = new Message(
+    $message = new PsrMessage(
         'It’s now possible to contact authors of a resource via the view helper contactUs().' // @translate
     );
     $messenger->addSuccess($message);
@@ -187,4 +198,107 @@ WHERE `resource_id` IS NULL
 ;
 SQL;
     $connection->executeStatement($sql);
+}
+
+if (version_compare($oldVersion, '3.4.8.13', '<')) {
+    $sql = <<<'SQL'
+ALTER TABLE `contact_message`
+    ADD `fields` LONGTEXT DEFAULT NULL COMMENT '(DC2Type:json_array)' AFTER `body`
+;
+SQL;
+    $connection->executeStatement($sql);
+
+    $message = new PsrMessage(
+        'It’s now possible to append specific fields to the form.' // @translate
+    );
+    $messenger->addSuccess($message);
+
+    $message = new PsrMessage(
+        'It’s now possible to add a contact form in item/show for themes supporting resource blocks.' // @translate
+    );
+    $messenger->addSuccess($message);
+}
+
+if (version_compare($oldVersion, '3.4.10', '<')) {
+    $message = new PsrMessage(
+        'It’s now possible to add a contact form in item/browse and to send a list of resource ids (need a line in theme).' // @translate
+    );
+    $messenger->addSuccess($message);
+}
+
+if (version_compare($oldVersion, '3.4.11', '<')) {
+    $sql = <<<'SQL'
+ALTER TABLE `contact_message`
+    ADD `modified` DATETIME DEFAULT NULL AFTER `created`
+;
+SQL;
+    $connection->executeStatement($sql);
+
+    // Set modified for all old messages.
+    $sql = <<<'SQL'
+UPDATE `contact_message`
+SET `modified` = `created`
+WHERE `is_read` IS NOT NULL
+    OR `is_spam` IS NOT NULL
+;
+SQL;
+    $connection->executeStatement($sql);
+
+    $settings->set('contactus_create_zip', $settings->get('contactus_zip') ?: '');
+    $settings->delete('contactus_zip');
+    $settings->set('contactus_delete_zip', 30);
+
+    $message = new PsrMessage(
+        'It’s now possible to prepare a zip file of asked files to send to a visitor via a link. See {link}settings{link_end}.', // @translate
+        [
+            'link' => sprintf('<a href="%s">', $url('admin/default', ['controller' => 'setting'], ['fragment' => 'contact'])),
+            'link_end' => '</a>',
+        ]
+    );
+    $message->setEscapeHtml(false);
+    $messenger->addSuccess($message);
+}
+
+if (version_compare($oldVersion, '3.4.13', '<')) {
+    $settings->set('contactus_create_zip', $settings->get('contactus_create_zip', 'original') ?: 'original');
+    $message = new PsrMessage(
+        'A new button allows to create a zip for any contact.' // @translate
+    );
+    $messenger->addSuccess($message);
+}
+
+if (version_compare($oldVersion, '3.4.14', '<')) {
+    /** @var \Omeka\Settings\SiteSettings $siteSettings */
+    $siteSettings = $services->get('Omeka\Settings\Site');
+    $ids = $api->search('sites', [], ['initialize' => false, 'returnScalar' => 'id'])->getContent();
+    foreach ($ids as $id) {
+        $siteSettings->setTargetId($id);
+        $siteSettings->set('contactus_append_resource_show', $configModule['contactus']['site_settings']['contactus_append_resource_show']);
+        $siteSettings->set('contactus_append_items_browse', $configModule['contactus']['site_settings']['contactus_append_items_browse']);
+    }
+    $message = new PsrMessage(
+        'Two new options allow to append the contact form to resource pages. They are disabled by default, so check them if you need them.' // @translate
+    );
+    $messenger->addWarning($message);
+
+    $message = new PsrMessage(
+        'A new option allows to use the user email to send message. It is not recommended because many emails providers reject them as spam. Use it only if you manage your own domain.' // @translate
+    );
+    $messenger->addSuccess($message);
+}
+
+if (version_compare($oldVersion, '3.4.15', '<')) {
+    /** @var \Omeka\Settings\SiteSettings $siteSettings */
+    $siteSettings = $services->get('Omeka\Settings\Site');
+    $ids = $api->search('sites', [], ['initialize' => false, 'returnScalar' => 'id'])->getContent();
+    foreach ($ids as $id) {
+        $siteSettings->setTargetId($id);
+        $siteSettings->set('contactus_confirmation_newsletter_subject', $configModule['contactus']['site_settings']['contactus_confirmation_newsletter_subject']);
+        $siteSettings->set('contactus_confirmation_newsletter_body', $configModule['contactus']['site_settings']['contactus_confirmation_newsletter_body']);
+    }
+
+    $message = new PsrMessage(
+        'A new block allows to display a form to subscribe to a newsletter.' // @translate
+    );
+    $messenger->addSuccess($message);
 }

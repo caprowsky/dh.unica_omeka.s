@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -29,6 +29,9 @@
 
 namespace IiifServer\Iiif;
 
+use Common\Stdlib\PsrMessage;
+use IiifServer\Iiif\Exception\RuntimeException;
+use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 use Omeka\Api\Representation\MediaRepresentation;
 
 /**
@@ -36,12 +39,12 @@ use Omeka\Api\Representation\MediaRepresentation;
  */
 class ImageService3 extends AbstractResourceType
 {
+    use TraitDescriptiveRights;
     use TraitImage;
-    use TraitRights;
 
     protected $type = 'ImageService3';
 
-    protected $keys = [
+    protected $propertyRequirements = [
         '@context' => self::REQUIRED,
 
         // Technical properties.
@@ -81,32 +84,29 @@ class ImageService3 extends AbstractResourceType
     ];
 
     /**
-     * @var bool
-     */
-    protected $hasImageServer;
-
-    /**
-     * @var ?\ImageServer\Mvc\Controller\Plugin\TileMediaInfo
-     */
-    protected $tileMediaInfo;
-
-    /**
      * @var \Omeka\Api\Representation\MediaRepresentation
      */
     protected $resource;
 
-    public function __construct(MediaRepresentation $resource, array $options = null)
+    public function setResource(AbstractResourceEntityRepresentation $resource): self
     {
-        parent::__construct($resource, $options);
+        parent::setResource($resource);
 
-        $plugins = $this->resource->getServiceLocator()->get('ControllerPluginManager');
-        $this->hasImageServer = $plugins->has('tileMediaInfo');
-        $this->tileMediaInfo = $this->hasImageServer ? $plugins->get('tileMediaInfo') : null;
+        if (!$resource instanceof MediaRepresentation) {
+            $message = new PsrMessage(
+                'Resource #{resource_id}: A media is required to build an ImageService.', // @translate
+                ['resource_id' => $resource->id()]
+            );
+            $this->logger->err($message->getMessage(), $message->getContext());
+            throw new RuntimeException((string) $message);
+        }
 
-        // TODO Use subclass to manage image or media. Currently, only image.
-        $this->initImage();
+        return $this;
     }
 
+    /**
+     * @todo Use subclass to manage image or media. Currently, only image.
+     */
     public function isImage(): bool
     {
         return true;
@@ -116,22 +116,25 @@ class ImageService3 extends AbstractResourceType
      * @todo Manage extensions.
      *
      * {@inheritDoc}
-     * @see \IiifServer\Iiif\AbstractResourceType::getContext()
+     * @see \IiifServer\Iiif\AbstractResourceType::context()
      */
     public function context(): ?string
     {
         return 'http://iiif.io/api/image/3/context.json';
     }
 
-    public function label(): ?ValueLanguage
+    public function id(): ?string
+    {
+        $routeImage = $this->settings->get('iiifserver_media_api_identifier_infojson')
+            ? 'imageserver/info'
+            : 'imageserver/id';
+        return $this->iiifMediaUrl->__invoke($this->resource, $routeImage, '3');
+    }
+
+    public function label(): ?array
     {
         // There is no label for an image service.
         return null;
-    }
-
-    public function id(): ?string
-    {
-        return $this->iiifMediaUrl->__invoke($this->resource, 'imageserver/id', '3');
     }
 
     public function protocol(): ?string
@@ -171,7 +174,10 @@ class ImageService3 extends AbstractResourceType
         // TODO Use the config for specific types.
         $imageTypes = ['medium', 'large', 'original'];
         foreach ($imageTypes as $imageType) {
-            $imageSize = new Size($this->resource, ['image_type' => $imageType]);
+            $imageSize = new Size();
+            $imageSize
+                ->setOptions(['image_type' => $imageType])
+                ->setResource($this->resource);
             if ($imageSize->hasSize()) {
                 $sizes[] = $imageSize;
             }
@@ -182,7 +188,7 @@ class ImageService3 extends AbstractResourceType
 
     public function tiles(): ?array
     {
-        if (!$this->hasImageServer || !$this->isImage()) {
+        if (!$this->hasModuleImageServer || !$this->isImage()) {
             return null;
         }
 
@@ -191,7 +197,11 @@ class ImageService3 extends AbstractResourceType
         // TODO Use a standard json-serializable TileInfo.
         $tilingData = $this->tileMediaInfo->__invoke($this->resource);
         if ($tilingData) {
-            $iiifTileInfo = new \ImageServer\Iiif\Tile($this->resource, ['tilingData' => $tilingData]);
+            $iiifTileInfo = new \ImageServer\Iiif\Tile();
+            $iiifTileInfo
+                // TODO Options should be set first for now for init, done in setResource().
+                ->setOptions(['tilingData' => $tilingData])
+                ->setResource($this->resource);
             if ($iiifTileInfo->hasTilingInfo()) {
                 $tiles[] = $iiifTileInfo;
             }
@@ -217,22 +227,27 @@ class ImageService3 extends AbstractResourceType
         $url = null;
         $orUrl = false;
 
-        $param = $this->setting->__invoke($this->hasImageServer ? 'imageserver_info_rights' : 'iiifserver_manifest_rights');
+        $param = $this->settings->get($this->hasModuleImageServer ? 'imageserver_info_rights' : 'iiifserver_manifest_rights');
         switch ($param) {
             case 'url':
-                $url = $this->setting->__invoke($this->hasImageServer ? 'imageserver_info_rights_url' : 'iiifserver_manifest_rights_url');
+                if ($this->hasModuleImageServer) {
+                    $url = $this->settings->get('imageserver_info_rights_uri') ?: $this->settings->get('imageserver_info_rights_url');
+                } else {
+                    $url = $this->settings->get('iiifserver_manifest_rights_uri') ?: $this->settings->get('iiifserver_manifest_rights_url');
+                }
                 break;
             case 'property_or_url':
                 $orUrl = true;
                 // no break.
             case 'property':
-                $property = $this->setting->__invoke($this->hasImageServer ? 'imageserver_info_rights_property' : 'iiifserver_manifest_rights_property');
+                $property = $this->settings->get($this->hasModuleImageServer ? 'imageserver_info_rights_property' : 'iiifserver_manifest_rights_property');
                 $url = (string) $this->resource->value($property);
                 break;
             case 'item_or_url':
                 $orUrl = true;
                 // no break.
             case 'item':
+                // Here, the resource is a media.
                 $url = $this->rightsResource($this->resource->item());
                 if ($url || !$orUrl) {
                     return $url;
@@ -247,7 +262,11 @@ class ImageService3 extends AbstractResourceType
         }
 
         if (!$url && $orUrl) {
-            $url = $this->setting->__invoke($this->hasImageServer ? 'imageserver_info_rights_url' : 'iiifserver_manifest_rights_url');
+            if ($this->hasModuleImageServer) {
+                $url = $this->settings->get('imageserver_info_rights_uri') ?: $this->settings->get('imageserver_info_rights_url');
+            } else {
+                $url = $this->settings->get('iiifserver_manifest_rights_uri') ?: $this->settings->get('iiifserver_manifest_rights_url');
+            }
         }
 
         if ($url) {
@@ -261,21 +280,21 @@ class ImageService3 extends AbstractResourceType
         return null;
     }
 
-    public function extraQualities(): ?array
+    public function extraQualities(): array
     {
-        return null;
+        return [];
     }
 
-    public function extraFormats(): ?array
+    public function extraFormats(): array
     {
-        return null;
+        return [];
     }
 
     /**
      * @link https://iiif.io/api/image/2.1/#profile-description
      * @link https://iiif.io/api/image/3.0/#6-compliance-level-and-profile-document
      */
-    public function extraFeatures(): ?array
+    public function extraFeatures(): array
     {
         // See https://iiif.io/api/image/3/context.json.
         /*
@@ -299,6 +318,6 @@ class ImageService3 extends AbstractResourceType
             'sizeUpscaling',
         ];
         */
-        return null;
+        return [];
     }
 }

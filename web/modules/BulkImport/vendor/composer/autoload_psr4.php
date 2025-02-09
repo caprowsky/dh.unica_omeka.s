@@ -10,8 +10,12 @@ return array(
     'mikehaertl\\shellcommand\\' => array($vendorDir . '/mikehaertl/php-shellcommand/src'),
     'mikehaertl\\pdftk\\' => array($vendorDir . '/mikehaertl/php-pdftk/src'),
     'PhpOffice\\PhpWord\\' => array($vendorDir . '/phpoffice/phpword/src/PhpWord'),
+    'OpenSpout\\' => array($vendorDir . '/openspout/openspout/src'),
     'OomphInc\\ComposerInstallersExtender\\' => array($vendorDir . '/oomphinc/composer-installers-extender/src'),
     'JmesPath\\' => array($vendorDir . '/mtdowling/jmespath.php/src'),
+    'JamesHeinrich\\GetID3\\' => array($vendorDir . '/james-heinrich/getid3/src'),
+    'Iso639p3\\' => array($vendorDir . '/daniel-km/simple-iso-639-3/src'),
+    'Iso3166p1\\' => array($vendorDir . '/daniel-km/simple-iso-3166-1/src'),
+    'Flow\\JSONPath\\' => array($vendorDir . '/softcreatr/jsonpath/src'),
     'Composer\\Installers\\' => array($vendorDir . '/composer/installers/src/Composer/Installers'),
-    'Box\\Spout\\' => array($vendorDir . '/box/spout/src/Spout'),
 );

@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2020  Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software.  You can use, modify and/or
@@ -53,6 +53,11 @@ class IiifUrl extends AbstractHelper
     /**
      * @var string
      */
+    protected $baseUrlPath;
+
+    /**
+     * @var string
+     */
     protected $defaultVersion;
 
     /**
@@ -74,27 +79,30 @@ class IiifUrl extends AbstractHelper
      * @param Url $url
      * @param IiifCleanIdentifiers $iiifCleanIdentifiers
      * @param IiifMediaUrl $iifImageUrl
+     * @param string $baseUrlPath
      * @param string $defaultVersion
-     * @param string $prefix
      * @param string $forceUrlFrom
      * @param string $forceUrlTo
+     * @param string $prefix
      */
     public function __construct(
         Url $url,
         IiifCleanIdentifiers $iiifCleanIdentifiers,
         IiifMediaUrl $iifImageUrl,
+        $baseUrlPath,
         $defaultVersion,
-        $prefix,
         $forceUrlFrom,
-        $forceUrlTo
+        $forceUrlTo,
+        $prefix
     ) {
         $this->url = $url;
         $this->iiifCleanIdentifiers = $iiifCleanIdentifiers;
         $this->iiifMediaUrl = $iifImageUrl;
+        $this->baseUrlPath = $baseUrlPath;
         $this->defaultVersion = $defaultVersion;
-        $this->prefix = $prefix;
         $this->forceUrlFrom = $forceUrlFrom;
         $this->forceUrlTo = $forceUrlTo;
+        $this->prefix = $prefix;
     }
 
     /**
@@ -113,12 +121,20 @@ class IiifUrl extends AbstractHelper
     {
         $apiVersion = $version ?: $this->defaultVersion;
 
+        $urlOptions = ['force_canonical' => true];
+        if (isset($params['query'])) {
+            $urlOptions['query'] = $params['query'];
+        }
+        if (isset($params['fragment'])) {
+            $urlOptions['fragment'] = $params['fragment'];
+        }
+
         if (is_array($resource)) {
             $identifiers = $this->iiifCleanIdentifiers->__invoke($resource);
             $urlIiif = $this->url->__invoke(
                 'iiifserver/set',
                 ['version' => $apiVersion, 'id' => implode(',', $identifiers)],
-                ['force_canonical' => true]
+                $urlOptions
             );
             return $this->forceToIfRequired($urlIiif);
         }
@@ -159,8 +175,16 @@ class IiifUrl extends AbstractHelper
         $urlIiif = $this->url->__invoke(
             $route ?: $mapRouteNames[$resourceName],
             $params,
-            ['force_canonical' => true]
+            $urlOptions
         );
+
+        // Fix issue when the method is called from a sub-job or when there is a
+        // proxy.
+        if ($this->baseUrlPath && strpos($urlIiif, $this->baseUrlPath) !== 0) {
+            $urlIiif = substr($urlIiif, 0, 11) === 'https:/iiif'
+                ? $this->baseUrlPath . substr($urlIiif, 6)
+                : $this->baseUrlPath . substr($urlIiif, 5);
+        }
 
         return $this->forceToIfRequired($urlIiif);
     }

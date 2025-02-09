@@ -6,11 +6,14 @@ use BulkImport\Api\Representation\ImportRepresentation;
 use BulkImport\Interfaces\Configurable;
 use BulkImport\Interfaces\Parametrizable;
 use BulkImport\Processor\Manager as ProcessorManager;
+use BulkImport\Processor\Processor;
 use BulkImport\Reader\Manager as ReaderManager;
+use BulkImport\Reader\Reader;
 use Laminas\Log\Logger;
 use Laminas\Router\Http\RouteMatch;
 use Log\Stdlib\PsrMessage;
 use Omeka\Api\Exception\NotFoundException;
+use Omeka\Api\Manager as ApiManager;
 use Omeka\Entity\Job;
 use Omeka\Job\AbstractJob;
 
@@ -33,7 +36,10 @@ class Import extends AbstractJob
 
     public function perform(): void
     {
-        ini_set('auto_detect_line_endings', '1');
+        // TODO Manage "\r" manually for "auto_detect_line_endings": check if all processes purge windows and mac issues for end of lines "\r".
+        if (PHP_VERSION_ID < 80100) {
+            ini_set('auto_detect_line_endings', '1');
+        }
 
         $this->getLogger();
         $this->getImport();
@@ -57,6 +63,17 @@ class Import extends AbstractJob
 
         $processor->process();
 
+        // Try to clean remaining uploaded files.
+        if ($processor instanceof Parametrizable) {
+            $files = $processor->getParams()['files'] ?? [];
+            foreach ($files as $file) {
+                @unlink($file['filename']);
+                if (!empty($file['dirpath'])) {
+                    $this->rmDir($file['dirpath']);
+                }
+            }
+        }
+
         $this->logger->log(Logger::NOTICE, 'Import completed'); // @translate
 
         $notify = $this->job->getArgs()['notify_end'] ?? false;
@@ -65,7 +82,7 @@ class Import extends AbstractJob
         }
     }
 
-    public function getImportId()
+    public function getImportId(): ?int
     {
         return $this->import->id();
     }
@@ -80,10 +97,8 @@ class Import extends AbstractJob
 
     /**
      * Get the logger for the bulk process (the Omeka one, with reference id).
-     *
-     * @return \Laminas\Log\Logger
      */
-    protected function getLogger()
+    protected function getLogger(): Logger
     {
         if ($this->logger) {
             return $this->logger;
@@ -98,7 +113,7 @@ class Import extends AbstractJob
     /**
      * @return \Omeka\Api\Manager
      */
-    protected function api()
+    protected function api(): ApiManager
     {
         if (!$this->api) {
             $this->api = $this->getServiceLocator()->get('Omeka\ApiManager');
@@ -106,10 +121,7 @@ class Import extends AbstractJob
         return $this->api;
     }
 
-    /**
-     * @return \BulkImport\Api\Representation\ImportRepresentation|null
-     */
-    protected function getImport()
+    protected function getImport(): ?ImportRepresentation
     {
         if ($this->import) {
             return $this->import;
@@ -131,9 +143,8 @@ class Import extends AbstractJob
 
     /**
      * @throws \Omeka\Job\Exception\InvalidArgumentException
-     * @return \BulkImport\Reader\Reader
      */
-    protected function getReader()
+    protected function getReader(): Reader
     {
         $services = $this->getServiceLocator();
         $import = $this->getImport();
@@ -161,9 +172,8 @@ class Import extends AbstractJob
 
     /**
      * @throws \Omeka\Job\Exception\InvalidArgumentException
-     * @return \BulkImport\Processor\Processor
      */
-    protected function getProcessor()
+    protected function getProcessor(): Processor
     {
         $services = $this->getServiceLocator();
         $import = $this->getImport();
@@ -193,7 +203,7 @@ class Import extends AbstractJob
      * The public site should be set, because it may be needed to get all values
      * of a resource during json encoding in ResourceUpdateTrait, line 60.
      */
-    protected function prepareDefaultSite(): void
+    protected function prepareDefaultSite(): self
     {
         $services = $this->getServiceLocator();
         $settings = $services->get('Omeka\Settings');
@@ -227,14 +237,15 @@ class Import extends AbstractJob
             $routeMatch->setMatchedRouteName('site');
             $event->setRouteMatch($routeMatch);
         }
+        return $this;
     }
 
-    protected function notifyJobEnd(): void
+    protected function notifyJobEnd(): self
     {
         $owner = $this->job->getOwner();
         if (!$owner) {
             $this->logger->log(Logger::ERR, 'No owner to notify end of process.'); // @translate
-            return;
+            return $this;
         }
 
         /**
@@ -279,5 +290,32 @@ class Import extends AbstractJob
                 'Error when sending email to notify end of process.' // @translate
             ));
         }
+
+        return $this;
+    }
+
+    /**
+     * Remove a dir from filesystem.
+     *
+     * @param string $dirpath Absolute path.
+     */
+    private function rmDir(string $dirPath): bool
+    {
+        if (!file_exists($dirPath)) {
+            return true;
+        }
+        if (strpos($dirPath, '/..') !== false || substr($dirPath, 0, 1) !== '/') {
+            return false;
+        }
+        $files = array_diff(scandir($dirPath), ['.', '..']);
+        foreach ($files as $file) {
+            $path = $dirPath . '/' . $file;
+            if (is_dir($path)) {
+                $this->rmDir($path);
+            } else {
+                unlink($path);
+            }
+        }
+        return rmdir($dirPath);
     }
 }

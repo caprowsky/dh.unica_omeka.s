@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2021 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -31,6 +31,14 @@ namespace ImageServer\Mvc\Controller\Plugin;
 
 class TileServerZoomify extends TileServer
 {
+    /**
+     * If there is an overlap, the tile is usually transformed a second time
+     * because OpenSeadragon asks for a multiple of the cell size.
+     * So the overlap prevents simple redirect and so it is not recommended.
+     *
+     * {@inheritDoc}
+     * @see \ImageServer\Mvc\Controller\Plugin\TileServer::__invoke()
+     */
     public function __invoke(array $tileInfo, array $transform): ?array
     {
         if (empty($tileInfo) || $tileInfo['tile_type'] !== 'zoomify') {
@@ -38,9 +46,28 @@ class TileServerZoomify extends TileServer
         }
 
         // Quick check of supported transformation of tiles.
-        if (!in_array($transform['region']['feature'], ['regionByPx', 'regionByPct', 'full'])
-            // || !in_array($transform['size']['feature'], ['sizeByW', 'sizeByH', 'sizeByWh', 'sizeByWhListed', 'full', 'max'])
-            || !in_array($transform['size']['feature'], ['full', 'max'])
+        // Some formats are managed early and may not be useful here.
+        if (
+            !in_array($transform['region']['feature'], [
+                'full',
+                'square',
+                'regionByPx',
+                'regionByPct',
+            ])
+            || !in_array($transform['size']['feature'], [
+                // In all cases, via controller, width and height are set
+                // according to region.
+                // Full and max are nearly synonymous.
+                'full',
+                'max',
+                'sizeByH',
+                'sizeByW',
+                'sizeByWh',
+                'sizeByWhListed',
+                'sizeByConfinedWh',
+                'sizeByForcedWh',
+                'sizeByPct',
+            ])
         ) {
             return null;
         }
@@ -90,7 +117,7 @@ class TileServerZoomify extends TileServer
             . DIRECTORY_SEPARATOR . $tileInfo['media_path']
             . DIRECTORY_SEPARATOR . $relativePath;
 
-        list($tileWidth, $tileHeight) = array_values($this->getWidthAndHeight($imagePath));
+        [$tileWidth, $tileHeight] = array_values($this->getWidthAndHeight($imagePath));
 
         // TODO To be checked.
         if ($tileInfo['overlap']) {

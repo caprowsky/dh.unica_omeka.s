@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2021 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  * Copyright 2016-2017 BibLibre
  *
  * This software is governed by the CeCILL license under French law and abiding
@@ -54,7 +54,7 @@ class IiifInfo2 extends AbstractHelper
     /**
      * @var bool
      */
-    protected $hasImageServer = false;
+    protected $hasModuleImageServer = false;
 
     public function __construct(TempFileFactory $tempFileFactory, $basePath)
     {
@@ -75,24 +75,23 @@ class IiifInfo2 extends AbstractHelper
     {
         $view = $this->getView();
         $helpers = $view->getHelperPluginManager();
-        $this->hasImageServer = $helpers->has('tileMediaInfo');
+        $this->hasModuleImageServer = $helpers->has('tileMediaInfo');
 
         if (strpos($media->mediaType(), 'image/') === 0) {
             $sizes = [];
             $availableTypes = ['medium', 'large', 'original'];
             foreach ($availableTypes as $imageType) {
-                $sizes[] = (object) $view->imageSize($media, $imageType);
+                $sizes[] = $view->imageSize($media, $imageType);
             }
 
             $imageType = 'original';
             $imageSize = $view->imageSize($media, $imageType);
             $width = $imageSize['width'];
             $height = $imageSize['height'];
-            $imageUrl = $this->view->iiifMediaUrl($media, 'imageserver/id', '2');
 
             // Check if Image Server is available.
             $tiles = [];
-            if ($this->hasImageServer) {
+            if ($this->hasModuleImageServer) {
                 $tilingData = $view->tileMediaInfo($media);
                 if ($tilingData) {
                     $iiifTileInfo = $this->iiifTileInfo($tilingData);
@@ -102,10 +101,18 @@ class IiifInfo2 extends AbstractHelper
                 }
             }
 
+            $routeImage = $this->view->setting('imageserver_identifier_infojson')
+                ? 'imageserver/info'
+                : 'imageserver/id';
+
             $profile = [];
             $profile[] = 'http://iiif.io/api/image/2/level2.json';
             // Temporary fix. See https://github.com/UniversalViewer/universalviewer/issues/438.
-            $profile[] = [];
+            // This issue seems to be fixed in recent versions, but may still be
+            // loaded remotely on old external sites with old UniversalViewer.
+            // Anyway, it's no more supported.
+            // https://github.com/Daniel-KM/Omeka-S-module-IiifServer/issues/38
+            // $profile[] = [];
             // According to specifications, the profile details should be omitted,
             // because only default formats, qualities and supports are supported
             // currently.
@@ -114,7 +121,7 @@ class IiifInfo2 extends AbstractHelper
             $profileDetails['format'] = ['image/jpeg'];
             $profileDetails['qualities'] = ['default'];
             $profileDetails['supports'] = ['sizeByWhListed'];
-            $profileDetails = (object) $profileDetails;
+            $profileDetails = $profileDetails;
             $profile[] = $profileDetails;
             */
 
@@ -125,12 +132,11 @@ class IiifInfo2 extends AbstractHelper
             $service['profile'] = 'http://iiif.io/api/annex/service/physdim';
             $service['physicalScale'] = 0.0025;
             $service['physicalUnits'] = 'in';
-            $service = (object) $service;
             */
 
             $info = [];
             $info['@context'] = 'http://iiif.io/api/image/2/context.json';
-            $info['@id'] = $imageUrl;
+            $info['@id'] = $this->view->iiifMediaUrl($media, $routeImage, '2');
             $info['protocol'] = 'http://iiif.io/api/image';
             $info['width'] = $width;
             $info['height'] = $height;
@@ -156,7 +162,7 @@ class IiifInfo2 extends AbstractHelper
             $info['protocol'] = 'http://wellcomelibrary.org/ld/ixif';
         }
 
-        // The trait TraitRights may be not available. Currently require module Iiif Server.
+        // The trait TraitDescriptiveRights may be not available. Currently require module Iiif Server.
         // It uses different settings anyway.
         $license = $this->rightsResource($media);
         if ($license) {
@@ -166,13 +172,13 @@ class IiifInfo2 extends AbstractHelper
         // Give possibility to customize the info.json.
         // TODO Manifest (info) should be a true object, with many sub-objects.
         $manifest = &$info;
-        $format = 'info';
+        // $format = 'info';
         $resource = $media;
         $type = 'file';
         $params = compact('manifest', 'info', 'resource', 'type');
         $params = $helpers->get('trigger')->__invoke('iiifserver.manifest', $params, true);
         $info = $params['manifest'];
-        return (object) $info;
+        return $info;
     }
 
     /**
@@ -201,28 +207,32 @@ class IiifInfo2 extends AbstractHelper
     }
 
     /**
-     * @see \IiifServer\Iiif\TraitRights
+     * @see \IiifServer\Iiif\TraitDescriptiveRights
      */
     protected function rightsResource(MediaRepresentation $resource = null): ?string
     {
-        $helper = $this->getView()->getHelperPluginManager()->get('setting');
+        $setting = $this->view->plugin('setting');
         $url = null;
         $orUrl = false;
         $orText = false;
 
-        $param = $helper($this->hasImageServer ? 'imageserver_info_rights' : 'iiifserver_manifest_rights');
+        $param = $setting($this->hasModuleImageServer ? 'imageserver_info_rights' : 'iiifserver_manifest_rights');
         switch ($param) {
             case 'text':
-                // if ($this->getContext() === 'http://iiif.io/api/presentation/3/context.json') {
+                // if ($this->context() === 'http://iiif.io/api/presentation/3/context.json') {
                 //     return null;
                 // }
-                $url = $helper($this->hasImageServer ? 'imageserver_info_rights_text' : 'iifserver_manifest_rights_text');
+                $url = $setting($this->hasModuleImageServer ? 'imageserver_info_rights_text' : 'iifserver_manifest_rights_text');
                 break;
             case 'url':
-                $url = $helper($this->hasImageServer ? 'imageserver_info_rights_url' : 'iiifserver_manifest_rights_url');
+                if ($this->hasModuleImageServer) {
+                    $url = $setting('imageserver_info_rights_uri') ?: $setting('imageserver_info_rights_url');
+                } else {
+                    $url = $setting('iiifserver_manifest_rights_uri') ?: $setting('iiifserver_manifest_rights_url');
+                }
                 break;
             case 'property_or_text':
-                $orText = !empty($helper($this->hasImageServer ? 'imageserver_info_rights_text' : 'iiifserver_manifest_rights_text'));
+                $orText = !empty($setting($this->hasModuleImageServer ? 'imageserver_info_rights_text' : 'iiifserver_manifest_rights_text'));
                 // no break.
             case 'property_or_url':
                 if ($param === 'property_or_url') {
@@ -231,7 +241,7 @@ class IiifInfo2 extends AbstractHelper
                 // no break.
             case 'property':
                 if ($resource) {
-                    $property = $helper($this->hasImageServer ? 'imageserver_info_rights_property' : 'iiifserver_manifest_rights_property');
+                    $property = $setting($this->hasModuleImageServer ? 'imageserver_info_rights_property' : 'iiifserver_manifest_rights_property');
                     $url = (string) $resource->value($property);
                 }
                 break;
@@ -241,15 +251,19 @@ class IiifInfo2 extends AbstractHelper
         }
 
         // Text is not allowed for presentation 3.
-        // $isPresentation3 = $this->getContext() === 'http://iiif.io/api/presentation/3/context.json';
+        // $isPresentation3 = $this->context() === 'http://iiif.io/api/presentation/3/context.json';
         $isPresentation3 = false;
         $orText = $orText && !$isPresentation3;
 
         if (!$url) {
             if ($orUrl) {
-                $url = $helper($this->hasImageServer ? 'imageserver_info_rights_url' : 'iiifserver_manifest_rights_url');
+                if ($this->hasModuleImageServer) {
+                    $url = $setting('imageserver_info_rights_uri') ?: $setting('imageserver_info_rights_url');
+                } else {
+                    $url = $setting('iiifserver_manifest_rights_uri') ?: $setting('iiifserver_manifest_rights_url');
+                }
             } elseif ($orText) {
-                $url = $helper($this->hasImageServer ? 'imageserver_info_rights_text' : 'iiifserver_manifest_rights_text');
+                $url = $setting($this->hasModuleImageServer ? 'imageserver_info_rights_text' : 'iiifserver_manifest_rights_text');
             } else {
                 return null;
             }

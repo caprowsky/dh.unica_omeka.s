@@ -4,6 +4,9 @@ namespace BulkImport\Job;
 
 use Omeka\Job\AbstractJob;
 
+/**
+ * FIXME Warning: don't use shouldStop(), since it may be a fake job (see Module).
+ */
 class FileDerivative extends AbstractJob
 {
     /**
@@ -57,6 +60,10 @@ class FileDerivative extends AbstractJob
             $criterias['hasThumbnails'] = false;
         }
 
+        // It is useless to set a loop/chunk process? Useless anyway: if the
+        // module can load many medias with an item, it can process them all in
+        // one loop.
+
         $medias = $mediaRepository->findBy($criterias);
         if (!count($medias)) {
             return;
@@ -68,47 +75,92 @@ class FileDerivative extends AbstractJob
             $filename = $media->getFilename();
             $sourcePath = $basePath . '/original/' . $filename;
 
+            // To avoid multiple processes, update the ingester in all cases.
+            $media->setIngester('bulk_uploaded');
+
             if (!file_exists($sourcePath)) {
                 $logger->err(
                     'Media #{media_id}: the original file "{filename}" does not exist.', // @translate
                     ['media_id' => $media->getId(), 'filename' => $filename]
                 );
-                continue;
-            }
-
-            if (!is_readable($sourcePath)) {
+            } elseif (!is_readable($sourcePath)) {
                 $logger->err(
                     'Media #{media_id}: the original file "{filename}" is not readable.', // @translate
                     ['media_id' => $media->getId(), 'filename' => $filename]
                 );
-                continue;
+            } else {
+                // Do the process.
+                $tempFile = $tempFileFactory->build();
+                $tempFile->setTempPath($sourcePath);
+                $tempFile->setSourceName($media->getSource());
+                $tempFile->setStorageId($media->getStorageId());
+                $result = $tempFile->storeThumbnails();
+                // No deletion of course.
+
+                // Update the media.
+                if ($result) {
+                    $media->setHasThumbnails(true);
+                } else {
+                    $logger->err(
+                        'Media #{media_id}: an issue occurred during thumbnail creation or it is not thumbnailable.', // @translate
+                        ['media_id' => $media->getId()]
+                    );
+                }
             }
 
-            $tempFile = $tempFileFactory->build();
-            $tempFile->setTempPath($sourcePath);
-            $tempFile->setSourceName($media->getSource());
-            $tempFile->setStorageId($media->getStorageId());
-            $result = $tempFile->storeThumbnails();
-            // No deletion of course.
-
-            // Update the media.
-            if (!$result) {
-                $logger->err(
-                    'Media #{media_id}: an issue occurred during thumbnail creation.', // @translate
-                    ['media_id' => $media->getId()]
-                );
-                continue;
-            }
-
-            $media->setHasThumbnails(true);
             $entityManager->persist($media);
             unset($media);
+
             if (++$key % self::SQL_LIMIT === 0) {
                 $entityManager->flush();
             }
         }
 
-        // Remaining medias.
+        // Remaining medias (none because there is a single loop).
         $entityManager->flush();
+
+        // Run the process that are skipped (image size, image tiler).
+        // No need to use the dispatcher, use the current job.
+
+        $hasMediaDimension = class_exists(\IiifServer\Job\MediaDimensions::class);
+        $hasBulkSizer = class_exists(\ImageServer\Job\BulkSizer::class);
+        if (!$hasMediaDimension && !$hasBulkSizer) {
+            return;
+        }
+
+        $imageServerTileManual = $services->get('Omeka\Settings')->get('imageserver_tile_manual', false);
+        // Don't un bulksizer if MediaDimension is done.
+        if ($hasMediaDimension && $imageServerTileManual) {
+            $subJobClasses = [
+                \IiifServer\Job\MediaDimensions::class,
+            ];
+        } elseif ($hasMediaDimension) {
+            $subJobClasses = [
+                \IiifServer\Job\MediaDimensions::class,
+                \ImageServer\Job\BulkTiler::class,
+            ];
+        } elseif ($imageServerTileManual) {
+            $subJobClasses = [
+                \ImageServer\Job\BulkSizer::class,
+            ];
+        } else {
+            $subJobClasses = [
+                \ImageServer\Job\BulkSizerAndTiler::class,
+            ];
+        }
+
+        // All the jobs have the same arguments (query).
+        $args = [
+            'tasks' => ['size', 'tile'],
+            'query' => ['id' => $itemId],
+            'filter' => 'unsized',
+            'remove_destination' => 'skip',
+            'update_renderer' => false,
+        ];
+        $this->job->setArgs($args);
+        foreach ($subJobClasses as $subJobClass) {
+            $subJob = new $subJobClass($this->job, $services);
+            $subJob->perform();
+        }
     }
 }

@@ -82,6 +82,12 @@ return [
     ],
     'view_helpers' => [
         'invokables' => [
+            'iiifAnnotationList' => View\Helper\IiifAnnotationList::class,
+            'iiifAnnotationList2' => View\Helper\IiifAnnotationList2::class,
+            'iiifAnnotationList3' => View\Helper\IiifAnnotationList3::class,
+            'iiifAnnotationPageLine' => View\Helper\IiifAnnotationPageLine::class,
+            'iiifAnnotationPageLine2' => View\Helper\IiifAnnotationPageLine2::class,
+            'iiifAnnotationPageLine3' => View\Helper\IiifAnnotationPageLine3::class,
             'iiifCollection' => View\Helper\IiifCollection::class,
             'iiifCollection2' => View\Helper\IiifCollection2::class,
             'iiifCollection3' => View\Helper\IiifCollection3::class,
@@ -94,6 +100,8 @@ return [
             'iiifInfo' => View\Helper\IiifInfo::class,
             'iiifManifest' => View\Helper\IiifManifest::class,
             'iiifManifestExternal' => View\Helper\IiifManifestExternal::class,
+            'iiifManifestLink' => View\Helper\IiifManifestLink::class,
+            'iiifTypeOfMedia' => View\Helper\IiifTypeOfMedia::class,
         ],
         'factories' => [
             'iiifCleanIdentifiers' => Service\ViewHelper\IiifCleanIdentifiersFactory::class,
@@ -102,22 +110,23 @@ return [
             'iiifMediaUrl' => Service\ViewHelper\IiifMediaUrlFactory::class,
             'iiifManifest2' => Service\ViewHelper\IiifManifest2Factory::class,
             'iiifManifest3' => Service\ViewHelper\IiifManifest3Factory::class,
+            'iiifMediaRelatedOcr' => Service\ViewHelper\IiifMediaRelatedOcrFactory::class,
             'iiifTileInfo' => Service\ViewHelper\IiifTileInfoFactory::class,
             'iiifUrl' => Service\ViewHelper\IiifUrlFactory::class,
             'imageSize' => Service\ViewHelper\ImageSizeFactory::class,
             'mediaDimension' => Service\ViewHelper\MediaDimensionFactory::class,
             'rangeToArray' => Service\ViewHelper\RangeToArrayFactory::class,
-            // Currently in module Next and in a pull request for core.
-            'defaultSiteSlug' => Service\ViewHelper\DefaultSiteSlugFactory::class,
             'publicResourceUrl' => Service\ViewHelper\PublicResourceUrlFactory::class,
         ],
     ],
     'form_elements' => [
-        'invokables' => [
-            Form\Element\OptionalUrl::class => Form\Element\OptionalUrl::class,
-        ],
         'factories' => [
             Form\ConfigForm::class => Service\Form\ConfigFormFactory::class,
+        ],
+    ],
+    'resource_page_block_layouts' => [
+        'invokables' => [
+            'iiifManifestLink' => Site\ResourcePageBlockLayout\IiifManifestLink::class,
         ],
     ],
     'controllers' => [
@@ -136,6 +145,7 @@ return [
             'rangeToArray' => Mvc\Controller\Plugin\RangeToArray::class,
         ],
         'factories' => [
+            'fixUtf8' => Service\ControllerPlugin\FixUtf8Factory::class,
             'imageSize' => Service\ControllerPlugin\ImageSizeFactory::class,
             'mediaDimension' => Service\ControllerPlugin\MediaDimensionFactory::class,
         ],
@@ -184,7 +194,7 @@ return [
                     'uri' => [
                         'type' => \Laminas\Router\Http\Segment::class,
                         'options' => [
-                            'route' => "[/:version]/$prefix:id/:type[/:name][/:subname]",
+                            'route' => "[/:version]/$prefix:id/:type[/:name][/:subtype][/:subname]",
                             'constraints' => [
                                 'version' => '2|3',
                                 'prefix' => $constraintPrefix,
@@ -192,7 +202,8 @@ return [
                                 'id' => '[^\/]+',
                                 // Note: content resources should use the original media url, so it is just an alias.
                                 // TODO Make a redirection from content resource to original url. Or the inverse so all iiif urls will be standard?
-                                'type' => 'annotation-page|annotation-collection|annotation-list|annotation|canvas|collection|content-resource|manifest|range',
+                                // "canvas-segment" may be used as id (uri, not a real url) for start: https://iiif.io/api/presentation/3.0/#start. Nevertheless, it is not used for now (use subtype).
+                                'type' => 'annotation-page|annotation-collection|annotation-list|annotation|canvas-segment|canvas|collection|content-resource|manifest|range',
                             ],
                             'defaults' => [
                                 'version' => $version,
@@ -512,21 +523,38 @@ return [
     ],
     'iiifserver' => [
         'config' => [
-            'iiifserver_manifest_default_version' => '2',
+            'iiifserver_manifest_default_version' => '3',
             'iiifserver_manifest_external_property' => 'dcterms:hasFormat',
+            'iiifserver_manifest_append_cors_headers' => true,
+            'iiifserver_manifest_pretty_json' => true,
+            'iiifserver_manifest_cache' => true,
             // Content of the manifest.
-            'iiifserver_manifest_description_property' => 'dcterms:bibliographicCitation',
+            'iiifserver_manifest_summary_property' => 'template',
             'iiifserver_manifest_attribution_property' => '',
-            'iiifserver_manifest_attribution_default' => 'Provided by Example Organization', // @translate
+            'iiifserver_manifest_attribution_default' => '',
             'iiifserver_manifest_rights' => 'property_or_url',
             'iiifserver_manifest_rights_property' => 'dcterms:license',
-            'iiifserver_manifest_rights_url' => 'http://rightsstatements.org/vocab/CNE/1.0/',
+            'iiifserver_manifest_rights_uri' => 'https://rightsstatements.org/vocab/CNE/1.0/',
+            'iiifserver_manifest_rights_url' => '',
             'iiifserver_manifest_rights_text' => '',
-            'iiifserver_manifest_homepage' => 'resource',
+            'iiifserver_manifest_homepage' => [
+                'property_or_resources',
+            ],
             'iiifserver_manifest_homepage_property' => '',
+            'iiifserver_manifest_provider' => [
+                'simple',
+            ],
+            'iiifserver_manifest_provider_property' => '',
+            'iiifserver_manifest_provider_agent' => '',
             'iiifserver_manifest_seealso_property' => '',
+            'iiifserver_manifest_rendering_media_types' => [],
+            'iiifserver_manifest_start_property' => '',
+            'iiifserver_manifest_start_primary_media' => false,
             'iiifserver_manifest_viewing_direction_property' => '',
             'iiifserver_manifest_viewing_direction_default' => 'left-to-right',
+            'iiifserver_manifest_placeholder_canvas_property' => '',
+            'iiifserver_manifest_placeholder_canvas_value' => 'Informed public',
+            'iiifserver_manifest_placeholder_canvas_default' => '',
             'iiifserver_manifest_behavior_property' => '',
             'iiifserver_manifest_behavior_default' => ['none'],
             'iiifserver_manifest_canvas_label' => 'template',
@@ -536,10 +564,28 @@ return [
             'iiifserver_manifest_properties_collection_whitelist' => [],
             'iiifserver_manifest_properties_item_whitelist' => [],
             'iiifserver_manifest_properties_media_whitelist' => [],
-            'iiifserver_manifest_properties_collection_blacklist' => [],
-            'iiifserver_manifest_properties_item_blacklist' => [],
-            'iiifserver_manifest_properties_media_blacklist' => [],
+            'iiifserver_manifest_properties_collection_blacklist' => [
+                'dcterms:tableOfContents',
+                'bibo:content',
+                'extracttext:extracted_text',
+            ],
+            'iiifserver_manifest_properties_item_blacklist' => [
+                'dcterms:tableOfContents',
+                'bibo:content',
+                'extracttext:extracted_text',
+            ],
+            'iiifserver_manifest_properties_media_blacklist' => [
+                'dcterms:tableOfContents',
+                'bibo:content',
+                'extracttext:extracted_text',
+            ],
             'iiifserver_manifest_structures_property' => '',
+            'iiifserver_manifest_structures_skip_flat' => false,
+            // Various.
+            'iiifserver_xml_image_match' => 'order',
+            'iiifserver_xml_fix_mode' => 'no',
+            'iiifserver_access_resource_skip' => false,
+            'iiifserver_access_ocr_skip' => false,
             // Urls.
             'iiifserver_url_version_add' => false,
             'iiifserver_identifier_clean' => true,
@@ -561,7 +607,9 @@ return [
             'iiifserver_media_api_version_append' => false,
             'iiifserver_media_api_prefix' => '',
             'iiifserver_media_api_identifier' => 'media_id',
+            'iiifserver_media_api_identifier_infojson' => false,
             'iiifserver_media_api_support_non_image' => false,
+            'iiifserver_media_api_fix_uv_mp3' => false,
             // Hidden option.
             'iiifserver_media_api_default_supported_version' => [
                 'service' => '2',

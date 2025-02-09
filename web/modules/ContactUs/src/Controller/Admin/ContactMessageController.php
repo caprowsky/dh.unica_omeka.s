@@ -2,16 +2,37 @@
 
 namespace ContactUs\Controller\Admin;
 
+use DateTime;
+use Doctrine\DBAL\Connection;
 use Laminas\Http\Response;
 use Laminas\Mvc\Controller\AbstractActionController;
 use Laminas\View\Model\JsonModel;
 use Laminas\View\Model\ViewModel;
 use Omeka\Form\ConfirmForm;
+use Omeka\Stdlib\ErrorStore;
 
 class ContactMessageController extends AbstractActionController
 {
+    /**
+     * @var \Doctrine\DBAL\Connection $connection
+     */
+    protected $connection;
+
+    /**
+     * @param string
+     */
+    protected $basePath;
+
+    public function __construct(Connection $connection, string $basePath)
+    {
+        $this->connection = $connection;
+        $this->basePath = $basePath;
+    }
+
     public function browseAction()
     {
+        $this->deleteZips();
+
         $this->setBrowseDefaults('created');
         $response = $this->api()->search('contact_messages', $this->params()->fromQuery());
         $this->paginator($response->getTotalResults());
@@ -27,10 +48,11 @@ class ContactMessageController extends AbstractActionController
         $formDeleteAll->setAttribute('id', 'confirm-delete-all');
         $formDeleteAll->get('submit')->setAttribute('disabled', true);
 
-        $messages = $response->getContent();
+        $contactMessages = $response->getContent();
+
         return new ViewModel([
-            'messages' => $messages,
-            'resources' => $messages,
+            'messages' => $contactMessages,
+            'resources' => $contactMessages,
             'formDeleteSelected' => $formDeleteSelected,
             'formDeleteAll' => $formDeleteAll,
         ]);
@@ -51,11 +73,11 @@ class ContactMessageController extends AbstractActionController
     public function deleteConfirmAction()
     {
         $response = $this->api()->read('contact_messages', $this->params('id'));
-        $message = $response->getContent();
+        $contactMessage = $response->getContent();
 
         $view = new ViewModel([
-            'message' => $message,
-            'resource' => $message,
+            'message' => $contactMessage,
+            'resource' => $contactMessage,
             'resourceLabel' => 'contact message',
             'partialPath' => 'contact-us/admin/contact-message/show-details',
         ]);
@@ -159,13 +181,13 @@ class ContactMessageController extends AbstractActionController
         // Secure the input.
         $resourceIds = array_filter(array_map('intval', $resourceIds));
         if (empty($resourceIds)) {
-            return $this->jsonError('No contact messages submitted.', Response::STATUS_CODE_400); // @translate
+            return $this->returnError('No contact messages submitted.', Response::STATUS_CODE_400); // @translate
         }
 
         $response = $this->api()
             ->batchUpdate('contact_messages', $resourceIds, $data, ['continueOnError' => true]);
         if (!$response) {
-            return $this->jsonError('An internal error occurred.', Response::STATUS_CODE_500); // @translate
+            return $this->returnError('An internal error occurred.', Response::STATUS_CODE_500); // @translate
         }
 
         $value = reset($data);
@@ -177,10 +199,13 @@ class ContactMessageController extends AbstractActionController
         ];
 
         return new JsonModel([
-            'content' => [
-                'property' => $property,
-                'value' => $value,
-                'status' => $statuses[$property][(int) $value],
+            'status' => 'success',
+            'data' => [
+                'action' => [
+                    'property' => $property,
+                    'value' => $value,
+                    'status' => $statuses[$property][(int) $value],
+                ],
             ],
         ]);
     }
@@ -195,25 +220,25 @@ class ContactMessageController extends AbstractActionController
         return $this->toggleProperty('o-module-contact:is_spam');
     }
 
-    protected function toggleProperty($property)
+    protected function toggleProperty(string $property)
     {
         if (!$this->getRequest()->isXmlHttpRequest()) {
             throw new \Omeka\Mvc\Exception\NotFoundException;
         }
 
         $id = $this->params('id');
-        /** @var \ContactUs\Api\Representation\MessageRepresentation $message */
-        $message = $this->api()->read('contact_messages', $id)->getContent();
+        /** @var \ContactUs\Api\Representation\MessageRepresentation $contactMessage */
+        $contactMessage = $this->api()->read('contact_messages', $id)->getContent();
 
         switch ($property) {
             case 'o-module-contact:is_read':
-                $value = !$message->isRead();
+                $value = !$contactMessage->isRead();
                 break;
             case 'o-module-contact:is_spam':
-                $value = !$message->isSpam();
+                $value = !$contactMessage->isSpam();
                 break;
             default:
-                return $this->jsonError('Unknown key.', Response::STATUS_CODE_400); // @translate
+                return $this->returnError('Unknown key.', Response::STATUS_CODE_400); // @translate
         }
 
         $data = [];
@@ -221,7 +246,7 @@ class ContactMessageController extends AbstractActionController
         $response = $this->api()
             ->update('contact_messages', $id, $data, [], ['isPartial' => true]);
         if (!$response) {
-            return $this->jsonError('An internal error occurred.', Response::STATUS_CODE_500); // @translate
+            return $this->returnError('An internal error occurred.', Response::STATUS_CODE_500); // @translate
         }
 
         $statuses = [
@@ -230,30 +255,171 @@ class ContactMessageController extends AbstractActionController
         ];
 
         return new JsonModel([
-            'content' => [
-                'property' => $property,
-                'value' => $value,
-                'status' => $statuses[$property][(int) $value],
+            'status' => 'success',
+            'data' => [
+                'action' => [
+                    'property' => $property,
+                    'value' => $value,
+                    'status' => $statuses[$property][(int) $value],
+                ],
             ],
         ]);
+    }
+
+    public function toggleZipAction()
+    {
+        // ZIp is not managed by adapter, but by file system.
+
+        if (!$this->getRequest()->isXmlHttpRequest()) {
+            throw new \Omeka\Mvc\Exception\NotFoundException;
+        }
+
+        $id = $this->params('id');
+
+        /** @var \ContactUs\Api\Representation\MessageRepresentation $contactMessage */
+        $contactMessage = $this->api()->read('contact_messages', $id)->getContent();
+
+        $hasZip = $contactMessage->hasZip();
+        if ($hasZip) {
+            @unlink($contactMessage->zipFilepath());
+            $hasZip = false;
+        } elseif ($contactMessage->resourceIds()) {
+            $type = $this->settings()->get('contactus_create_zip', 'original');
+            $this->jobDispatcher()->dispatch(\ContactUs\Job\ZipResources::class, [
+                'id' => $contactMessage->resourceIds(),
+                'filename' => $contactMessage->zipFilename(),
+                'baseDir' => 'contactus',
+                'baseUri' => 'contactus',
+                'type' => $type,
+            ]);
+            // $this->messenger()->addSuccess('A zip with the files is created in background.');
+            $hasZip = true;
+        }
+
+        return new JsonModel([
+            'status' => 'success',
+            'data' => [
+                'action' => [
+                    'property' => 'o-module-contact:has_zip',
+                    'value' => $hasZip,
+                    'status' => $hasZip ? 'zip' : 'no-zip',
+                ],
+            ],
+        ]);
+    }
+
+    protected function deleteZips(): void
+    {
+        $deleteZip = (int) $this->settings()->get('contactus_delete_zip');
+        if (!$deleteZip) {
+            return;
+        }
+
+        // Get all messages older than x days.
+        $older = new DateTime('-' . $deleteZip . ' day');
+        /*
+        $contactMessageIds = $this->api()->search('contact_messages', [
+            'modified_before' => $older->format('Y-m-d\TH:i:s'),
+        ], ['returnScalar' => 'id'])->getContent();
+        if (!count($contactMessageIds)) {
+            return;
+        }
+        */
+
+        // For performance purpose, use a direct sql query.
+        $sql = <<<'SQL'
+SELECT
+    `id`,
+    SUBSTRING(REPLACE(REPLACE(REPLACE(TO_BASE64(SHA2(CONCAT(id, '/', email, '/', ip, '/', user_agent, '/', created), 256)), '+', ''), '/', ''), '=', ''), 1, 12) AS "token"
+FROM contact_message
+WHERE modified < :older
+;
+SQL;
+        $bind = [
+            'older' => $older->format('Y-m-d H:i:s'),
+        ];
+        $types = [
+            'older' => \Doctrine\DBAL\ParameterType::STRING,
+        ];
+        $tokens = $this->connection->executeQuery($sql, $bind, $types)->fetchAllKeyValue();
+
+        /** @see \ContactUs\Api\Representation\MessageRepresentation::zipFilepath() */
+        foreach ($tokens as $id => $token) {
+            $filename = $id . '.' . $token . '.zip';
+            $filepath = $this->basePath . '/contactus/' . $filename;
+            $fileExists = file_exists($filepath) && is_writeable($filepath);
+            if ($fileExists) {
+                @unlink($filepath);
+            }
+        }
     }
 
     /**
      * Return a message of error.
      *
-     * @param string $message
+     * @see https://github.com/omniti-labs/jsend
+     *
+     * @param \Common\Stdlib\PsrMessage|string $message
      * @param int $statusCode
-     * @param array $messages
+     * @param \Omeka\Stdlib\ErrorStore|array $messages
      * @return \Laminas\View\Model\JsonModel
      */
-    protected function jsonError($message, $statusCode = Response::STATUS_CODE_400, array $messages = [])
+    protected function returnError($message, ?int $statusCode = Response::STATUS_CODE_400, $messages = null): JsonModel
     {
+        $statusCode ??= Response::STATUS_CODE_400;
+
         $response = $this->getResponse();
         $response->setStatusCode($statusCode);
-        $output = ['error' => $message];
-        if ($messages) {
-            $output['messages'] = $messages;
+
+        $translator = $this->translator();
+
+        if (is_array($messages) && count($messages)) {
+            foreach ($messages as &$msg) {
+                is_object($msg) ? $msg->setTranslator($translator) : $this->translate($msg);
+            }
+            unset($msg);
+        } elseif (is_object($messages) && $messages instanceof ErrorStore && $messages->hasErrors()) {
+            $msgs = [];
+            foreach ($messages->getErrors() as $key => $msg) {
+                $msgs[$key] = is_object($msg) ? $msg->setTranslator($translator) : $this->translate($msg);
+            }
+            $messages = $msgs;
+        } else {
+            $messages = [];
         }
-        return new JsonModel($output);
+
+        $status = $statusCode >= 500 ? 'error' : 'fail';
+
+        $result = [];
+        $result['status'] = $status;
+
+        if (is_object($message)) {
+            $message->setTranslator($translator);
+        } elseif ($message) {
+            $message = $this->translate($message);
+        } elseif ($status === 'error') {
+            // A message is required for error.
+            if ($messages) {
+                $message = reset($messages);
+                if (count($messages) === 1) {
+                    $messages = [];
+                }
+            } else {
+                $message = $this->translate('An error occurred.'); // @translate;
+            }
+        }
+
+        // Normally, only in error, not fail, but a main message may be useful
+        // in any case.
+        if ($message) {
+            $result['message'] = $message;
+        }
+
+        // Normally, not in error.
+        if (count($messages)) {
+            $result['data'] = $messages;
+        }
+
+        return new JsonModel($result);
     }
 }

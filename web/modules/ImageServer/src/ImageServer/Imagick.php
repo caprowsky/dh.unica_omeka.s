@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2021 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  * Copyright 2016-2017 BibLibre
  *
  * This software is governed by the CeCILL license under French law and abiding
@@ -32,7 +32,6 @@ namespace ImageServer\ImageServer;
 
 use Omeka\File\Store\StoreInterface;
 use Omeka\File\TempFileFactory;
-use Omeka\Stdlib\Message;
 
 /**
  * Helper to create an image from another one with IIIF arguments.
@@ -124,13 +123,14 @@ class Imagick extends AbstractImager
             return null;
         }
 
-        list(
+        [
             $sourceX,
             $sourceY,
             $sourceWidth,
             $sourceHeight,
             $destinationWidth,
-            $destinationHeight) = $extraction;
+            $destinationHeight,
+        ] = $extraction;
 
         // The background is normally useless, but it's costless.
         $imagick->setBackgroundColor('black');
@@ -283,8 +283,10 @@ class Imagick extends AbstractImager
                     break;
             }
         } catch (\Exception $e) {
-            $message = new Message('Imagick failed to open the file \"%s\". Details:\n%s', $source, $e->getMessage()); // @translate
-            $this->getLogger()->err($message);
+            $this->getLogger()->err(
+                "Imagick failed to open the file \"{file}\". Details:\n{message}", // @translate
+                ['file' => $source, 'message' => $e->getMessage()]
+            );
             return false;
         }
 

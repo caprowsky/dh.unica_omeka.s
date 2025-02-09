@@ -6,10 +6,12 @@ use BulkImport\Traits\ServiceLocatorAwareTrait;
 use Laminas\Form\Element;
 use Omeka\Form\Element as OmekaElement;
 
+/**
+ * @deprecated Use new mapping features.
+ * @todo Factorize with Manioc, Spip, Eprints, and Omeka S processor.
+ */
 class OmekaSProcessorParamsForm extends OmekaSProcessorConfigForm
 {
-    use ServiceLocatorAwareTrait;
-
     public function init(): void
     {
         $this
@@ -76,7 +78,7 @@ class OmekaSProcessorParamsForm extends OmekaSProcessorConfigForm
                         // 'vocabularies' => 'Vocabularies', // @translate
                         // 'resource_templates' => 'Resource templates', // @translate
                         // 'custom_vocabs' => 'Custom vocabs', // @translate
-                        'mappings' => 'Mappings', // @translate
+                        'mappings' => 'Mappings / markers', // @translate
                     ],
                 ],
                 'attributes' => [

@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2020-2021 Daniel Berthereau
+ * Copyright 2020-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -31,7 +31,6 @@ namespace IiifServer\Iiif\Annotation;
 
 use IiifServer\Iiif\AbstractResourceType;
 use IiifServer\Iiif\TraitMedia;
-use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
 
 /**
  * @todo The body should be created according or by the image server.
@@ -40,7 +39,7 @@ class Body extends AbstractResourceType
 {
     use TraitMedia;
 
-    protected $keys = [
+    protected $propertyRequirements = [
         // Types for annotation body are not iiif.
 
         '@context' => self::NOT_ALLOWED,
@@ -48,8 +47,8 @@ class Body extends AbstractResourceType
         'id' => self::REQUIRED,
         'type' => self::REQUIRED,
         'format' => self::REQUIRED,
-        // These keys are required or not allowed according to the type (image,
-        // audio, or video). See construct.
+        // These properties are required or not allowed according to the
+        // resource type (image, audio, or video). See construct.
         'service' => self::RECOMMENDED,
         'height' => self::RECOMMENDED,
         'width' => self::RECOMMENDED,
@@ -86,38 +85,26 @@ class Body extends AbstractResourceType
      */
     protected $contentResource;
 
-    public function __construct(AbstractResourceEntityRepresentation $resource, array $options = null)
+    public function setOptions(array $options): self
     {
         $this->contentResource = $options['content'];
         unset($options['content']);
 
         if ($this->contentResource->isImage()) {
-            $this->keys['height'] = self::REQUIRED;
-            $this->keys['width'] = self::REQUIRED;
-            $this->keys['duration'] = self::NOT_ALLOWED;
+            $this->propertyRequirements['height'] = self::REQUIRED;
+            $this->propertyRequirements['width'] = self::REQUIRED;
+            $this->propertyRequirements['duration'] = self::NOT_ALLOWED;
         } elseif ($this->contentResource->isVideo()) {
-            $this->keys['height'] = self::REQUIRED;
-            $this->keys['width'] = self::REQUIRED;
-            $this->keys['duration'] = self::REQUIRED;
+            $this->propertyRequirements['height'] = self::REQUIRED;
+            $this->propertyRequirements['width'] = self::REQUIRED;
+            $this->propertyRequirements['duration'] = self::REQUIRED;
         } elseif ($this->contentResource->isAudio()) {
-            $this->keys['height'] = self::NOT_ALLOWED;
-            $this->keys['width'] = self::NOT_ALLOWED;
-            $this->keys['duration'] = self::REQUIRED;
+            $this->propertyRequirements['height'] = self::NOT_ALLOWED;
+            $this->propertyRequirements['width'] = self::NOT_ALLOWED;
+            $this->propertyRequirements['duration'] = self::REQUIRED;
         }
 
-        parent::__construct($resource, $options);
-
-        $this->initMedia();
-
-        $services = $this->resource->getServiceLocator();
-        $viewHelpers = $services->get('ViewHelperManager');
-        $this->iiifMediaUrl = $viewHelpers->get('iiifMediaUrl');
-        $this->iiifTileInfo = $viewHelpers->get('iiifTileInfo');
-        $this->imageSize = $services->get('ControllerPluginManager')->get('imageSize');
-
-        $setting = $this->setting;
-        $this->imageApiVersion = $setting('iiifserver_media_api_default_version', '2');
-        $this->imageApiSupportedVersions = (array) $setting('iiifserver_media_api_supported_versions', ['2/2', '3/2']);
+        return parent::setOptions($options);
     }
 
     public function id(): ?string
@@ -141,7 +128,7 @@ class Body extends AbstractResourceType
             if (empty($size)) {
                 $size = $this->imageSize->__invoke($this->resource, 'large');
                 if (empty($size)) {
-                    $iiifSize = $this->imageApiVersion === '3' ? 'max' : 'full';
+                    $iiifSize = $this->iiifImageApiVersion === '3' ? 'max' : 'full';
                 } else {
                     $iiifSize = $size['width'] . ',' . $size['height'];
                 }
@@ -156,7 +143,7 @@ class Body extends AbstractResourceType
                 $iiifSize = $size['width'] . ',' . $size['height'];
             }
 
-            return $this->iiifMediaUrl->__invoke($this->resource, 'imageserver/media', $this->imageApiVersion, [
+            return $this->iiifMediaUrl->__invoke($this->resource, 'imageserver/media', $this->iiifImageApiVersion, [
                 'region' => 'full',
                 'size' => $iiifSize,
                 'rotation' => 0,
@@ -167,8 +154,7 @@ class Body extends AbstractResourceType
 
         if ($this->contentResource->isAudioVideo()) {
             // TODO Manage iiif 3 audio video.
-            $imageUrl = $this->iiifMediaUrl;
-            return $imageUrl($this->resource, 'mediaserver/media', $this->imageApiVersion, [
+            return $this->iiifMediaUrl->__invoke($this->resource, 'mediaserver/media', $this->iiifImageApiVersion, [
                 'format' => $this->resource->extension(),
             ]);
         }
@@ -189,7 +175,7 @@ class Body extends AbstractResourceType
     /**
      * @todo Return array of Service.
      */
-    public function service(): ?array
+    public function service(): array
     {
         // TODO Move this in ContentResource or TraitMedia.
 
@@ -198,8 +184,8 @@ class Body extends AbstractResourceType
             $imageResourceServices = [];
             $context = is_array($mediaData['@context']) ? array_pop($mediaData['@context']) : $mediaData['@context'];
             $id = $mediaData['id'] ?? $mediaData['@id'];
-            $type = $this->_iiifType($context);
-            $profile = $this->_iiifComplianceLevel($mediaData['profile']);
+            $type = $this->iiifImageServiceType($context);
+            $profile = $this->iiifComplianceLevel($mediaData['profile']);
             if (!$id || !$type || !$profile) {
                 return null;
             }
@@ -224,7 +210,7 @@ class Body extends AbstractResourceType
             }
 
             $imageResourceServices = [];
-            foreach ($this->imageApiSupportedVersions as $supportedVersion) {
+            foreach ($this->iiifImageApiSupportedVersions as $supportedVersion) {
                 $service = strtok($supportedVersion, '/');
                 $level = strtok('/') ?: '0';
                 $imageResourceService = [
@@ -239,7 +225,7 @@ class Body extends AbstractResourceType
             return $imageResourceServices;
         }
 
-        return null;
+        return [];
     }
 
     public function height(): ?int
@@ -256,7 +242,7 @@ class Body extends AbstractResourceType
             : null;
     }
 
-    public function duration(): ?string
+    public function duration(): ?float
     {
         return method_exists($this->contentResource, 'duration')
             ? $this->contentResource->duration()
@@ -266,7 +252,7 @@ class Body extends AbstractResourceType
     /**
      * Get the iiif type from the context.
      */
-    protected function _iiifType(string $context): ?string
+    protected function iiifImageServiceType(string $context): ?string
     {
         $contexts = [
             'http://library.stanford.edu/iiif/image-api/context.json' => 'ImageService1',
@@ -279,21 +265,26 @@ class Body extends AbstractResourceType
 
     /**
      * Helper to set the compliance level to the IIIF Image API, based on the
-     * compliance level URI
+     * compliance level URI.
      *
-     * @see https://iiif.io/api/image/1.1/compliance/
+     *@see https://iiif.io/api/image/1.1/compliance/
+     *
+     * Copy:
+     * @see \IiifServer\Iiif\Annotation\Body::iiifComplianceLevel()
+     * @see \IiifServer\Iiif\TraitDescriptiveThumbnail::iiifComplianceLevel()
+     * @see \IiifServer\View\Helper\IiifManifest2::iiifComplianceLevel()
      *
      * @param array|string $profile Contents of the `profile` property from the
      * info.json
      * @return string Image API compliance level (returned value: level0 | level1 | level2)
      */
-    protected function _iiifComplianceLevel($profile): string
+    protected function iiifComplianceLevel($profile): string
     {
         // In Image API 2.1, the profile property is a list, and the first entry
         // is the compliance level URI.
         // In Image API 1.1 and 3.0, the profile property is a string.
         if (is_array($profile)) {
-            $profile = $profile[0];
+            $profile = reset($profile);
         }
 
         $profileToLlevels = [

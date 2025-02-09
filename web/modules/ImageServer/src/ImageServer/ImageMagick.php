@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2021 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -153,7 +153,7 @@ class ImageMagick extends AbstractImager
 
         // Get width and height if missing.
         if (empty($args['source']['width']) || empty($args['source']['height'])) {
-            list($args['source']['width'], $args['source']['height']) = getimagesize($image);
+            [$args['source']['width'], $args['source']['height']] = getimagesize($image);
         }
 
         // Region + Size.
@@ -163,13 +163,13 @@ class ImageMagick extends AbstractImager
             return null;
         }
 
-        list(
+        [
             $sourceX,
             $sourceY,
             $sourceWidth,
             $sourceHeight,
             $destinationWidth,
-            $destinationHeight) = $extraction;
+            $destinationHeight] = $extraction;
 
         $params = [];
         // The background is normally useless, but it's costless.

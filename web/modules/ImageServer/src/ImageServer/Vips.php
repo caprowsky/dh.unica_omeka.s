@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2021 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software. You can use, modify and/or
@@ -111,9 +111,7 @@ class Vips extends AbstractImager
         if ($result && preg_match_all('~^.*\(\.(?<extensions>.[.a-z, ]+)\).*$~m', $result, $matches, PREG_SET_ORDER, 0)) {
             $extensions = [];
             foreach ($matches as $match) {
-                $ext = array_map(function ($v) {
-                    return trim($v, ',.');
-                }, explode(' ', strtolower($match['extensions'])));
+                $ext = array_map(fn ($v) => trim($v, ',.'), explode(' ', strtolower($match['extensions'])));
                 $extensions = array_merge($extensions, $ext);
             }
             $this->supportedFormats = array_intersect($this->supportedFormats, $extensions);
@@ -160,7 +158,7 @@ class Vips extends AbstractImager
 
         // Get width and height if missing.
         if (empty($args['source']['width']) || empty($args['source']['height'])) {
-            list($args['source']['width'], $args['source']['height']) = getimagesize($image);
+            [$args['source']['width'], $args['source']['height']] = getimagesize($image);
         }
 
         // Region + Size.
@@ -175,13 +173,14 @@ class Vips extends AbstractImager
             $isOldVersion = version_compare($version, 'vips-8.10', '<');
         }
 
-        list(
+        [
             $sourceX,
             $sourceY,
             $sourceWidth,
             $sourceHeight,
             $destinationWidth,
-            $destinationHeight) = $extraction;
+            $destinationHeight,
+        ] = $extraction;
 
         // The command line vips is not pipable, so an intermediate file is
         // required when there are more than one operation.

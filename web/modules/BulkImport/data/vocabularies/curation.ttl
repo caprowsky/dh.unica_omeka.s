@@ -10,8 +10,8 @@
 <https://omeka.org/s/vocabs/curation/> a owl:Ontology ;
     dcterms:title "Curation"@en ;
     dcterms:title "Curation"@fr ;
-    dcterms:description "Generic and common properties that are useful internally for the curation of resources. The use of more common or more precise ontologies is recommended when it is possible."@en ;
-    dcterms:description "Propriétés génériques et courantes utiles pour la gestion interne des ressources. Le recours à des ontologies plus courantes ou plus précises est recommandé lorsque cela est possible."@fr ;
+    dcterms:description "Generic and common properties that are useful in Omeka for the curation of resources. The use of more common or more precise ontologies is recommended when it is possible."@en ;
+    dcterms:description "Propriétés génériques et courantes utiles pour la gestion des ressources dans Omeka. Le recours à des ontologies plus courantes ou plus précises est recommandé lorsque c’est possible."@fr ;
     vs:term_status "experimental" .
 
 curation:access a rdf:Property ;
@@ -75,7 +75,7 @@ curation:subject a rdf:Property ;
     rdfs:label "Subject"@en ;
     rdfs:label "Sujet"@fr ;
     rdfs:comment "A subject to describe the resource."@en ;
-    rdfs:comment "Un sujet décrivant la ressoruce."@fr ;
+    rdfs:comment "Un sujet décrivant la ressource."@fr ;
     rdfs:subPropertyOf dcterms:subject ;
     vs:term_status "experimental" .
 
@@ -104,6 +104,13 @@ curation:type a rdf:Property ;
     rdfs:subPropertyOf dcterms:type ;
     vs:term_status "experimental" .
 
+curation:coordinates a rdf:Property ;
+    rdfs:label "Coordinates"@en ;
+    rdfs:label "Coordonnées"@fr ;
+    rdfs:comment "Numerical coordinates related to the resource, generaly the geographic position."@en ;
+    rdfs:comment "Coordonnées numériques liées à la ressource, généralement la position géographique."@fr ;
+    vs:term_status "experimental" .
+
 curation:data a rdf:Property ;
     rdfs:label "Data"@en ;
     rdfs:label "Données"@fr ;
@@ -111,18 +118,18 @@ curation:data a rdf:Property ;
     rdfs:comment "Toute donnée pouvant être utilisée pour tout objet."@fr ;
     vs:term_status "experimental" .
 
-curation:dateStart a rdf:Property ;
-    rdfs:label "Date of start"@en ;
-    rdfs:label "Date de début"@fr ;
-    rdfs:comment "Start date related to the resource, for example an embargo."@en ;
-    rdfs:comment "Date d’un début lié à la ressource, par exemple un embargo."@fr ;
+curation:start a rdf:Property ;
+    rdfs:label "Start"@en ;
+    rdfs:label "Début"@fr ;
+    rdfs:comment "A start related to the resource, for example the start of an embargo."@en ;
+    rdfs:comment "Un début lié à la ressource, par exemple le début d’un embargo."@fr ;
     vs:term_status "experimental" .
 
-curation:dateEnd a rdf:Property ;
-    rdfs:label "Date of end"@en ;
-    rdfs:label "Date de fin"@fr ;
-    rdfs:comment "End date related to the resource, for example an embargo."@en ;
-    rdfs:comment "Date d’une fin liée à la ressource, par exemple un embargo."@fr ;
+curation:end a rdf:Property ;
+    rdfs:label "End"@en ;
+    rdfs:label "Fin"@fr ;
+    rdfs:comment "A end related to the resource, for example the end of an embargo."@en ;
+    rdfs:comment "Une fin liée à la ressource, par exemple la fin d’un embargo."@fr ;
     vs:term_status "experimental" .
 
 curation:location a rdf:Property ;

@@ -104,6 +104,8 @@ return [
     'files' => 'file',
     'filename' => 'file',
     'filenames' => 'file',
+    'file name' => 'file',
+    'file names' => 'file',
     'upload' => 'file',
     'sideload' => 'file',
     'file sideload' => 'file',
@@ -123,6 +125,10 @@ return [
     'base file name' => 'o:basename',
     'base filename' => 'o:basename',
 
+    // Deprecated: "tile" is only a renderer, no more an ingester since
+    // ImageServer version 3.6.13. All images are automatically tiled, so "tile"
+    // is a format similar to large/medium/square, but different.
+    // Internally managed as a "file" in the module.
     // A tile for image server.
     'tile' => 'tile',
     'media tile' => 'tile',

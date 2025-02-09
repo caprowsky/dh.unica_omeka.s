@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /*
- * Copyright 2015-2021 Daniel Berthereau
+ * Copyright 2015-2024 Daniel Berthereau
  * Copyright 2016-2017 BibLibre
  *
  * This software is governed by the CeCILL license under French law and abiding
@@ -30,12 +30,13 @@
 
 namespace ImageServer\Controller;
 
+use Access\Mvc\Controller\Plugin\IsAllowedMediaContent;
+use Common\Stdlib\PsrMessage;
 use IiifServer\Controller\IiifServerControllerTrait;
 use ImageServer\ImageServer\ImageServer;
 use Laminas\Mvc\Controller\AbstractActionController;
 use Laminas\View\Model\ViewModel;
 use Omeka\Api\Representation\MediaRepresentation;
-use Omeka\Stdlib\Message;
 
 /**
  * The Image controller class.
@@ -47,6 +48,11 @@ use Omeka\Stdlib\Message;
 class ImageController extends AbstractActionController
 {
     use IiifServerControllerTrait;
+
+    /**
+     * @var \Access\Mvc\Controller\Plugin\IsAllowedMediaContent
+     */
+    protected $isAllowedMediaContent;
 
     /**
      * @var string
@@ -68,41 +74,78 @@ class ImageController extends AbstractActionController
         'webp' => 'image/webp',
     ];
 
+    /**
+     * @var ViewModel
+     */
+    protected $_view;
+
     public function __construct(
-        $basePath
+        ?string $basePath,
+        ?IsAllowedMediaContent $isAllowedMediaContent
     ) {
         $this->basePath = $basePath;
+        $this->isAllowedMediaContent = $isAllowedMediaContent;
     }
 
     /**
      * Returns sized image for the current file.
+     *
+     * @see \Access\Controller\AccessFileController::sendFile()
+     * @see \DerivativeMedia\Controller\IndexController::sendFile()
+     * @see \Statistics\Controller\DownloadController::sendFile()
+     * and
+     * @see \ImageServer\Controller\ImageController::fetchAction()
      */
     public function fetchAction()
     {
         /** @var \Omeka\Api\Representation\MediaRepresentation $media */
         $media = $this->fetchResource('media');
         if (!$media) {
-            return $this->viewError(new Message(
-                'Media "%s" not found.', // @translate
-                $this->params('id')
+            return $this->viewError(new PsrMessage(
+                'Media "{media_id}" not found.', // @translate
+                ['media_id' => $this->params('id')]
             ), \Laminas\Http\Response::STATUS_CODE_404);
         }
 
+        /**
+         * @var \Laminas\Http\PhpEnvironment\Response $response
+         * @var \Laminas\Http\Headers $headers
+         */
         $response = $this->getResponse();
+        $headers = $response->getHeaders();
 
         // Check if the original file is an image.
         if (strpos($media->mediaType(), 'image/') !== 0) {
-            return $this->viewError(new Message(
-                'The media "%d" is not an image', // @translate
-                $media->id()
+            return $this->viewError(new PsrMessage(
+                'The media "{media_id}" is not an image', // @translate
+                ['media_id' => $media->id()]
             ), \Laminas\Http\Response::STATUS_CODE_501);
         }
 
         $this->requestedVersionMedia();
 
+        // Compatibility with module Access: rights should be checked for the
+        // file, not only for the media.
+        if ($this->isAllowedMediaContent
+            && !$this->settings()->get('iiifserver_access_resource_skip')
+            && !$this->isAllowedMediaContent->__invoke($media)
+        ) {
+            // Manage custom asset file from the theme.
+            $viewHelpers = $this->viewHelpers();
+            $assetUrl = $viewHelpers->get('assetUrl');
+            $fileUrl = $assetUrl('img/locked-file.png', 'Access', true, true, true);
+            $headers
+                ->addHeaderLine('Content-Transfer-Encoding: binary')
+                // ->addHeaderLine(sprintf('Content-Length: %s', $filesize))
+                ->addHeaderLine('Content-Type', 'image/png');
+
+            // Redirect (302/307) to the url of the file.
+            return $this->redirect()->toUrl($fileUrl);
+        }
+
         // Check, clean and optimize and fill values according to the request.
         $this->_view = new ViewModel;
-        $transform = $this->_cleanRequest($media);
+        $transform = $this->cleanRequest($media);
         if (empty($transform)) {
             // The message is set in view.
             $response->setStatusCode(400);
@@ -133,7 +176,7 @@ class ImageController extends AbstractActionController
         // A transformation is needed.
         else {
             // Quick check if an Omeka derivative is appropriate.
-            $pretiled = $this->_useOmekaDerivative($media, $transform);
+            $pretiled = $this->useOmekaDerivative($media, $transform);
             if ($pretiled) {
                 // Check if a light transformation is needed.
                 if ($transform['size']['feature'] != 'max'
@@ -163,7 +206,7 @@ class ImageController extends AbstractActionController
             // Check if another image can be used.
             else {
                 // Check if the image is pre-tiled.
-                $pretiled = $this->_usePreTiled($media, $transform);
+                $pretiled = $this->usePreTiled($media, $transform);
                 if ($pretiled) {
                     // Warning: Currently, the tile server does not manage
                     // regions or special size, so it is possible to process the
@@ -185,7 +228,7 @@ class ImageController extends AbstractActionController
                     }
                     // No transformation.
                     else {
-                        $imageUrl = $pretiled['fileurl'];
+                        $imageUrl = $pretiled['source']['fileurl'];
                     }
                 }
 
@@ -203,7 +246,7 @@ class ImageController extends AbstractActionController
                     if ($imager !== 'Vips') {
                         $maxFileSize = $settings->get('imageserver_image_max_size');
                         if (!empty($maxFileSize) && $media->size() > $maxFileSize) {
-                            return $this->viewError(new Message(
+                            return $this->viewError(new PsrMessage(
                                 'The Image server encountered an unexpected error that prevented it from fulfilling the request: the file is not tiled for dynamic processing.' // @translate
                             ), \Laminas\Http\Response::STATUS_CODE_500);
                         }
@@ -215,9 +258,12 @@ class ImageController extends AbstractActionController
 
         // Redirect to the url when an existing file is available.
         if ($imageUrl) {
-            $response->getHeaders()
-                // Header for CORS, required for access of IIIF.
-                ->addHeaderLine('access-control-allow-origin', '*')
+            // Header for CORS, required for access of IIIF.
+            if ($this->settings()->get('iiifserver_manifest_append_cors_headers')) {
+                $headers
+                    ->addHeaderLine('Access-Control-Allow-Origin', '*');
+            }
+            $headers
                 // Recommanded by feature "profileLinkHeader".
                 ->addHeaderLine('Link', version_compare($this->requestedApiVersion, '3', '<')
                     ? '<http://iiif.io/api/image/2/level2.json>;rel="profile"'
@@ -230,20 +276,22 @@ class ImageController extends AbstractActionController
             return $this->redirect()->toUrl($imageUrl);
         }
 
-        //This is a transformed file.
+        // This is a transformed file.
         elseif ($imagePath) {
-            $output = file_get_contents($imagePath);
-            unlink($imagePath);
-
-            if (empty($output)) {
-                return $this->viewError(new Message(
+            $filesize = filesize($imagePath);
+            if (empty($filesize)) {
+                @unlink($imagePath);
+                return $this->viewError(new PsrMessage(
                     'The Image server encountered an unexpected error that prevented it from fulfilling the request: the resulting file is not found or empty.' // @translate
                 ), \Laminas\Http\Response::STATUS_CODE_500);
             }
 
-            $response->getHeaders()
-                // Header for CORS, required for access of IIIF.
-                ->addHeaderLine('access-control-allow-origin', '*')
+            // Header for CORS, required for access of IIIF.
+            if ($this->settings()->get('iiifserver_manifest_append_cors_headers')) {
+                $headers
+                    ->addHeaderLine('Access-Control-Allow-Origin', '*');
+            }
+            $headers
                 // Recommanded by feature "profileLinkHeader".
                 ->addHeaderLine('Link', version_compare($this->requestedApiVersion, '3', '<')
                     ? '<http://iiif.io/api/image/2/level2.json>;rel="profile"'
@@ -251,13 +299,90 @@ class ImageController extends AbstractActionController
                 )
                 ->addHeaderLine('Content-Type', $transform['format']['feature']);
 
-            $response->setContent($output);
+            $headers
+                ->addHeaderLine('Accept-Ranges: bytes');
+
+            // TODO Check for Apache XSendFile or Nginx: https://stackoverflow.com/questions/4022260/how-to-detect-x-accel-redirect-nginx-x-sendfile-apache-support-in-php
+            // TODO Use Laminas stream response?
+            // $response = new \Laminas\Http\Response\Stream();
+
+            // Adapted from https://stackoverflow.com/questions/15797762/reading-mp4-files-with-php.
+            $hasRange = !empty($_SERVER['HTTP_RANGE']);
+            if ($hasRange) {
+                // Start/End are pointers that are 0-based.
+                $start = 0;
+                $end = $filesize - 1;
+                $matches = [];
+                $result = preg_match('/bytes=\h*(?<start>\d+)-(?<end>\d*)[\D.*]?/i', $_SERVER['HTTP_RANGE'], $matches);
+                if ($result) {
+                    $start = (int) $matches['start'];
+                    if (!empty($matches['end'])) {
+                        $end = (int) $matches['end'];
+                    }
+                }
+                // Check valid range to avoid hack.
+                $hasRange = ($start < $filesize && $end < $filesize && $start < $end)
+                    && ($start > 0 || $end < ($filesize - 1));
+            }
+
+            if ($hasRange) {
+                // Set partial content.
+                $response
+                    ->setStatusCode($response::STATUS_CODE_206);
+                $headers
+                    ->addHeaderLine('Content-Length: ' . ($end - $start + 1))
+                    ->addHeaderLine("Content-Range: bytes $start-$end/$filesize");
+            } else {
+                $headers
+                    ->addHeaderLine('Content-Length: ' . $filesize);
+            }
+
+            // Fix deprecated warning in \Laminas\Http\PhpEnvironment\Response::sendHeaders() (l. 113).
+            $errorReporting = error_reporting();
+            error_reporting($errorReporting & ~E_DEPRECATED);
+
+            // Send headers separately to handle large files.
+            $response->sendHeaders();
+
+            error_reporting($errorReporting);
+
+            // Clears all active output buffers to avoid memory overflow.
+            $response->setContent('');
+            while (ob_get_level()) {
+                ob_end_clean();
+            }
+
+            if ($hasRange) {
+                $fp = @fopen($imagePath, 'rb');
+                $buffer = 1024 * 8;
+                $pointer = $start;
+                fseek($fp, $start, SEEK_SET);
+                while (!feof($fp)
+                    && $pointer <= $end
+                    && connection_status() === CONNECTION_NORMAL
+                ) {
+                    set_time_limit(0);
+                    echo fread($fp, min($buffer, $end - $pointer + 1));
+                    flush();
+                    $pointer += $buffer;
+                }
+                fclose($fp);
+            } else {
+                readfile($imagePath);
+            }
+
+            // TODO Fix issue with session. See readme of module XmlViewer.
+            ini_set('display_errors', '0');
+
+            @unlink($imagePath);
+
+            // Return response to avoid default view rendering and to manage events.
             return $response;
         }
 
         // No result.
         else {
-            return $this->viewError(new Message(
+            return $this->viewError(new PsrMessage(
                 'The Image server encountered an unexpected error that prevented it from fulfilling the request: the resulting file is empty or not found.' // @translate
             ), \Laminas\Http\Response::STATUS_CODE_500);
         }
@@ -272,14 +397,14 @@ class ImageController extends AbstractActionController
      * @param MediaRepresentation $media
      * @return array|null Array of cleaned requested image, else null.
      */
-    protected function _cleanRequest(MediaRepresentation $media): ?array
+    protected function cleanRequest(MediaRepresentation $media): ?array
     {
         $transform = [];
 
         $transform['version'] = $this->requestedApiVersion;
 
         $transform['source']['type'] = 'original';
-        $transform['source']['filepath'] = $this->_getImagePath($media, 'original');
+        $transform['source']['filepath'] = $this->getImagePath($media, 'original');
         $transform['source']['media_type'] = $media->mediaType();
 
         $imageSize = $this->imageSize($media, 'original');
@@ -298,32 +423,39 @@ class ImageController extends AbstractActionController
         $format = $this->params('format');
 
         // Determine the region.
+        // The region is simplified into "regionByPx" or "full" in all cases.
 
         // Full image.
         // Manage the case where the source and requested images are square too.
         // TODO Square is not supported by 2.0, only by 2.1, but the iiif validator bypasses it.
         if ($region == 'full' || ($region === 'square' && $sourceWidth === $sourceHeight)) {
-            $transform['region']['feature'] = 'full';
-            // Next values may be needed for next parameters.
-            $transform['region']['x'] = 0;
-            $transform['region']['y'] = 0;
-            $transform['region']['width'] = $sourceWidth;
-            $transform['region']['height'] = $sourceHeight;
+            $transform['region'] = [
+                'feature' => 'full',
+                'x' => 0,
+                'y' => 0,
+                'width' => $sourceWidth,
+                'height' => $sourceHeight,
+            ];
         }
 
         // Square image.
         elseif ($region == 'square') {
-            $transform['region']['feature'] = 'regionByPx';
             if ($sourceWidth > $sourceHeight) {
-                $transform['region']['x'] = (int) (($sourceWidth - $sourceHeight) / 2);
-                $transform['region']['y'] = 0;
-                $transform['region']['width'] = $sourceHeight;
-                $transform['region']['height'] = $sourceHeight;
+                $transform['region'] = [
+                    'feature' => 'regionByPx',
+                    'x' => (int) (($sourceWidth - $sourceHeight) / 2),
+                    'y' => 0,
+                    'width' => $sourceHeight,
+                    'height' => $sourceHeight,
+                ];
             } else {
-                $transform['region']['x'] = 0;
-                $transform['region']['y'] = (int) (($sourceHeight - $sourceWidth) / 2);
-                $transform['region']['width'] = $sourceWidth;
-                $transform['region']['height'] = $sourceWidth;
+                $transform['region'] = [
+                    'feature' => 'regionByPx',
+                    'x' => 0,
+                    'y' => (int) (($sourceHeight - $sourceWidth) / 2),
+                    'width' => $sourceWidth,
+                    'height' => $sourceWidth,
+                ];
             }
         }
 
@@ -331,10 +463,10 @@ class ImageController extends AbstractActionController
         elseif (strpos($region, 'pct:') === 0) {
             $regionValues = explode(',', substr($region, 4));
             if (count($regionValues) !== 4) {
-                $this->_view->setVariable('message', sprintf(
-                    $this->translate('The Image server cannot fulfill the request: the region "%s" is incorrect.'), // @translate
-                    $region
-                ));
+                $this->_view->setVariable('message', (new PsrMessage(
+                    'The Image server cannot fulfill the request: the region "{region}" is incorrect.', // @translate
+                    ['region' => $region]
+                ))->setTranslator($this->translator()));
                 return null;
             }
             $regionValues = array_map('floatval', $regionValues);
@@ -344,20 +476,50 @@ class ImageController extends AbstractActionController
                 && $regionValues[2] == 100
                 && $regionValues[3] == 100
             ) {
-                $transform['region']['feature'] = 'full';
-                // Next values may be needed for next parameters.
-                $transform['region']['x'] = 0;
-                $transform['region']['y'] = 0;
-                $transform['region']['width'] = $sourceWidth;
-                $transform['region']['height'] = $sourceHeight;
+                $transform['region'] = [
+                    'feature' => 'full',
+                    'x' => 0,
+                    'y' => 0,
+                    'width' => $sourceWidth,
+                    'height' => $sourceHeight,
+                ];
             }
             // Normal region.
             else {
-                $transform['region']['feature'] = 'regionByPct';
-                $transform['region']['x'] = $regionValues[0];
-                $transform['region']['y'] = $regionValues[1];
-                $transform['region']['width'] = $regionValues[2];
-                $transform['region']['height'] = $regionValues[3];
+                $regionX = $regionValues[0];
+                $regionY = $regionValues[1];
+                $regionWidth = $regionValues[2];
+                $regionHeight = $regionValues[3];
+                $x = $sourceWidth * $regionX / 100;
+                $y = $sourceHeight * $regionY / 100;
+                // Don't return x or y greater than source.
+                if ($x > $sourceWidth || $y > $sourceHeight) {
+                    $this->_view->setVariable('message', (new PsrMessage(
+                        'The Image server cannot fulfill the request: the region "{region}" is  outside the source.', // @translate
+                        ['region' => $region]
+                    ))->setTranslator($this->translator()));
+                    return null;
+                }
+                $width = ($regionX + $regionWidth) <= 100
+                    ? $sourceWidth * $regionWidth / 100
+                    : $sourceWidth - $x;
+                $height = ($regionY + $regionHeight) <= 100
+                    ? $sourceHeight * $regionHeight / 100
+                    : $sourceHeight - $y;
+                $transform['region'] = [
+                    'feature' => 'regionByPx',
+                    'x' => (int) $x,
+                    'y' => (int) $y,
+                    'width' => (int) $width,
+                    'height' => (int) $height,
+                ];
+                if ($transform['region']['x'] === 0
+                    && $transform['region']['y'] === 0
+                    && $transform['region']['width'] === $sourceWidth
+                    && $transform['region']['height'] === $sourceHeight
+                ) {
+                    $transform['region']['feature'] = 'full';
+                }
             }
         }
 
@@ -365,10 +527,10 @@ class ImageController extends AbstractActionController
         else {
             $regionValues = explode(',', $region);
             if (count($regionValues) != 4) {
-                $this->_view->setVariable('message', sprintf(
-                    $this->translate('The Image server cannot fulfill the request: the region "%s" is incorrect.'), // @translate
-                    $region
-                ));
+                $this->_view->setVariable('message', (new PsrMessage(
+                    'The Image server cannot fulfill the request: the region "{region}" is incorrect.', // @translate
+                    ['region' => $region]
+                ))->setTranslator($this->translator()));
                 return null;
             }
             $regionValues = array_map('intval', $regionValues);
@@ -378,34 +540,80 @@ class ImageController extends AbstractActionController
                 && $regionValues[2] == $sourceWidth
                 && $regionValues[3] == $sourceHeight
             ) {
-                $transform['region']['feature'] = 'full';
-                // Next values may be needed for next parameters.
-                $transform['region']['x'] = 0;
-                $transform['region']['y'] = 0;
-                $transform['region']['width'] = $sourceWidth;
-                $transform['region']['height'] = $sourceHeight;
+                $transform['region'] = [
+                    'feature' => 'full',
+                    'x' => 0,
+                    'y' => 0,
+                    'width' => $sourceWidth,
+                    'height' => $sourceHeight,
+                ];
             }
             // Normal region.
             else {
-                $transform['region']['feature'] = 'regionByPx';
-                $transform['region']['x'] = $regionValues[0];
-                $transform['region']['y'] = $regionValues[1];
-                $transform['region']['width'] = $regionValues[2];
-                $transform['region']['height'] = $regionValues[3];
+                // Don't return x or y greater than source.
+                $regionX = $regionValues[0];
+                $regionY = $regionValues[1];
+                if ($regionX > $sourceWidth || $regionY > $sourceHeight) {
+                    $this->_view->setVariable('message', (new PsrMessage(
+                        'The Image server cannot fulfill the request: the region "{region}" is  outside the source.', // @translate
+                        ['region' => $region]
+                    ))->setTranslator($this->translator()));
+                    return null;
+                }
+                $regionWidth = $regionValues[2];
+                $regionHeight = $regionValues[3];
+                $x = $regionX;
+                $y = $regionY;
+                $width = ($x + $regionWidth) <= $sourceWidth
+                    ? $regionWidth
+                    : $sourceWidth - $x;
+                $height = ($y + $regionHeight) <= $sourceHeight
+                    ? $regionHeight
+                    : $sourceHeight - $y;
+                $transform['region'] = [
+                    'feature' => 'regionByPx',
+                    'x' => (int) $x,
+                    'y' => (int) $y,
+                    'width' => (int) $width,
+                    'height' => (int) $height,
+                ];
+                if ($transform['region']['x'] === 0
+                    && $transform['region']['y'] === 0
+                    && $transform['region']['width'] === $sourceWidth
+                    && $transform['region']['height'] === $sourceHeight
+                ) {
+                    $transform['region']['feature'] = 'full';
+                }
             }
         }
 
+        // Check sizes to avoid a possible issue.
+        if ($transform['region']['x'] < 0
+            || $transform['region']['y'] < 0
+            || $transform['region']['width'] <= 0
+            || $transform['region']['height'] <= 0
+        ) {
+            $this->_view->setVariable('message', (new PsrMessage(
+                'The Image server cannot fulfill the request: the region "{region}" is invalid.', // @translate
+                $region
+            ))->setTranslator($this->translator()));
+            return null;
+        }
+
         // Determine the size.
+        // The width and height are set in all cases, so it is useless to check
+        // the feature in most of the case.
+        // TODO Clarify feature names (even if useless now since width and height are always determined early).
+        // TODO Manage upscaling via a parameter in config.
 
         // Manage the main difference between version 2 and 3.
         $upscale = mb_substr($size, 0, 1) === '^';
         $versionIsGreaterOrEqual3 = version_compare($this->requestedApiVersion, '3', '>=');
         if ($upscale && !$versionIsGreaterOrEqual3) {
-            $this->_view->setVariable('message', sprintf(
-                $this->translate('The Image server cannot fulfill the request: the size "%s" is incorrect for API version %s.'), // @translate
-                $size,
-                $this->requestedApiVersion
-            ));
+            $this->_view->setVariable('message', (new PsrMessage(
+                'The Image server cannot fulfill the request: the size "{size}" is incorrect for API version {version}.', // @translate
+                ['size' => $size, 'version' => $this->requestedApiVersion]
+            ))->setTranslator($this->translator()));
             return null;
         }
 
@@ -413,67 +621,82 @@ class ImageController extends AbstractActionController
         elseif ($size === 'full') {
             // This value is not allowed in version 3.
             if ($versionIsGreaterOrEqual3) {
-                $this->_view->setVariable('message', sprintf(
-                    $this->translate('The Image server cannot fulfill the request: the size "%s" is incorrect.'), // @translate
-                    $size
-                ));
+                $this->_view->setVariable('message', (new PsrMessage(
+                    'The Image server cannot fulfill the request: the size "{size}" is incorrect.', // @translate
+                    ['size' => $size]
+                ))->setTranslator($this->translator()));
                 return null;
             }
-            $transform['size']['feature'] = 'max';
+            $transform['size'] = [
+                'feature' => 'max',
+                'upscale' => $upscale,
+                'width' => $transform['region']['width'],
+                'height' => $transform['region']['height'],
+            ];
         }
 
         // Max image (but below the max of the server).
-        // Note: Currently, the module doesn't set any max size, so max is full.
-        elseif ($size === 'max' || $size === '^max') {
-            $transform['size']['feature'] = 'max';
+        elseif ($size === 'max') {
+            $transform['size'] = [
+                'feature' => 'max',
+                'upscale' => $upscale,
+                'width' => $transform['region']['width'],
+                'height' => $transform['region']['height'],
+            ];
+        }
+
+        // TODO Currently, the module doesn't set any max size, so max is full.
+        elseif ($size === '^max') {
+            $transform['size'] = [
+                'feature' => 'max',
+                'upscale' => $upscale,
+                'width' => $transform['region']['width'],
+                'height' => $transform['region']['height'],
+            ];
         }
 
         // "pct:x": sizeByPct
         elseif (strpos($size, 'pct:') === 0 || strpos($size, '^pct:') === 0) {
             $sizePercentage = floatval(substr($size, $upscale ? 5 : 4));
             if (empty($sizePercentage)) {
-                $this->_view->setVariable('message', sprintf(
-                    $this->translate('The Image server cannot fulfill the request: the size "%s" is incorrect.'), // @translate
-                    $size
-                ));
+                $this->_view->setVariable('message', (new PsrMessage(
+                    'The Image server cannot fulfill the request: the size "{size}" is incorrect.', // @translate
+                    ['size' => $size]
+                ))->setTranslator($this->translator()));
                 return null;
             }
             // A quick check to avoid a possible transformation.
             if ($sizePercentage == 100) {
-                $transform['size']['feature'] = 'max';
-            }
-            // Check strict upscale for version 3.
-            elseif (!$upscale && $sizePercentage > 100 && $versionIsGreaterOrEqual3) {
-                $this->_view->setVariable('message', sprintf(
-                    $this->translate('The Image server cannot fulfill the request: the size "%s" is incorrect for api version %s.'), // @translate
-                    $size,
-                    $this->requestedApiVersion
-                ));
-                return null;
+                // TODO Manage upscaling.
+                $transform['size'] = [
+                    'feature' => 'max',
+                    'upscale' => $upscale,
+                    'width' => $transform['region']['width'],
+                    'height' => $transform['region']['height'],
+                ];
             }
             // Normal size.
             else {
-                $transform['size']['feature'] = 'sizeByPct';
-                $transform['size']['percentage'] = $sizePercentage;
+                $transform['size'] = [
+                    'feature' => 'sizeByWh',
+                    'upscale' => $upscale,
+                    'width' => (int) ($transform['region']['width'] * $sizePercentage / 100),
+                    'height' => (int) ($transform['region']['height'] * $sizePercentage / 100),
+                ];
+                // TODO Manage max upscale.
             }
         }
 
-        // Warning: "sizeByWh" has not the same meaning in api 2 and api 3.
-        // In api 2, it preserves aspect ratio, but not in api 3 (use
-        // "sizeByConfinedWh" instead).
-        // Anyway, it's just used as an internal convention here, only to have
-        // the same meaning in image server.
-
-        // "!w,h": sizeByWh / sizeByConfinedWh (keep ratio).
+        // "!w,h": sizeByConfinedWh (keep ratio), with or without upscale.
         elseif (strpos($size, '!') === 0 || strpos($size, '^!') === 0) {
             $pos = strpos($size, ',');
             $destinationWidth = (int) substr($size, $upscale ? 2 : 1, $pos);
             $destinationHeight = (int) substr($size, $pos + 1);
             if (empty($destinationWidth) || empty($destinationHeight)) {
-                $this->_view->setVariable('message', sprintf(
-                    $this->translate('The Image server cannot fulfill the request: the size "%s" is incorrect.'), // @translate
-                    $size
-                ));
+                $this->_view->setVariable('message', (new PsrMessage(
+                    'The Image server cannot fulfill the request: the size "{size}" is incorrect.', // @translate
+                    ['size' => $size]
+                ))->setTranslator($this->translator()));
                 return null;
             }
 
@@ -481,68 +704,67 @@ class ImageController extends AbstractActionController
             if (($destinationWidth >= $transform['region']['width'] && $destinationHeight == $transform['region']['height'])
                 || ($destinationWidth == $transform['region']['width'] && $destinationHeight >= $transform['region']['height'])
             ) {
-                $transform['size']['feature'] = 'max';
-            }
-            // Check strict upscale for version 3.
-            elseif (!$upscale && $versionIsGreaterOrEqual3
-                && ($destinationWidth > $transform['region']['width'] || $destinationHeight > $transform['region']['height'])
-            ) {
-                $this->_view->setVariable('message', sprintf(
-                    $this->translate('The Image server cannot fulfill the request: the size "%s" is incorrect for api version %s.'), // @translate
-                    $size,
-                    $this->requestedApiVersion
-                ));
-                return null;
-            }
-            // Upscaled size.
-            elseif ($destinationWidth > $transform['region']['width'] && $destinationHeight > $transform['region']['height']) {
-                $transform['size']['feature'] = 'sizeByConfinedWh';
-                $transform['size']['width'] = $destinationWidth;
-                $transform['size']['height'] = $destinationHeight;
-            }
-            // Normal size.
-            else {
-                $transform['size']['feature'] = 'sizeByWh';
-                $transform['size']['width'] = $destinationWidth;
-                $transform['size']['height'] = $destinationHeight;
+                $transform['size'] = [
+                    'feature' => 'max',
+                    'upscale' => $upscale,
+                    'width' => $transform['region']['width'],
+                    'height' => $transform['region']['height'],
+                ];
+            } else {
+                $pctWidth = $transform['region']['width'] / $destinationWidth;
+                $pctHeight = $transform['region']['height'] / $destinationHeight;
+                if ($pctWidth > $pctHeight) {
+                    $transform['size'] = [
+                        'feature' => 'sizeByConfinedWh',
+                        'upscale' => $upscale,
+                        'width' => (int) ($transform['region']['width'] * $pctHeight),
+                        'height' => $destinationHeight,
+                    ];
+                } elseif ($pctWidth < $pctHeight) {
+                    $transform['size'] = [
+                        'feature' => 'sizeByConfinedWh',
+                        'upscale' => $upscale,
+                        'width' => $destinationWidth,
+                        'height' => (int) ($transform['region']['height'] * $pctWidth),
+                    ];
+                } else {
+                    $transform['size'] = [
+                        'feature' => 'sizeByConfinedWh',
+                        'upscale' => $upscale,
+                        'width' => $destinationWidth,
+                        'height' => $destinationHeight,
+                    ];
+                }
             }
         }
 
-        // "w,h", "w," or ",h".
+        // "w,h" (no ratio check), "w," or ",h" (keep ratio) with upscale or not.
         else {
             $pos = strpos($size, ',');
             $destinationWidth = (int) substr($size, $upscale ? 1 : 0, $pos);
             $destinationHeight = (int) substr($size, $pos + 1);
             if (empty($destinationWidth) && empty($destinationHeight)) {
-                $this->_view->setVariable('message', sprintf(
-                    $this->translate('The Image server cannot fulfill the request: the size "%s" is incorrect.'), // @translate
-                    $size
-                ));
+                $this->_view->setVariable('message', (new PsrMessage(
+                    'The Image server cannot fulfill the request: the size "%s" is incorrect.', // @translate
+                    ['size' => $size]
+                ))->setTranslator($this->translator()));
                 return null;
             }
 
-            if (!$upscale && $versionIsGreaterOrEqual3
-                && ($destinationWidth > $transform['region']['width'] || $destinationHeight > $transform['region']['height'])
-            ) {
-                $this->_view->setVariable('message', sprintf(
-                    $this->translate('The Image server cannot fulfill the request: the size "%s" is incorrect for api version %s.'), // @translate
-                    $size,
-                    $this->requestedApiVersion
-                ));
-                return null;
-            }
-
-            // "w,h": sizeByWhListed or sizeByForcedWh.
+            // "w,h": sizeByWhListed or sizeByForcedWh (no ratio check).
             if ($destinationWidth && $destinationHeight) {
                 // Check the size only if the region is full, else it's forced.
                 if ($transform['region']['feature'] == 'full') {
                     $availableTypes = ['square', 'medium', 'large', 'original'];
                     foreach ($availableTypes as $imageType) {
-                        $filepath = $this->_getImagePath($media, $imageType);
+                        $filepath = $this->getImagePath($media, $imageType);
                         if ($filepath) {
                             $imageSize = $this->imageSize($media, $imageType);
                             if ($destinationWidth == $imageSize['width'] && $destinationHeight == $imageSize['height']) {
                                 $transform['size']['feature'] = 'max';
+                                $transform['size']['upscale'] = $upscale;
+                                $transform['size']['width'] = $destinationWidth;
+                                $transform['size']['height'] = $destinationHeight;
                                 // Change the source file to avoid a transformation.
                                 // TODO Check the format?
                                 if ($imageType != 'original') {
@@ -562,43 +784,67 @@ class ImageController extends AbstractActionController
                     }
                 }
                 if (empty($transform['size']['feature'])) {
-                    $transform['size']['feature'] = 'sizeByForcedWh';
-                    $transform['size']['width'] = $destinationWidth;
-                    $transform['size']['height'] = $destinationHeight;
+                    $transform['size'] = [
+                        'feature' => 'sizeByForcedWh',
+                        'upscale' => $upscale,
+                        'width' => $destinationWidth,
+                        'height' => $destinationHeight,
+                    ];
                 }
             }
 
-            // "w,": sizeByW.
+            // "w,": sizeByW (keep ratio).
             elseif ($destinationWidth && empty($destinationHeight)) {
-                $transform['size']['feature'] = 'sizeByW';
-                $transform['size']['width'] = $destinationWidth;
+                $pctWidth = $transform['region']['width'] / $destinationWidth;
+                $transform['size'] = [
+                    'feature' => 'sizeByW',
+                    'upscale' => $upscale,
+                    'width' => $destinationWidth,
+                    'height' => (int) ($transform['region']['height'] * $pctWidth),
+                ];
             }
 
-            // ",h": sizeByH.
+            // ",h": sizeByH (keep ratio).
             elseif (empty($destinationWidth) && $destinationHeight) {
-                $transform['size']['feature'] = 'sizeByH';
-                $transform['size']['height'] = $destinationHeight;
+                $pctHeight = $transform['region']['height'] / $destinationHeight;
+                $transform['size'] = [
+                    'feature' => 'sizeByH',
+                    'upscale' => $upscale,
+                    'width' => (int) ($transform['region']['width'] * $pctHeight),
+                    'height' => $destinationHeight,
+                ];
             }
 
             // Not supported.
             else {
-                $this->_view->setVariable('message', sprintf(
-                    $this->translate('The Image server cannot fulfill the request: the size "%s" is not supported.'), // @translate
-                    $size
-                ));
+                $this->_view->setVariable('message', (new PsrMessage(
+                    'The Image server cannot fulfill the request: the size "{size}" is not supported.', // @translate
+                    ['size' => $size]
+                ))->setTranslator($this->translator()));
                 return null;
             }
+        }
 
-            // A quick check to avoid a possible transformation.
-            if (isset($transform['size']['width']) && empty($transform['size']['width'])
-                || isset($transform['size']['height']) && empty($transform['size']['height'])
-            ) {
-                $this->_view->setVariable('message', sprintf(
-                    $this->translate('The Image server cannot fulfill the request: the size "%s" is not supported.'), // @translate
-                    $size
-                ));
-                return null;
-            }
+        // Check sizes to avoid a possible issue.
+        if ($transform['size']['width'] <= 0
+            || $transform['size']['height'] <= 0
+        ) {
+            $this->_view->setVariable('message', (new PsrMessage(
+                'The Image server cannot fulfill the request: the size "{size}" is invalid.', // @translate
+                ['size' => $size]
+            ))->setTranslator($this->translator()));
+            return null;
+        }
+
+        // Check strict upscale of api v3.
+        if (!$upscale && $versionIsGreaterOrEqual3
+            && ($destinationWidth > $transform['region']['width'] || $destinationHeight > $transform['region']['height'])
+        ) {
+            $this->_view->setVariable('message', (new PsrMessage(
+                'The Image server cannot fulfill the request: the region "{region}" or size "{size}" is incorrect for api version {version}.', // @translate
+                ['region' => $region, 'size' => $size, 'version' => $this->requestedApiVersion]
+            ))->setTranslator($this->translator()));
+            return null;
         }
 
         // Determine the mirroring and the rotation.
@@ -651,10 +897,10 @@ class ImageController extends AbstractActionController
             /** @var \ImageServer\ImageServer\AbstractImager $imager */
             $imager = $this->imageServer()->getImager();
             if (!$imager->checkExtension($format)) {
-                $this->_view->setVariable('message', sprintf(
-                    $this->translate('The Image server cannot fulfill the request: the format "%s" is not supported.'), // @translate
-                    $format
-                ));
+                $this->_view->setVariable('message', (new PsrMessage(
+                    'The Image server cannot fulfill the request: the format "{format}" is not supported.', // @translate
+                    ['format' => $format]
+                ))->setTranslator($this->translator()));
                 return null;
             }
             $transform['format']['feature'] = $imager->getMediaTypeFromExtension($format);
@@ -677,7 +923,7 @@ class ImageController extends AbstractActionController
      * @return array|null Associative array with the file path, the derivative
      * type, the width and the height. Null if none.
      */
-    protected function _useOmekaDerivative(MediaRepresentation $media, array $transform): ?array
+    protected function useOmekaDerivative(MediaRepresentation $media, array $transform): ?array
     {
         // Some requirements to get tiles.
         if ($transform['region']['feature'] != 'full') {
@@ -748,7 +994,7 @@ class ImageController extends AbstractActionController
         }
 
         if ($useDerivativePath) {
-            $derivativePath = $this->_getImagePath($media, $derivativeType);
+            $derivativePath = $this->getImagePath($media, $derivativeType);
 
             return [
                 'filepath' => $derivativePath,
@@ -772,7 +1018,7 @@ class ImageController extends AbstractActionController
      * @return array|null Associative array with the file path, the derivative
      * type, the width and the height. Null if none.
      */
-    protected function _usePreTiled(MediaRepresentation $media, array $transform): ?array
+    protected function usePreTiled(MediaRepresentation $media, array $transform): ?array
     {
         $tileInfo = $this->tileMediaInfo($media);
         return $tileInfo
@@ -780,7 +1026,7 @@ class ImageController extends AbstractActionController
             : null;
     }
 
-    protected function _mediaPath(MediaRepresentation $media, string $imageType = 'original'): string
+    protected function mediaPath(MediaRepresentation $media, string $imageType = 'original'): string
     {
         $storagePath = $imageType == 'original'
             ? $this->getStoragePath($imageType, $media->filename())
@@ -800,12 +1046,11 @@ class ImageController extends AbstractActionController
      * @param MediaRepresentation $media
      * @param string $imageType
      * @return string|null Null if not exists.
-     * @see \ImageServer\View\Helper\IiifInfo::_getImagePath()
      */
-    protected function _getImagePath(MediaRepresentation $media, string $imageType = 'original'): ?string
+    protected function getImagePath(MediaRepresentation $media, string $imageType = 'original'): ?string
     {
         return strpos($media->mediaType(), 'image/') === 0
-            ? $this->_mediaPath($media, $imageType)
+            ? $this->mediaPath($media, $imageType)
             : null;
     }
 }

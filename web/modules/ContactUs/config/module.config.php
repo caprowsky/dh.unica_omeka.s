@@ -32,32 +32,30 @@ return [
     'block_layouts' => [
         'invokables' => [
             'contactUs' => Site\BlockLayout\ContactUs::class,
+            'newsletter' => Site\BlockLayout\Newsletter::class,
+        ],
+    ],
+    'resource_page_block_layouts' => [
+        'invokables' => [
+            'contactUs' => Site\ResourcePageBlockLayout\ContactUs::class,
         ],
     ],
     'form_elements' => [
         'invokables' => [
             Form\ContactUsFieldset::class => Form\ContactUsFieldset::class,
+            Form\NewsletterFieldset::class => Form\NewsletterFieldset::class,
             Form\SettingsFieldset::class => Form\SettingsFieldset::class ,
             Form\SiteSettingsFieldset::class => Form\SiteSettingsFieldset::class,
         ],
         'factories' => [
             Form\ContactUsForm::class => Service\Form\FormFactory::class,
+            Form\NewsletterForm::class => Service\Form\FormFactory::class,
         ],
     ],
     'controllers' => [
-        'invokables' => [
-            'ContactUs\Controller\Admin\ContactMessage' => Controller\Admin\ContactMessageController::class,
-        ],
-    ],
-    'navigation' => [
-        'AdminModule' => [
-            'contact-us' => [
-                'label' => 'Contact messages', // @translate
-                'class' => 'contact-messages far fa-envelope',
-                'route' => 'admin/contact-message',
-                'resource' => 'ContactUs\Controller\Admin\ContactMessage',
-                'privilege' => 'browse',
-            ],
+        'factories' => [
+            'ContactUs\Controller\Zip' => Service\Controller\ZipControllerFactory::class,
+            'ContactUs\Controller\Admin\ContactMessage' => Service\Controller\ContactMessageControllerFactory::class,
         ],
     ],
     'router' => [
@@ -105,6 +103,31 @@ return [
                     ],
                 ],
             ],
+            'contact-us' => [
+                'type' => \Laminas\Router\Http\Segment::class,
+                'options' => [
+                    'route' => '/contact-us/zip/:id',
+                    'constraints' => [
+                        'id' => '\d+\.[a-zA-Z0-9]+',
+                    ],
+                    'defaults' => [
+                        '__NAMESPACE__' => 'ContactUs\Controller',
+                        'controller' => 'Zip',
+                        'action' => 'index',
+                    ],
+                ],
+            ],
+        ],
+    ],
+    'navigation' => [
+        'AdminModule' => [
+            'contact-us' => [
+                'label' => 'Contact messages', // @translate
+                'class' => 'o-icon- contact-messages fa-envelope',
+                'route' => 'admin/contact-message',
+                'resource' => 'ContactUs\Controller\Admin\ContactMessage',
+                'privilege' => 'browse',
+            ],
         ],
     ],
     'translator' => [
@@ -117,11 +140,17 @@ return [
             ],
         ],
     ],
+    'js_translate_strings' => [
+        'The contact message doesn’t exist.', // @translate
+    ],
     'contactus' => [
         'settings' => [
             'contactus_notify_recipients' => [],
-            'contactus_author' => '',
+            'contactus_author' => 'disabled',
             'contactus_author_only' => false,
+            'contactus_send_with_user_email' => false,
+            'contactus_create_zip' => 'original',
+            'contactus_delete_zip' => 30,
         ],
         'site_settings' => [
             'contactus_notify_recipients' => [],
@@ -157,6 +186,12 @@ Your message:
 Subject: {subject}
 
 {message}', // @translate
+            'contactus_confirmation_newsletter_subject' => 'Subscription to newsletter of {main_title}', // @translate
+            'contactus_confirmation_newsletter_body' => 'Hi,
+
+Thank you for subscribing to our newsletter.
+
+Sincerely,', // @translate
             'contactus_to_author_subject' => 'Message to the author', // @translate
             'contactus_to_author_body' => 'Hi {user_name},
 
@@ -195,6 +230,8 @@ Subject: {subject}
                 'How many are three plus 3 (in number)?' // @translate
                     => '6',
             ],
+            'contactus_append_resource_show' => [],
+            'contactus_append_items_browse' => false,
         ],
         'block_settings' => [
             'contactUs' => [
@@ -205,7 +242,18 @@ Subject: {subject}
                 'consent_label' => 'I allow the site owner to store my name and my email to answer to this message.', // @translate
                 'newsletter' => false,
                 'newsletter_label' => 'Subscribe to the newsletter', // @translate
+                'fields' => [],
                 'attach_file' => false,
+                'antispam' => true,
+                'questions' => [],
+                'template' => '',
+            ],
+            'newsletter' => [
+                'heading' => null,
+                'confirmation_enabled' => true,
+                'confirmation_subject' => '',
+                'confirmation_body' => '',
+                'consent_label' => 'I allow the site owner to store my name and my email to answer to this message.', // @translate
                 'antispam' => true,
                 'questions' => [],
                 'template' => '',

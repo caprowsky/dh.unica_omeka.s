@@ -5,6 +5,7 @@ namespace BulkImport\Controller\Admin;
 use Laminas\Http\Response;
 use Laminas\Mvc\Controller\AbstractActionController;
 use Laminas\View\Model\JsonModel;
+use Laminas\View\Model\ViewModel;
 use Omeka\File\TempFileFactory;
 use Omeka\File\Validator;
 use Omeka\Stdlib\ErrorStore;
@@ -56,13 +57,10 @@ class UploadController extends AbstractActionController
 
         $user = $this->identity();
         if (!$user) {
-            $response = $this->getResponse();
-            $response->setStatusCode(Response::STATUS_CODE_403);
-            return new JsonModel([
-                'status' => self::STATUS_ERROR,
-                'message' => $this->translate('User not authenticated.'), // @translate
-                'code' => Response::STATUS_CODE_403,
-            ]);
+            return $this->jsonError(
+                $this->translate('User not authenticated.'), // @translate
+                Response::STATUS_CODE_403
+            );
         }
 
         /** @var \Laminas\Http\Request $request */
@@ -72,26 +70,20 @@ class UploadController extends AbstractActionController
         /** @var \Laminas\View\Helper\ServerUrl $serverUrl */
         $serverUrl = $this->viewHelpers()->get('ServerUrl');
         if ($serverUrl->getHost() !== ($headers['Host'] ?? null)) {
-            $response = $this->getResponse();
-            $response->setStatusCode(Response::STATUS_CODE_403);
-            return new JsonModel([
-                'status' => self::STATUS_ERROR,
-                'message' => $this->translate('The request must originate from the server.'), // @translate
-                'code' => Response::STATUS_CODE_403,
-            ]);
+            return $this->jsonError(
+                $this->translate('The request must originate from the server.'), // @translate
+                Response::STATUS_CODE_403
+            );
         }
 
         // Check csrf for security.
         $form = $this->getForm(\Omeka\Form\ResourceForm::class);
         $form->setData(['csrf' => $headers['X-Csrf'] ?? null]);
         if (!$form->isValid()) {
-            $response = $this->getResponse();
-            $response->setStatusCode(Response::STATUS_CODE_403);
-            return new JsonModel([
-                'status' => self::STATUS_ERROR,
-                'message' => $this->translate('Invalid or missing CSRF token'), // @translate
-                'code' => Response::STATUS_CODE_403,
-            ]);
+            return $this->jsonError(
+                $this->translate('Expired, invalid or missing CSRF token.'), // @translate
+                Response::STATUS_CODE_403
+            );
         }
 
         // Processing the chunk.
@@ -109,31 +101,37 @@ class UploadController extends AbstractActionController
             . '_' . $flowRequest->getFileName();
         $destination = $this->tempDir . DIRECTORY_SEPARATOR . $uploadFileName;
 
-        $file = new \Flow\File($flowConfig, $flowRequest);
-        if ($request->isGet()) {
-            if ($file->checkChunk()) {
-                // Nothing to do here.
+        try {
+            $file = new \Flow\File($flowConfig, $flowRequest);
+            if ($request->isGet()) {
+                if ($file->checkChunk()) {
+                    // Nothing to do here.
+                } else {
+                    // The 204 response MUST NOT include a message-body, and
+                    // thus is always terminated by the first empty line after
+                    // the header fields.
+                    $this->getResponse()
+                        ->setStatusCode(Response::STATUS_CODE_204);
+                    // Don't use view model, there is no template.
+                    return (new JsonModel())
+                        ->setTerminal(true);
+                }
             } else {
-                // The 204 response MUST NOT include a message-body, and
-                // thus is always terminated by the first empty line after
-                // the header fields.
-                $this->getResponse()
-                    ->setStatusCode(Response::STATUS_CODE_204);
-                // Don't use view model, there is no template.
-                return (new JsonModel())
-                    ->setTerminal(true);
+                if ($file->validateChunk()) {
+                    $file->saveChunk();
+                } else {
+                    // Error, invalid chunk upload request, retry.
+                    $this->getResponse()
+                        ->setStatusCode(Response::STATUS_CODE_400);
+                    // Don't use view model, there is no template.
+                    return (new JsonModel())
+                        ->setTerminal(true);
+                }
             }
-        } else {
-            if ($file->validateChunk()) {
-                $file->saveChunk();
-            } else {
-                // Error, invalid chunk upload request, retry.
-                $this->getResponse()
-                    ->setStatusCode(Response::STATUS_CODE_400);
-                // Don't use view model, there is no template.
-                return (new JsonModel())
-                    ->setTerminal(true);
-            }
+        } catch (\Exception $e) {
+            $this->logger()->err($e);
+            return (new JsonModel())
+                ->setTerminal(true);
         }
 
         // Check if this is the last chunk.
@@ -149,45 +147,37 @@ class UploadController extends AbstractActionController
         $allowEmptyFiles = (bool) $this->settings()->get('bulkimport_allow_empty_files', false);
         $filesize = filesize($destination);
         if (!$filesize && !$allowEmptyFiles) {
-            $response = $this->getResponse();
-            $response->setStatusCode(Response::STATUS_CODE_412);
-            return new JsonModel([
-                'status' => self::STATUS_ERROR,
-                'message' => $this->translate('The file is empty.'), // @translate
-                'code' => Response::STATUS_CODE_412,
-            ]);
+            return $this->jsonError(
+                $this->translate('The file is empty.'), // @translate
+                Response::STATUS_CODE_412
+            );
         }
 
         $filename = (string) $flowRequest->getFileName();
         if (strlen($filename) < 3 || strlen($filename) > 200) {
-            $response = $this->getResponse();
-            $response->setStatusCode(Response::STATUS_CODE_412);
-            return new JsonModel([
-                'status' => self::STATUS_ERROR,
-                'message' => $this->translate('Filename too much short or long.'), // @translate
-                'code' => Response::STATUS_CODE_412,
-            ]);
+            return $this->jsonError(
+                $this->translate('Filename too much short or long.'), // @translate
+                Response::STATUS_CODE_412
+            );
         }
 
-        if (substr($filename, 0, 1) === '.' || strpos($filename, '/') !== false) {
-            $response = $this->getResponse();
-            $response->setStatusCode(Response::STATUS_CODE_412);
-            return new JsonModel([
-                'status' => self::STATUS_ERROR,
-                'message' => $this->translate('Filename contains forbidden characters.'), // @translate
-                'code' => Response::STATUS_CODE_412,
-            ]);
+        if (substr($filename, 0, 1) === '.'
+            || strpos($filename, '/') !== false
+            || strpos($filename, '$') !== false
+            || strpos($filename, '`') !== false
+        ) {
+            return $this->jsonError(
+                $this->translate('Filename contains forbidden characters.'), // @translate
+                Response::STATUS_CODE_412
+            );
         }
 
         $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
         if (!strlen($extension)) {
-            $response = $this->getResponse();
-            $response->setStatusCode(Response::STATUS_CODE_412);
-            return new JsonModel([
-                'status' => self::STATUS_ERROR,
-                'message' => $this->translate('Filename has no extension.'), // @translate
-                'code' => Response::STATUS_CODE_412,
-            ]);
+            return $this->jsonError(
+                $this->translate('Filename has no extension.'), // @translate
+                Response::STATUS_CODE_412
+            );
         }
 
         $filepath = $destination;
@@ -199,22 +189,59 @@ class UploadController extends AbstractActionController
         if ($validateFile) {
             $errorStore = new ErrorStore();
             if (!$this->validator->validate($tempFile, $errorStore)) {
-                $response = $this->getResponse();
-                $response->setStatusCode(Response::STATUS_CODE_415);
                 @unlink($filepath);
                 $errors = $errorStore->getErrors();
                 $errors = reset($errors);
                 $error = is_array($errors) ? reset($errors) : $errors;
-                return new JsonModel([
-                    'status' => self::STATUS_ERROR,
-                    'message' => $this->translate($error),
-                    'code' => Response::STATUS_CODE_415,
-                ]);
+                return $this->jsonError(
+                    $this->translate($error),
+                    Response::STATUS_CODE_415
+                );
             }
         }
 
+        $isBulkImport = !empty($headers['X-Is-Bulk-Import']);
+        if ($isBulkImport) {
+            $localPath = $this->settings()->get('bulkimport_local_path');
+            if (!$localPath) {
+                return $this->jsonError(
+                    $this->translate('Local path is not configured.'), // @translate
+                    Response::STATUS_CODE_500
+                );
+            }
+            $localPath = $this->checkDestinationDir($localPath);
+            if (!$localPath) {
+                return $this->jsonError(
+                    $this->translate('Local path is not writeable.'), // @translate
+                    Response::STATUS_CODE_500
+                );
+            }
+            $newDestination = rtrim($localPath, '//') . '/' . $filename;
+            $fileExists = file_exists($newDestination);
+            if ($fileExists) {
+                if (!is_writeable($newDestination)) {
+                    return $this->jsonError(
+                        $this->translate('A file with the same name exists and is not writeable.'), // @translate
+                        Response::STATUS_CODE_500
+                    );
+                }
+                $isFileDifferent = filesize($destination) !== filesize($newDestination)
+                    || sha1_file($destination) !== sha1_file($newDestination);
+            }
+            $result = rename($destination, $newDestination);
+            if (!$result) {
+                return $this->jsonError(
+                    $this->translate('An error occurred when storing file.'), // @translate
+                    Response::STATUS_CODE_500
+                );
+            }
+        }
+
+        // Default files used to keep place in temp directory are not removed.
+        $this->cleanTempDirectory();
+
         // Return the data about the file for next step.
-        return new JsonModel([
+        $output = [
             'status' => self::STATUS_SUCCESS,
             'data' => [
                 'file' => [
@@ -225,6 +252,113 @@ class UploadController extends AbstractActionController
                     'size' => $filesize,
                 ],
             ],
+        ];
+        if ($isBulkImport && !empty($fileExists) && !empty($isFileDifferent)) {
+            $output['message'] = $this->translate('An existing file was overridden.'); // @translate
+        }
+        return new JsonModel($output);
+    }
+
+    public function filesAction()
+    {
+        // Check omeka setting for files.
+        $settings = $this->settings();
+        if ($settings->get('disable_file_validation', false)) {
+            $allowedMediaTypes = '';
+            $allowedExtensions = '';
+        } else {
+            $allowedMediaTypes = $settings->get('media_type_whitelist', []);
+            $allowedExtensions = $settings->get('extension_whitelist', []);
+            $allowedMediaTypes = implode(',', $allowedMediaTypes);
+            $allowedExtensions = implode(',', $allowedExtensions);
+        }
+
+        $allowEmptyFiles = (bool) $settings->get('bulkimport_allow_empty_files', false);
+
+        $data = [
+            // This option allows to manage resource form and bulk upload form.
+            'data-bulk-upload' => true,
+            'data-csrf' => (new \Laminas\Form\Element\Csrf('csrf'))->getValue(),
+            'data-allowed-media-types' => $allowedMediaTypes,
+            'data-allowed-extensions' => $allowedExtensions,
+            'data-allow-empty-files' => (int) $allowEmptyFiles,
+            'data-translate-pause' => $this->translate('Pause'), // @translate
+            'data-translate-resume' => $this->translate('Resume'), // @translate
+            'data-translate-no-file' => $this->translate('No files currently selected for upload'), // @translate
+            'data-translate-invalid-file' => $allowEmptyFiles
+                ? $this->translate('Not a valid file type or extension. Update your selection.') // @translate
+                : $this->translate('Not a valid file type, extension or size. Update your selection.'), // @translate
+            'data-translate-unknown-error' => $this->translate('An issue occurred.'), // @translate
+        ];
+
+        return new ViewModel([
+            'data' => $data,
         ]);
+    }
+
+    protected function jsonError(string $message, int $statusCode = 400)
+    {
+        $response = $this->getResponse();
+        $response->setStatusCode($statusCode);
+        return new JsonModel([
+            'status' => self::STATUS_ERROR,
+            'message' => $message,
+            'code' => $statusCode,
+        ]);
+    }
+
+    /**
+     * Check or create the destination folder.
+     *
+     * @param string $dirPath Absolute path.
+     * @return string|null
+     */
+    protected function checkDestinationDir(string $dirPath): ?string
+    {
+        if (file_exists($dirPath)) {
+            if (!is_dir($dirPath) || !is_readable($dirPath) || !is_writeable($dirPath)) {
+                $this->getServiceLocator()->get('Omeka\Logger')->err(
+                    'The directory "{path}" is not writeable.', // @translate
+                    ['path' => $dirPath]
+                );
+                return null;
+            }
+            return $dirPath;
+        }
+
+        $result = @mkdir($dirPath, 0775, true);
+        if (!$result) {
+            $this->getServiceLocator()->get('Omeka\Logger')->err(
+                'The directory "{path}" is not writeable: {error}.', // @translate
+                ['path' => $dirPath, 'error' => error_get_last()['message']]
+            );
+            return null;
+        }
+        return $dirPath;
+    }
+
+    protected function cleanTempDirectory()
+    {
+        if (!$this->tempDir) {
+            return;
+        }
+        $fileSystemIterator = new \FilesystemIterator($this->tempDir);
+        $threshold = strtotime('-40 day');
+        /** @var \SplFileInfo $file */
+        foreach ($fileSystemIterator as $file) {
+            $filename = $file->getFilename();
+            if ($file->isFile()
+                && $file->isWritable()
+                && $file->getCTime() <= $threshold
+                && (
+                    // Remove any old placeholder.
+                    !$file->getSize()
+                    // Remove all old omeka temp files.
+                    || (mb_substr($filename, 0, 5) === 'omeka' || mb_substr($filename, 0, 4) === 'omk_')
+                )
+            ) {
+                @unlink($this->tempDir . '/' . $file->getFilename());
+            }
+        }
     }
 }
