@@ -5,7 +5,7 @@
  * Add groups to users and resources to manage the access rights and the
  * resource visibility in a more flexible way.
  *
- * @copyright Daniel Berthereau, 2017-2023
+ * @copyright Daniel Berthereau, 2017-2025
  * @license http://www.cecill.info/licences/Licence_CeCILL_V2.1-en.txt
  *
  * This software is governed by the CeCILL license under French law and abiding
@@ -33,14 +33,13 @@
  */
 namespace Group;
 
-if (!class_exists(\Generic\AbstractModule::class)) {
-    require file_exists(dirname(__DIR__) . '/Generic/AbstractModule.php')
-        ? dirname(__DIR__) . '/Generic/AbstractModule.php'
-        : __DIR__ . '/src/Generic/AbstractModule.php';
+if (!class_exists(\Common\TraitModule::class)) {
+    require_once dirname(__DIR__) . '/Common/TraitModule.php';
 }
 
+use Common\Stdlib\PsrMessage;
+use Common\TraitModule;
 use Doctrine\ORM\Events;
-use Generic\AbstractModule;
 use Group\Controller\Admin\GroupController;
 use Group\Db\Event\Listener\DetachOrphanGroupEntities;
 use Group\Entity\Group;
@@ -66,6 +65,7 @@ use Omeka\Entity\ItemSet;
 use Omeka\Entity\Media;
 use Omeka\Entity\Resource;
 use Omeka\Entity\User;
+use Omeka\Module\AbstractModule;
 
 /**
  * Group
@@ -74,6 +74,8 @@ use Omeka\Entity\User;
  */
 class Module extends AbstractModule
 {
+    use TraitModule;
+
     const NAMESPACE = __NAMESPACE__;
 
     public function onBootstrap(MvcEvent $event): void
@@ -82,11 +84,26 @@ class Module extends AbstractModule
         $this->addAclRules();
 
         // Allows to manage batch processes.
+        // TODO Remove the fix to detach orphan groups that may be useless since Omeka S v2.0.
         $entityManager = $this->getServiceLocator()->get('Omeka\EntityManager');
         $entityManager->getEventManager()->addEventListener(
             Events::preFlush,
             new DetachOrphanGroupEntities
         );
+    }
+
+    protected function preInstall(): void
+    {
+        $services = $this->getServiceLocator();
+        $translate = $services->get('ControllerPluginManager')->get('translate');
+
+        if (!method_exists($this, 'checkModuleActiveVersion') || !$this->checkModuleActiveVersion('Common', '3.4.65')) {
+            $message = new \Omeka\Stdlib\Message(
+                $translate('The module %1$s should be upgraded to version %2$s or later.'), // @translate
+                'Common', '3.4.65'
+            );
+            throw new \Omeka\Module\Exception\ModuleCannotInstallException((string) $message);
+        }
     }
 
     /**
@@ -173,6 +190,7 @@ class Module extends AbstractModule
 
         // Bypass the core filter for media (detach two events of Omeka\Module).
         // The listeners can't be cleared without a module weighting system.
+        // TODO Check if this fix is still needed with last versions of Omeka, were module are loaded alphabetically.
         $listeners = $sharedEventManager->getListeners([MediaAdapter::class], 'api.search.query');
         $sharedEventManager->detach(
             [$listeners[1][0][0], 'filterMedia'],
@@ -362,6 +380,7 @@ class Module extends AbstractModule
             'Omeka\Controller\Admin\ItemSet',
             'Omeka\Controller\Admin\Item',
             'Omeka\Controller\Admin\Media',
+            'Omeka\Controller\Admin\Query',
         ];
         foreach ($controllers as $controller) {
             // Add the show groups to the browse admin pages (details).
@@ -1040,42 +1059,36 @@ class Module extends AbstractModule
     {
         $services = $this->getServiceLocator();
         $config = $services->get('Config');
-        $translator = $services->get('MvcTranslator');
         $messenger = $services->get('ControllerPluginManager')->get('messenger');
 
-        $message = new \Omeka\Stdlib\Message(
-            $translator->translate('The settings should be set in the file "config/local.config.php" of Omeka. See the file module.config.php of the module and readme.') // @translate
+        $message = new PsrMessage(
+            'The settings should be set in the file "config/local.config.php" of Omeka. See the file module.config.php of the module and readme.' // @translate
         );
         $messenger->addWarning($message);
 
         $recursiveItemSets = !empty($config['group']['config']['group_recursive_item_sets']);
-        $message = new \Omeka\Stdlib\Message(
-            $translator->translate('Recursive item sets: %s'), // @translate
-            $recursiveItemSets
-                ? $translator->translate('yes') // @translate
-               : $translator->translate('no') // @translate
-        );
+
+        $message = $recursiveItemSets
+            ? new PsrMessage('Recursive item sets: yes') // @translate
+            : new PsrMessage('Recursive item sets: no'); // @translate
         $messenger->addSuccess($message);
 
         if ($recursiveItemSets) {
-            $message = new \Omeka\Stdlib\Message(
-                $translator->translate('The groups for resources can be set only by item sets.') // @translate
+            $message = new PsrMessage(
+                'The groups for resources can be set only by item sets.' // @translate
             );
             $messenger->addSuccess($message);
         }
 
         $recursiveItems = !empty($config['group']['config']['group_recursive_items']);
-        $message = new \Omeka\Stdlib\Message(
-            $translator->translate('Recursive items: %s'), // @translate
-            $recursiveItems
-                ? $translator->translate('yes') // @translate
-                : $translator->translate('no') // @translate
-        );
+        $message = $recursiveItems
+            ? new PsrMessage('Recursive items: yes') // @translate
+            : new PsrMessage('Recursive items: no'); // @translate
         $messenger->addSuccess($message);
 
         if (!$recursiveItemSets && $recursiveItems) {
-            $message = new \Omeka\Stdlib\Message(
-                $translator->translate('The groups for medias can be set only at items level.') // @translate
+            $message = new PsrMessage(
+                'The groups for medias can be set only at items level.' // @translate
             );
             $messenger->addSuccess($message);
         }

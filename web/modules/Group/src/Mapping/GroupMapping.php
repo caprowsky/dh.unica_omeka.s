@@ -4,7 +4,6 @@ namespace Group\Mapping;
 
 use CSVImport\Mapping\AbstractMapping;
 use Laminas\View\Renderer\PhpRenderer;
-use Omeka\Stdlib\Message;
 
 class GroupMapping extends AbstractMapping
 {
@@ -31,9 +30,7 @@ class GroupMapping extends AbstractMapping
         foreach ($row as $index => $values) {
             if (array_key_exists($index, $multivalueMap) && strlen($multivalueMap[$index])) {
                 $values = explode($multivalueMap[$index], $values);
-                $values = array_map(function ($v) {
-                    return trim($v, "\t\n\r \u{a0}\u{202f}");
-                }, $values);
+                $values = array_map(fn ($v) => trim($v, "\t\n\r \u{a0}\u{202f}"), $values);
             } else {
                 $values = [$values];
             }
@@ -92,7 +89,10 @@ class GroupMapping extends AbstractMapping
         $response = $this->api->search('groups', [$isId ? 'id' : 'name' => $identifier]);
         $result = $response->getContent();
         if (empty($result)) {
-            $this->logger->err(new Message('"%s" is not a valid group.', $identifier)); // @translate
+            $this->logger->err(
+                '"{identifier}" is not a valid group.',  // @translate
+                ['identifier' => $identifier]
+            );
             $this->setHasErr(true);
             return false;
         }
