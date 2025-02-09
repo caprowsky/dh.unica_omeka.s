@@ -1,4 +1,5 @@
 <?php declare(strict_types=1);
+
 namespace Annotate\Api\Representation;
 
 use Annotate\Entity\AnnotationBody;
@@ -16,6 +17,21 @@ class AnnotationBodyRepresentation extends AbstractValueResourceEntityRepresenta
     public function getResourceJsonLdType()
     {
         return 'oa:hasBody';
+    }
+
+    public function purposes(): array
+    {
+        $result = [];
+        foreach ($this->value('oa:hasPurpose', ['all' => true]) as $value) {
+            $result[] = $value->value();
+        }
+        return $result;
+    }
+
+    public function purpose(): ?string
+    {
+        $value = $this->value('oa:hasPurpose');
+        return $value ? $value->value() : null;
     }
 
     public function displayTitle($default = null, $lang = null)

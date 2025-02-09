@@ -8,6 +8,7 @@ use Omeka\Form\UserBatchUpdateForm;
 use Omeka\Form\UserForm;
 use Omeka\Mvc\Exception;
 use Omeka\Stdlib\Message;
+use Laminas\Mail\Exception\ExceptionInterface as MailException;
 use Laminas\Mvc\Controller\AbstractActionController;
 use Laminas\View\Model\ViewModel;
 
@@ -35,7 +36,7 @@ class UserController extends AbstractActionController
 
     public function browseAction()
     {
-        $this->setBrowseDefaults('email', 'asc');
+        $this->browse()->setDefaults('users');
         $response = $this->api()->search('users', $this->params()->fromQuery());
         $this->paginator($response->getTotalResults());
 
@@ -100,6 +101,8 @@ class UserController extends AbstractActionController
             'include_admin_roles' => $changeRoleAdmin,
             'include_is_active' => $activateUser,
         ]);
+        $form->remove('user-settings');
+        $form->getInputFilter()->remove('user-settings');
 
         if ($this->getRequest()->isPost()) {
             $form->setData($this->params()->fromPost());
@@ -108,7 +111,12 @@ class UserController extends AbstractActionController
                 $response = $this->api($form)->create('users', $formData['user-information']);
                 if ($response) {
                     $user = $response->getContent()->getEntity();
-                    $this->mailer()->sendUserActivation($user);
+                    try {
+                        $this->mailer()->sendUserActivation($user);
+                    } catch (MailException $e) {
+                        $this->logger()->err((string) $e);
+                        $this->messenger()->addWarning('Unable to send user activation email.'); // @translate
+                    }
                     $message = new Message(
                         'User successfully created. %s', // @translate
                         sprintf(
@@ -137,6 +145,11 @@ class UserController extends AbstractActionController
         $readResponse = $this->api()->read('users', $id);
         $user = $readResponse->getContent();
         $userEntity = $user->getEntity();
+
+        if (!$this->userIsAllowed($userEntity, 'update')) {
+            throw new Exception\PermissionDeniedException;
+        }
+
         $currentUser = $userEntity === $this->identity();
         $keys = $userEntity->getKeys();
 
@@ -239,7 +252,7 @@ class UserController extends AbstractActionController
 
                 if ($keyPersisted) {
                     $message = new Message(
-                        'API key successfully created.<br><br>Here is your key ID and credential for access to the API. WARNING: "key_credential" will be unretrievable after you navigate away from this page.<br><br>key_identity: <code>%1$s</code><br>key_credential: <code>%2$s</code>', // @translate
+                        'API key successfully created.<br><br>Here is your key ID and credential for access to the API. WARNING: "key_credential" will be unretrievable after you navigate away from this page.<br><br><code>key_identity=%1$s</code><br><code>key_credential=%2$s</code>', // @translate
                         $keyId, $keyCredential
                     );
                     $message->setEscapeHtml(false);
@@ -437,9 +450,9 @@ class UserController extends AbstractActionController
                 $job = $this->jobDispatcher()->dispatch('Omeka\Job\BatchUpdate', [
                     'resource' => 'users',
                     'query' => $query,
-                    'data' => isset($data['replace']) ? $data['replace'] : [],
-                    'data_remove' => isset($data['remove']) ? $data['remove'] : [],
-                    'data_append' => isset($data['append']) ? $data['append'] : [],
+                    'data' => $data['replace'] ?? [],
+                    'data_remove' => $data['remove'] ?? [],
+                    'data_append' => $data['append'] ?? [],
                 ]);
 
                 $this->messenger()->addSuccess('Editing users. This may take a while.'); // @translate

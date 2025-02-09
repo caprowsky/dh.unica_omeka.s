@@ -9,7 +9,7 @@ use Laminas\Form\Element;
 use Laminas\Form\Form;
 use Laminas\View\Renderer\PhpRenderer;
 
-class BrowsePreview extends AbstractBlockLayout
+class BrowsePreview extends AbstractBlockLayout implements TemplateableBlockLayoutInterface
 {
     public function getLabel()
     {
@@ -20,7 +20,6 @@ class BrowsePreview extends AbstractBlockLayout
     {
         $view->headLink()->prependStylesheet($view->assetUrl('css/advanced-search.css', 'Omeka'));
         $view->headScript()->appendFile($view->assetUrl('js/advanced-search.js', 'Omeka'));
-        $view->headLink()->appendStylesheet($view->assetUrl('css/query-form.css', 'Omeka'));
         $view->headScript()->appendFile($view->assetUrl('js/query-form.js', 'Omeka'));
         $view->headScript()->appendFile($view->assetUrl('js/browse-preview-block-layout.js', 'Omeka'));
     }
@@ -124,7 +123,7 @@ class BrowsePreview extends AbstractBlockLayout
         return $view->formCollection($form);
     }
 
-    public function render(PhpRenderer $view, SitePageBlockRepresentation $block)
+    public function render(PhpRenderer $view, SitePageBlockRepresentation $block, $templateViewScript = 'common/block-layout/browse-preview')
     {
         $resourceType = $block->dataValue('resource_type', 'items');
 
@@ -140,9 +139,11 @@ class BrowsePreview extends AbstractBlockLayout
         $query['limit'] = $block->dataValue('limit', 12);
 
         if (!isset($query['sort_by'])) {
+            $query['sort_by_default'] = '';
             $query['sort_by'] = 'created';
         }
         if (!isset($query['sort_order'])) {
+            $query['sort_order_default'] = '';
             $query['sort_order'] = 'desc';
         }
 
@@ -162,7 +163,8 @@ class BrowsePreview extends AbstractBlockLayout
             'media' => 'media',
         ];
 
-        return $view->partial('common/block-layout/browse-preview', [
+        return $view->partial($templateViewScript, [
+            'block' => $block,
             'resourceType' => $resourceTypes[$resourceType],
             'resources' => $resources,
             'heading' => $block->dataValue('heading'),

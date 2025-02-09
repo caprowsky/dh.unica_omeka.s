@@ -21,7 +21,9 @@ class Module extends AbstractModule
 {
     const NAMESPACE = __NAMESPACE__;
 
-    protected $dependency = 'Log';
+    protected $dependencies = [
+        'Log',
+    ];
 
     public function init(ModuleManager $moduleManager): void
     {
@@ -55,20 +57,25 @@ class Module extends AbstractModule
 
     protected function preInstall(): void
     {
-        $js = __DIR__ . '/asset/vendor/flow.js/flow.min.js';
-        if (!file_exists($js)) {
-            $services = $this->getServiceLocator();
-            $t = $services->get('MvcTranslator');
-            throw new ModuleCannotInstallException(
-                sprintf(
-                    $t->translate('The library "%s" should be installed.'), // @translate
-                    'javascript'
-                ) . ' '
-                . $t->translate('See module’s installation documentation.') // @translate
+        $services = $this->getServiceLocator();
+
+        if (PHP_VERSION_ID < 70400) {
+            $message = new PsrMessage(
+                'Since version {version}, this module requires php 7.4.', // @translate
+                ['version' => '3.4.39']
             );
+            throw new ModuleCannotInstallException((string) $message);
         }
 
-        $config = $this->getServiceLocator()->get('Config');
+        $js = __DIR__ . '/asset/vendor/flow.js/flow.min.js';
+        if (!file_exists($js)) {
+            $message = new PsrMessage(
+                'The libraries should be installed. See module’s installation documentation.' // @translate
+            );
+            throw new ModuleCannotInstallException((string) $message);
+        }
+
+        $config = $services->get('Config');
         $basePath = $config['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
         if (!$this->checkDestinationDir($basePath . '/xsl')) {
             $message = new PsrMessage(
@@ -85,17 +92,6 @@ class Module extends AbstractModule
             );
             throw new ModuleCannotInstallException((string) $message);
         }
-
-        // TODO Re-enable the check when patch https://github.com/omeka-s-modules/CSVImport/pull/182 will be included.
-        /*
-        // The version of Box/Spout should be >= 3.0, but there is no version
-        // inside the library, so check against a class.
-        // This check is needed, because CSV Import still uses version 2.7.
-        if (class_exists(\Box\Spout\Reader\ReaderFactory::class)) {
-            $message = 'The dependency Box/Spout version should be >= 3.0. See readme.'; // @translate
-            throw new \Omeka\Module\Exception\ModuleCannotInstallException($message);
-        }
-        */
     }
 
     protected function postInstall(): void
@@ -151,6 +147,14 @@ class Module extends AbstractModule
         );
 
         // Manage the conversion of documents to html.
+        // Manage the extraction of medata from medias.
+        // The process should be done only for new medias, so keep the list
+        // of existing medias before processing.
+        $sharedEventManager->attach(
+            \Omeka\Api\Adapter\ItemAdapter::class,
+            'api.update.pre',
+            [$this, 'handleBeforeSaveItem'],
+        );
         $sharedEventManager->attach(
             \Omeka\Api\Adapter\ItemAdapter::class,
             'api.create.post',
@@ -261,6 +265,14 @@ class Module extends AbstractModule
             $listFiles = [];
             $hasError = false;
             foreach ($filesData['file'][$index] as $subIndex => $fileData) {
+                // The user selected "allow partial upload", so no data for this
+                // index.
+                if (empty($fileData)) {
+                    continue;
+                }
+                // Fix strict type issues in can of an issue on a file.
+                $fileData['name'] ??= '';
+                $fileData['tmp_name'] ??= '';
                 if (!empty($fileData['error'])) {
                     $errorStore->addError('upload', new PsrMessage(
                         'File #{index} "{filename}" has an error: {error}.',  // @translate
@@ -330,17 +342,61 @@ class Module extends AbstractModule
         $request->setContent($data);
     }
 
+    /**
+     * Store ids of existing medias to avoid to process them twice.
+     */
+    public function handleBeforeSaveItem(Event $event): void
+    {
+        /**
+         * @var \Omeka\Api\Request $request
+         */
+        $request = $event->getParam('request');
+
+        $itemId = (int) $request->getId();
+        if (!$itemId) {
+            return;
+        }
+
+        /** @var \Omeka\Api\Manager $api */
+        $api = $this->getServiceLocator()->get('Omeka\ApiManager');
+        try {
+            /** @var \Omeka\Api\Representation\ItemRepresentation $item */
+            $item = $api->read('items', $itemId, [], ['initialize' => false, 'finalize' => false])->getContent();
+        } catch (\Exception $e) {
+            return;
+        }
+
+        $mediaIds = [];
+        foreach ($item->getMedia() as $media) {
+            $mediaId = (int) $media->getId() ?? null;;
+            if ($mediaId) {
+                $mediaIds[$mediaId] = $mediaId;
+            }
+        }
+        $this->storeExistingItemMediaIds($itemId, $mediaIds);
+    }
+
     public function handleAfterSaveItem(Event $event): void
     {
+        // TODO Use a process "pre" to get html and metadata when url file is not stored (rare).
+
         // Process conversion of documents to html if set.
-        // And prepare thumbnailling if needed.
+        // And prepare thumbnailing if needed.
         $needThumbnailing = false;
+
+        // Process extraction of metadata only when there is an original file.
+        $hasFile = false;
+
         /**
          * @var \Omeka\Entity\Item $item
          * @var \Omeka\Entity\Media $media
          */
         $item = $event->getParam('response')->getContent();
         foreach ($item->getMedia() as $media) {
+            if (!$media->getMediaType()) {
+                continue;
+            }
+            $hasFile = true;
             $this->afterSaveMedia($media);
             if (!$needThumbnailing
                 && $media->getIngester() === 'bulk_upload'
@@ -350,27 +406,86 @@ class Module extends AbstractModule
             }
         }
 
+        $services = $this->getServiceLocator();
+
+        if ($hasFile
+            && $services->get('Omeka\Settings')->get('bulkimport_extract_metadata', false)
+        ) {
+            $itemId = $item->getId();
+            // Run a job for item to avoid the 30 seconds issue with many files.
+            $args = [
+                'itemId' => $itemId,
+                'skipMediaIds' => $this->storeExistingItemMediaIds($itemId),
+            ];
+            // FIXME Use a plugin, not a fake job. Or strategy "sync", but there is a doctrine exception on owner of the job.
+            // Of course, it is useless for a background job.
+            // $strategy = $this->isBackgroundProcess() ? $services->get(\Omeka\Job\DispatchStrategy\Synchronous::class) : null;
+            $strategy = null;
+            if ($this->isBackgroundProcess()) {
+                $job = new \Omeka\Entity\Job();
+                $job->setPid(null);
+                $job->setStatus(\Omeka\Entity\Job::STATUS_IN_PROGRESS);
+                $job->setClass(\BulkImport\Job\ExtractMediaMetadata::class);
+                $job->setArgs($args);
+                $job->setOwner($services->get('Omeka\AuthenticationService')->getIdentity());
+                $job->setStarted(new \DateTime('now'));
+                $jobClass = new \BulkImport\Job\ExtractMediaMetadata($job, $services);
+                $jobClass->perform();
+            } else {
+                /** @var \Omeka\Job\Dispatcher $dispatcher */
+                $dispatcher = $services->get(\Omeka\Job\Dispatcher::class);
+                $dispatcher->dispatch(\BulkImport\Job\ExtractMediaMetadata::class, $args, $strategy);
+            }
+        }
+
         if (!$needThumbnailing) {
             return;
         }
 
-        // Create the thumbnails for the media ingested with "bulk_upload" via a job.
-        /** @var \Omeka\Job\Dispatcher $dispatcher */
-        $dispatcher = $this->getServiceLocator()->get(\Omeka\Job\Dispatcher::class);
-        $dispatcher->dispatch(\BulkImport\Job\FileDerivative::class, [
+        // Create the thumbnails for the media ingested with "bulk_upload" via a
+        // job to avoid the 30 seconds issue with numerous files.
+        $args = [
             'item_id' => $item->getId(),
             'ingester' => 'bulk_upload',
             'only_missing' => true,
-        ]);
+        ];
+        // Of course, it is useless for a background job.
+        // FIXME Use a plugin, not a fake job. Or strategy "sync", but there is a doctrine exception on owner of the job.
+        // $strategy = $this->isBackgroundProcess() ? $services->get(\Omeka\Job\DispatchStrategy\Synchronous::class) : null;
+        $strategy = null;
+        if ($this->isBackgroundProcess()) {
+            $job = new \Omeka\Entity\Job();
+            $job->setPid(null);
+            $job->setStatus(\Omeka\Entity\Job::STATUS_IN_PROGRESS);
+            $job->setClass(\BulkImport\Job\FileDerivative::class);
+            $job->setArgs($args);
+            $job->setOwner($services->get('Omeka\AuthenticationService')->getIdentity());
+            $job->setStarted(new \DateTime('now'));
+            $jobClass = new \BulkImport\Job\FileDerivative($job, $services);
+            $jobClass->perform();
+        } else {
+            /** @var \Omeka\Job\Dispatcher $dispatcher */
+            $dispatcher = $services->get(\Omeka\Job\Dispatcher::class);
+            $dispatcher->dispatch(\BulkImport\Job\FileDerivative::class, $args, $strategy);
+        }
     }
 
     public function handleAfterCreateMedia(Event $event): void
     {
+        /** @var \Omeka\Entity\Media $media */
         $media = $event->getParam('response')->getContent();
-        $this->afterSaveMedia($media);
+        if (!$media->getMediaType()) {
+            return;
+        }
+        $this->afterSaveMedia($media, true);
     }
 
-    protected function afterSaveMedia(Media $media): void
+    /**
+     * @todo Use the same process (job) for extract html and extract metadata.
+     *
+     * @param Media $media Media with a media type.
+     */
+    protected function afterSaveMedia(Media $media, bool $isSingleMediaCreation = false): void
     {
         static $processedMedia = [];
 
@@ -380,14 +495,27 @@ class Module extends AbstractModule
         }
         $processedMedia[$mediaId] = true;
 
+        $services = $this->getServiceLocator();
+        /** @var \Doctrine\ORM\EntityManager $entityManager */
+        $entityManager = $services->get('Omeka\EntityManager');
+
+        if ($isSingleMediaCreation) {
+            $settings = $services->get('Omeka\Settings');
+            if ($settings->get('bulkimport_extract_metadata', false)) {
+                $extractFileMetadata = $services->get('ControllerPluginManager')->get('extractFileMetadata');
+                $result = $extractFileMetadata->__invoke($media);
+                if ($result) {
+                    $entityManager->refresh($media);
+                }
+            }
+        }
+
         $html = $this->convertToHtml($media);
         if (is_null($html)) {
             return;
         }
 
-        $services = $this->getServiceLocator();
         $basePath = $services->get('Config')['file_store']['local']['base_path'] ?: (OMEKA_PATH . '/files');
-        $entityManager = $services->get('Omeka\EntityManager');
 
         // There is no thumbnails, else keep them anyway.
         @unlink($basePath . '/original/' . $media->getFilename());
@@ -492,6 +620,22 @@ class Module extends AbstractModule
     }
 
     /**
+     * Check if the current process is a background one.
+     *
+     * The library to get status manages only admin, site or api requests.
+     * A background process is none of them.
+     */
+    protected function isBackgroundProcess(): bool
+    {
+        // Warning: there is a matched route ("site") for backend processes.
+        /** @var \Omeka\Mvc\Status $status */
+        $status = $this->getServiceLocator()->get('Omeka\Status');
+        return !$status->isApiRequest()
+            && !$status->isAdminRequest()
+            && !$status->isSiteRequest();
+    }
+
+   /**
      * Check or create the destination folder.
      *
      * @param string $dirPath Absolute path.
@@ -500,7 +644,7 @@ class Module extends AbstractModule
     protected function checkDestinationDir(string $dirPath): ?string
     {
         if (file_exists($dirPath)) {
-            if (!is_dir($dirPath) || !is_readable($dirPath) || !is_writable($dirPath)) {
+            if (!is_dir($dirPath) || !is_readable($dirPath) || !is_writeable($dirPath)) {
                 $this->getServiceLocator()->get('Omeka\Logger')->err(
                     'The directory "{path}" is not writeable.', // @translate
                     ['path' => $dirPath]
@@ -518,6 +662,20 @@ class Module extends AbstractModule
             );
             return null;
         }
+
         return $dirPath;
+    }
+
+    protected function storeExistingItemMediaIds(?int $itemId = null, ?array $mediaIds = null): ?array
+    {
+        static $store = [];
+        if (!$itemId) {
+            return $store;
+        }
+        if  (is_null($mediaIds)) {
+            return $store[$itemId] ?? [];
+        }
+        $store[$itemId] = $mediaIds;
+        return null;
     }
 }

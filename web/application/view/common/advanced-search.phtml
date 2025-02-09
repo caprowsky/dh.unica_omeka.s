@@ -20,6 +20,7 @@ $addPartial = function($partial) use (&$partials, $partialExcludelist) {
     }
 };
 
+$addPartial('common/advanced-search/sort');
 $addPartial('common/advanced-search/fulltext');
 $addPartial('common/advanced-search/properties');
 $addPartial('common/advanced-search/resource-class');
@@ -32,6 +33,7 @@ switch ($resourceType) {
         if ($this->status()->isAdminRequest()) {
             $addPartial('common/advanced-search/site');
         }
+        $addPartial('common/advanced-search/has-media');
         break;
     case 'media':
         $addPartial('common/advanced-search/media-type');
@@ -41,11 +43,12 @@ switch ($resourceType) {
 }
 if ($this->status()->isAdminRequest()) {
     $addPartial('common/advanced-search/owner');
+    $addPartial('common/advanced-search/visibility');
 }
 if ($this->status()->isSiteRequest()) {
     $addPartial('common/advanced-search/resource-template-restrict');
 }
-$addPartial('common/advanced-search/sort');
+$addPartial('common/advanced-search/ids');
 
 $filterResults = $this->trigger(
     'view.advanced_search',

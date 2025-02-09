@@ -1,5 +1,5 @@
 /*
- * Copyright Daniel Berthereau, 2017-2018
+ * Copyright Daniel Berthereau, 2017-2023
  *
  * This software is governed by the CeCILL license under French law and abiding
  * by the rules of distribution of free software.  You can use, modify and/ or
@@ -27,6 +27,9 @@
 
 $(document).ready(function() {
 
+    const baseUrl = window.location.pathname.replace(/\/admin\/.*/, '/');
+    const searchAnnotationsUrl = baseUrl + 'annotation';
+
     /**
      * Main simple search.
      */
@@ -52,7 +55,7 @@ $(document).ready(function() {
     /**
      * Search sidebar.
      */
-    $('#content').on('click', 'a.search', function(e) {
+    $('#content').on('click', '.quick-search', function(e) {
         e.preventDefault();
         var sidebar = $('#sidebar-search');
         Omeka.openSidebar(sidebar);
@@ -149,12 +152,12 @@ $(document).ready(function() {
     if (resourceClassTerm($('#resourcetemplateform select[name="o:resource_class[o:id]"]').val()) === 'oa:Annotation') {
         // Set hidden params inside the form for each properties of  the resource template.
         var addNewPropertyRowUrl = propertyList.data('addNewPropertyRowUrl')
-        var baseUrl = addNewPropertyRowUrl.split('?')[0];
-        var resourceTemplateId = baseUrl.split('/')[baseUrl.split('/').length - 2];
-        baseUrl = baseUrl.substring(0, baseUrl.lastIndexOf('/'));
-        baseUrl = baseUrl.substring(0, baseUrl.lastIndexOf('/'));
-        baseUrl = baseUrl.substring(0, baseUrl.lastIndexOf('/'));
-        var resourceTemplateDataUrl = baseUrl + '/annotation/resource-template-data';
+        var newPropertyRowBaseUrl = addNewPropertyRowUrl.split('?')[0];
+        var resourceTemplateId = newPropertyRowBaseUrl.split('/')[baseUrl.split('/').length - 2];
+        newPropertyRowBaseUrl = newPropertyRowBaseUrl.substring(0, newPropertyRowBaseUrl.lastIndexOf('/'));
+        newPropertyRowBaseUrl = newPropertyRowBaseUrl.substring(0, newPropertyRowBaseUrl.lastIndexOf('/'));
+        newPropertyRowBaseUrl = newPropertyRowBaseUrl.substring(0, newPropertyRowBaseUrl.lastIndexOf('/'));
+        var resourceTemplateDataUrl = newPropertyRowBaseUrl + '/annotation/resource-template-data';
         $.get(resourceTemplateDataUrl, {resource_template_id: resourceTemplateId})
             .done(function(data) {
                 propertyList.find('li.property').each(function() {

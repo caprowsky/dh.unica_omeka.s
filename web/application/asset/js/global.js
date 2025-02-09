@@ -205,14 +205,14 @@ var Omeka = {
         var selector = $(selectorId);
         var totalCount = selector.find('.resources-available').data('all-resources-count');
         var selectorCount = selector.find('.selector-total-count');
-      
+
         var parentToggle = function(e) {
             e.stopPropagation();
             if ($(this).children('li')) {
                 $(this).toggleClass('show');
             }
         }
-        
+
         var appendRow = function(id) {
             if (table.find(".resource-id[value='" + id + "']").length) {
                 return;
@@ -227,14 +227,19 @@ var Omeka = {
                 tableRowCell.text(tableRowValue);
             });
             selectorRow.addClass('added');
-            table.append(tableRow).removeClass('empty').trigger('appendRow');
+            table.children('.resource-rows').append(tableRow);
+            table.removeClass('empty').trigger('appendRow');
             updateResourceCount(id);
         }
-    
+
         var updateResourceCount = function(id) {
             var resource = selector.find('[data-resource-id="' + id + '"]');
             var resourceParent = resource.parents('.selector-parent');
             var childCount = resourceParent.find('.selector-child-count').first();
+            // Update the count only when the resource exists in the selector.
+            if (!selector.find(`.selector-child[data-resource-id="${id}"]`).length) {
+                return;
+            }
             if (resource.hasClass('added')) {
                 var newTotalCount = parseInt(selectorCount.text()) - 1;
                 var newChildCount = parseInt(childCount.text()) - 1;
@@ -256,14 +261,14 @@ var Omeka = {
                 resourceParent.removeClass('empty');
             }
         }
-    
+
         if (existingRowData.length > 0) {
             $.each(existingRowData, function() {
                 appendRow(this.id);
             });
             table.removeClass('empty');
         }
-    
+
         // Add the selected resource to the edit panel.
         $(selectorId + ' .selector-child').on('click', function(e) {
             e.stopPropagation();
@@ -342,6 +347,9 @@ var Omeka = {
                     'media_type',
                     'sort_by',
                     'sort_order',
+                    'is_public',
+                    'has_media',
+                    'id',
                 ];
                 if (inputNames.includes(inputName)) {
                     input.prop('name', '');

@@ -1,6 +1,7 @@
 <?php
 namespace Omeka\Api\Adapter;
 
+use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\QueryBuilder;
 use Omeka\Api\Exception;
 use Omeka\Api\Request;
@@ -65,6 +66,28 @@ class ItemAdapter extends AbstractResourceEntityAdapter
             }
         }
 
+        if (isset($query['not_item_set_id'])) {
+            $itemSets = $query['not_item_set_id'];
+            if (!is_array($itemSets)) {
+                $itemSets = [$itemSets];
+            }
+            $itemSets = array_filter($itemSets, 'is_numeric');
+
+            if ($itemSets) {
+                $subItemAlias = $this->createAlias();
+                $subItemSetAlias = $this->createAlias();
+                $subQb = $this->getEntityManager()->createQueryBuilder();
+                $subQb->select("$subItemAlias.id")
+                    ->from('Omeka\Entity\Item', $subItemAlias)
+                    ->innerJoin(
+                        "$subItemAlias.itemSets",
+                        $subItemSetAlias, 'WITH',
+                        $qb->expr()->in("$subItemSetAlias.id", $this->createNamedParameter($qb, $itemSets))
+                );
+                $qb->andWhere($qb->expr()->notIn("omeka_root.id", $subQb->getDQL()));
+            }
+        }
+
         if (isset($query['site_id']) && is_numeric($query['site_id'])) {
             $siteAlias = $this->createAlias();
             $qb->innerJoin(
@@ -109,6 +132,16 @@ class ItemAdapter extends AbstractResourceEntityAdapter
                 $qb->andWhere($qb->expr()->isNull($siteAlias));
             }
         }
+
+        if (isset($query['has_media']) && (is_numeric($query['has_media']) || is_bool($query['has_media']))) {
+            $mediaAlias = $this->createAlias();
+            if ($query['has_media']) {
+                $qb->innerJoin('omeka_root.media', $mediaAlias);
+            } else {
+                $qb->leftJoin('omeka_root.media', $mediaAlias);
+                $qb->andWhere($qb->expr()->isNull($mediaAlias));
+            }
+        }
     }
 
     public function validateRequest(Request $request, ErrorStore $errorStore)
@@ -137,6 +170,15 @@ class ItemAdapter extends AbstractResourceEntityAdapter
         $isPartial = $isUpdate && $request->getOption('isPartial');
         $append = $isPartial && 'append' === $request->getOption('collectionAction');
         $remove = $isPartial && 'remove' === $request->getOption('collectionAction');
+
+        if ($this->shouldHydrate($request, 'o:primary_media')) {
+            $primaryMedia = $request->getValue('o:primary_media');
+            if (isset($primaryMedia['o:id']) && is_numeric($primaryMedia['o:id'])) {
+                $entity->setPrimaryMedia($this->getAdapter('media')->findEntity($primaryMedia['o:id']));
+            } else {
+                $entity->setPrimaryMedia(null);
+            }
+        }
 
         if ($this->shouldHydrate($request, 'o:item_set')) {
             $itemSetsData = $request->getValue('o:item_set', []);
@@ -176,16 +218,19 @@ class ItemAdapter extends AbstractResourceEntityAdapter
                 }
             }
         }
-        if ($isCreate && !is_array($request->getValue('o:site'))) {
-            // On CREATE and when no "o:site" array is passed, assign this item
-            // to all sites where assignNewItems=true.
-            $dql = '
-                SELECT site
+        if ($isCreate) {
+            // On CREATE we will need sites where assignNewItems=true.
+            $dql = 'SELECT site
                 FROM Omeka\Entity\Site site
                 WHERE site.assignNewItems = true';
             $query = $this->getEntityManager()->createQuery($dql);
+            $assignNewItemsSites = new ArrayCollection($query->getResult());
+        }
+        if ($isCreate && !is_array($request->getValue('o:site'))) {
+            // On CREATE and when no "o:site" array is passed, assign this item
+            // to all sites where assignNewItems=true.
             $sites = $entity->getSites();
-            foreach ($query->getResult() as $site) {
+            foreach ($assignNewItemsSites as $site) {
                 $sites->set($site->getId(), $site);
             }
         } elseif ($this->shouldHydrate($request, 'o:site')) {
@@ -213,7 +258,11 @@ class ItemAdapter extends AbstractResourceEntityAdapter
                 if (!$site) {
                     // Assign site that was not already assigned.
                     $site = $siteAdapter->findEntity($siteId);
-                    if ($acl->userIsAllowed($site, 'can-assign-items')) {
+                    if ($acl->userIsAllowed($site, 'can-assign-items') || ($isCreate && $assignNewItemsSites->contains($site))) {
+                        // A user with the "can-assign-items" privilege can assign
+                        // a site at any time. A user without the "can-assign-items"
+                        // privilege can assign a site only on CREATE when the site
+                        // has assignNewItems=true.
                         $sites->set($site->getId(), $site);
                     }
                 }

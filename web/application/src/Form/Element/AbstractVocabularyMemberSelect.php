@@ -42,10 +42,8 @@ abstract class AbstractVocabularyMemberSelect extends Select implements EventMan
 
     /**
      * Get default value options for this vocabulary member.
-     *
-     * @return array
      */
-    public function getValueOptions()
+    public function getValueOptions(): array
     {
         $events = $this->getEventManager();
         $resourceName = $this->getResourceName();
@@ -72,6 +70,7 @@ abstract class AbstractVocabularyMemberSelect extends Select implements EventMan
             } elseif ('resource_classes' === $resourceName) {
                 $attributes['data-resource-class-id'] = $member->id();
             }
+            $attributes['title'] = $member->term();
             $option = [
                 'label' => $member->label(),
                 'value' => $termAsValue ? $member->term() : $member->id(),

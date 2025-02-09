@@ -6,8 +6,9 @@
  * @var \Annotate\Api\Representation\AnnotationRepresentation[] $annotations
  */
 
-$translate = $this->plugin('translate');
-$assetUrl = $this->plugin('assetUrl');
+$plugins = $this->getHelperPluginManager();
+$assetUrl = $plugins->get('assetUrl');
+$translate = $plugins->get('translate');
 
 $this->headLink()
     ->appendStylesheet($assetUrl('vendor/tablesaw/tablesaw.stackonly.css', 'Omeka'))
@@ -19,25 +20,6 @@ $this->headScript()
     ->appendFile($assetUrl('js/annotate.js', 'Annotate'), 'text/javascript', ['defer' => 'defer']);
 
 $this->htmlElement('body')->appendAttribute('class', 'annotations browse');
-
-$sortHeadings = [
-    [
-        'label' => $translate('Annotator'),
-        'value' => 'name',
-    ],
-    [
-        'label' => $translate('Annotator email'),
-        'value' => 'email',
-    ],
-    [
-        'label' => $translate('Resource'),
-        'value' => 'resource_id',
-    ],
-    [
-        'label' => $translate('Date annotated'),
-        'value' => 'created',
-    ],
-];
 ?>
 
 <?= $this->pageTitle('', 1, $translate('Annotations')) ?>
@@ -47,7 +29,7 @@ $sortHeadings = [
  <div class="browse-controls">
     <?= $this->pagination() ?>
     <?php // echo $this->hyperlink($translate('Advanced search'), $this->url(null, ['action' => 'search'], ['query' => $this->params()->fromQuery()], true), ['class' => 'advanced-search']); ?>
-    <?= $this->sortSelector($sortHeadings) ?>
+    <?= $this->browse()->renderSortSelector('annotations') ?>
 </div>
 
 <?php $this->trigger('view.browse.before'); ?>

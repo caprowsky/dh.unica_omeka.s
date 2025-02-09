@@ -10,35 +10,21 @@
 
 use Annotate\Api\Adapter\AnnotationAdapter;
 
-$translate = $this->plugin('translate');
-$escape = $this->plugin('escapeHtml');
-$hyperlink = $this->plugin('hyperlink');
+$plugins = $this->getHelperPluginManager();
+$escape = $plugins->get('escapeHtml');
+$assetUrl = $plugins->get('assetUrl');
+$translate = $plugins->get('translate');
+$hyperlink = $plugins->get('hyperlink');
 
-$this->headLink()->appendStylesheet($this->assetUrl('css/annotate-admin.css', 'Annotate'));
-$this->headScript()->appendFile($this->assetUrl('js/annotate-admin.js', 'Annotate'), 'text/javascript', ['defer' => 'defer']);
+$this->headLink()
+    ->appendStylesheet($assetUrl('css/annotate-admin.css', 'Annotate'));
+$this->headScript()
+    ->appendFile($assetUrl('js/annotate-admin.js', 'Annotate'), 'text/javascript', ['defer' => 'defer']);
+
 $this->htmlElement('body')->appendAttribute('class', 'annotations browse');
 
 $userIsAllowedBatchUpdate = $this->userIsAllowed(AnnotationAdapter::class, 'batch_update');
 $userIsAllowedBatchDelete = $this->userIsAllowed(AnnotationAdapter::class, 'batch_delete');
-
-$sortHeadings = [
-    [
-        'label' => $translate('Annotator'),
-        'value' => 'name',
-    ],
-    [
-        'label' => $translate('Annotator email'),
-        'value' => 'email',
-    ],
-    [
-        'label' => $translate('Resource'),
-        'value' => 'resource_id',
-    ],
-    [
-        'label' => $translate('Date annotated'),
-        'value' => 'created',
-    ],
-];
 ?>
 
 <?= $this->pageTitle('', 1, $translate('Annotations')) ?>
@@ -47,8 +33,8 @@ $sortHeadings = [
 
  <div class="browse-controls">
     <?= $this->pagination() ?>
-    <?= $hyperlink($translate('Quick Search'), '#', ['class' => 'search advanced-search']) ?>
-    <?= $this->sortSelector($sortHeadings) ?>
+    <button type="button" class="search advanced-search quick-search"><?= $escape($translate('Quick Search')) ?></button>
+    <?= $this->browse()->renderSortSelector('annotations') ?>
 </div>
 
 <?php $this->trigger('view.browse.before'); ?>
@@ -70,8 +56,8 @@ $sortHeadings = [
         <div class="batch-actions">
             <button type="button" class="default active" disabled="disabled"><?= $translate('Go') ?></button>
             <?php if ($userIsAllowedBatchUpdate): ?>
-            <input type="submit" class="update-selected" value="<?= $translate('Go') ?>" formaction="<?= $escape($this->url(null, ['action' => 'batch-edit'], true)) ?>">
-            <input type="submit" class="update-all" value="<?= $translate('Go') ?>" formaction="<?= $escape($this->url(null, ['action' => 'batch-edit-all'], true)) ?>">
+            <input type="submit" class="update-selected" name="update_selected" value="<?= $translate('Go') ?>" formaction="<?= $escape($this->url(null, ['action' => 'batch-edit'], true)) ?>">
+            <input type="submit" class="update-all" name="update_all" value="<?= $translate('Go') ?>" formaction="<?= $escape($this->url(null, ['action' => 'batch-edit-all'], true)) ?>">
             <?php endif; ?>
             <input type="hidden" name="query" class="batch-query" value="<?= $escape(json_encode($this->params()->fromQuery())) ?>">
             <?php if ($userIsAllowedBatchDelete): ?>
@@ -86,27 +72,21 @@ $sortHeadings = [
     <thead>
         <tr>
             <th>
-                <?php if ($userIsAllowedBatchUpdate || $userIsAllowedBatchDelete): ?>
                 <input type="checkbox" class="select-all" aria-label="<?= $translate('Select all') ?>">
-                <?php endif; ?>
-                <?= $translate('Annotation') ?>
+                <?= $translate('Title') ?>
             </th>
-            <th><?= $translate('Targets') ?></th>
-            <th><?= $translate('Annotator') ?></th>
-            <th><?= $translate('Date annotated') ?></th>
+            <?= $this->browse()->renderHeaderRow('annotations') ?>
         </tr>
     </thead>
     <tbody>
-        <?php foreach ($annotations as $annotation): ?>
-        <?php
+        <?php foreach ($annotations as $annotation):
         $userIsAllowedUpdate = $annotation->userIsAllowed('update');
         $userIsAllowedDelete = $annotation->userIsAllowed('delete');
         $resources = $annotation->targetSources();
-        $owner = $annotation->owner();
         ?>
         <tr class="annotation">
             <td>
-                <?php if ($userIsAllowedBatchUpdate || $userIsAllowedBatchDelete): ?>
+                <?php if (($userIsAllowedBatchUpdate || $userIsAllowedBatchDelete) && ($userIsAllowedUpdate || $userIsAllowedDelete)): ?>
                 <input type="checkbox" name="resource_ids[]" value="<?= $annotation->id() ?>" aria-label="<?= $translate('Select item') ?>"<?php if (!($userIsAllowedUpdate || $userIsAllowedDelete)): ?> disabled="disabled"<?php endif; ?>>
                 <?php endif; ?>
                 <?= $annotation->linkPretty() ?>
@@ -136,26 +116,7 @@ $sortHeadings = [
                     ]) ?></li>
                 </ul>
             </td>
-            <td>
-                <?php if ($resources): ?>
-                    <?php foreach ($resources as $resource): ?>
-                    <?= $resource->linkPretty() ?>
-                    <span class="resource-name <?= $resource->getControllerName() ?>" aria-label="<?= $translate($resource->getControllerName()) ?>"></span>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    [<?= $translate('Removed') ?>]
-                <span class="resource-name no-resource"></span>
-                <?php endif; ?>
-            </td>
-            <td>
-                <span class="<?php if ($owner): ?>annotation-user<?php else: ?>annotation-public<?php endif; ?>"><?php
-                    echo $annotation->linkAnnotator();
-                ?></span>
-                <?php if (!$owner): ?>
-                    <span class="o-icon-users" aria-label="<?= $translate('Public') ?>"></span>
-                <?php endif; ?>
-            </td>
-            <td><?= $annotation->created()->format('Y-m-d H:i:s') ?></td>
+            <?php echo $this->browse()->renderContentRow('annotations', $annotation); ?>
         </tr>
         <?php endforeach; ?>
     </tbody>
@@ -257,7 +218,7 @@ $('#sidebar-delete-all').on('click', 'input[name="confirm-delete-all-check"]', f
     <div class="sidebar-content">
         <div id="sidebar-search-form" class="disable-unsaved-warning">
             <h3><?= $translate('Search annotations') ?></h3>
-            <?= $hyperlink($translate('Advanced search'), $this->url(null, ['action' => 'search'], ['query' => $this->params()->fromQuery()], true), ['class' => 'advanced-search']) ?>
+            <?= $hyperlink($translate('Advanced search'), $this->url(null, ['action' => 'search'], ['query' => $this->params()->fromQuery()], true), ['class' => 'o-icon-search advanced-search']) ?>
             <?= $this->form($formSearch) ?>
         </div>
     </div>

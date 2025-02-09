@@ -1,4 +1,5 @@
 <?php declare(strict_types=1);
+
 namespace Annotate\Api\Representation;
 
 use Annotate\Api\Adapter\AnnotationBodyHydrator;
@@ -56,7 +57,7 @@ class AnnotationRepresentation extends AbstractResourceEntityRepresentation
      *
      * @see \Omeka\Api\Representation\AbstractResourceRepresentation::jsonSerialize()
      */
-    public function jsonSerialize()
+    public function jsonSerialize(): array
     {
         $jsonLd = parent::jsonSerialize();
 
@@ -125,11 +126,13 @@ class AnnotationRepresentation extends AbstractResourceEntityRepresentation
     }
 
     /**
-     * Return the target resources if any.
+     * Return the target resources.
+     *
+     * This is the list of annotated resources.
      *
      * @return AbstractResourceEntityRepresentation[]
      */
-    public function targetSources()
+    public function targetSources(): array
     {
         $result = [];
         $targets = $this->targets();
@@ -137,6 +140,85 @@ class AnnotationRepresentation extends AbstractResourceEntityRepresentation
             $result = array_merge($result, array_values($target->sources()));
         }
         return array_values($result);
+    }
+
+    /**
+     * Return the primary target resource.
+     *
+     * This is the annotated resource.
+     */
+    public function primaryTargetSource(): ?AbstractResourceEntityRepresentation
+    {
+        $targets = $this->targetSources();
+        return $targets
+            ? reset($targets)
+            : null;
+    }
+
+    /**
+     * Return the target selectors.
+     *
+     * This is the list of all oa:hasSelector of targets, generally a single media.
+     *
+     * @return \Omeka\Api\Representation\ValueRepresentation[]
+     */
+    public function targetSelectors(): array
+    {
+        $result = [];
+        $targets = $this->targets();
+        foreach ($targets as $target) {
+            $result = array_merge($result, $target->value('oa:hasSelector', ['all' => true]));
+        }
+        return array_values($result);
+    }
+
+    /**
+     * Return the target selectors that are resources.
+     *
+     * This is the list of all oa:hasSelector of targets, generally a single media.
+     *
+     * @return \Omeka\Api\Representation\ValueRepresentation[]
+     */
+    public function targetSelectorResources(): array
+    {
+        $result = [];
+        $targets = $this->targets();
+        foreach ($targets as $target) {
+            $subResult = [];
+            foreach ($target->value('oa:hasSelector', ['all' => true]) as $value) {
+                if ($value->valueResource()) {
+                    $subResult[] = $value;
+                }
+            }
+            $result = array_merge($result, $subResult);
+        }
+        return array_values($result);
+    }
+
+    public function motivations(): array
+    {
+        $result = [];
+        foreach ($this->value('oa:motivatedBy', ['all' => true]) as $value) {
+            $result[] = $value->value();
+        }
+        return $result;
+    }
+
+    public function motivation(): ?string
+    {
+        $value = $this->value('oa:motivatedBy');
+        return $value ? $value->value() : null;
+    }
+
+    /**
+     * @todo Support reverse subject values for annotation.
+     *
+     * {@inheritDoc}
+     * @see \Omeka\Api\Representation\AbstractResourceEntityRepresentation::subjectValuesForReverse()
+     */
+    public function subjectValuesForReverse($propertyId = null, $resourceType = null, $siteId = null)
+    {
+        return [];
     }
 
     public function siteUrl($siteSlug = null, $canonical = false)

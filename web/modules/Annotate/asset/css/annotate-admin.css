@@ -15,7 +15,7 @@
         display: inline-block;
         font-style: normal;
         font-variant: normal;
-        font-weight: normal;
+        /* font-weight: normal; */
         line-height: 1;
         vertical-align: -.125em;
         font-family: "Font Awesome 5 Free";
@@ -53,6 +53,9 @@
     }
 
     /* Annotation show */
+    .section.active {
+        clear: both;
+    }
     .annotations .annotation-caption {
         background-color: rgba(0,0,0,0.04);
         font-family: bold;
@@ -61,8 +64,8 @@
         font-weight: bold;
         text-align: left;
     }
-    #annotation-bodies .meta-group .meta-group,
-    #annotation-targets .meta-group .meta-group {
+    /* Omeka S v3 */
+    body.annotations.show.v3 .annotation-parts .meta-group .meta-group {
         overflow: hidden;
         display: -webkit-box;
         display: flex;
@@ -70,18 +73,22 @@
         justify-content: flex-end;
         flex-wrap: wrap;
     }
-    #annotation-bodies .meta-group .meta-group h4,
-    #annotation-targets .meta-group .meta-group h4 {
+    body.annotations.show.v3 .annotation-parts .meta-group .meta-group h4 {
         width: 22.22222%;
         vertical-align: top;
         padding: 6px 0;
     }
-    #annotation-bodies .meta-group .meta-group .value,
-    #annotation-targets .meta-group .meta-group .value {
+    body.annotations.show.v3 .annotation-parts .meta-group .value {
         padding: 6px;
         margin-bottom: 0;
         word-wrap: break-word;
         width: 77.77778%;
+    }
+    /* Omeka S v4 */
+    body.annotations.show:not(.v3) .annotation-parts .meta-group {
+        justify-content: initial;
+        flex-wrap: initial;
+        padding-bottom: 6px;
     }
     .annotations.show .no-resources {
         text-align: inherit;

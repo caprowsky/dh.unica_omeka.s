@@ -2,8 +2,7 @@
 
 namespace Annotate;
 
-use Omeka\Mvc\Controller\Plugin\Messenger;
-use Omeka\Stdlib\Message;
+use Common\Stdlib\PsrMessage;
 
 /**
  * @var Module $this
@@ -11,17 +10,27 @@ use Omeka\Stdlib\Message;
  * @var string $newVersion
  * @var string $oldVersion
  *
+ * @var \Omeka\Api\Manager $api
+ * @var \Omeka\Settings\Settings $settings
  * @var \Doctrine\DBAL\Connection $connection
  * @var \Doctrine\ORM\EntityManager $entityManager
- * @var \Omeka\Api\Manager $api
+ * @var \Omeka\Mvc\Controller\Plugin\Messenger $messenger
  */
-$settings = $services->get('Omeka\Settings');
-$config = require dirname(__DIR__, 2) . '/config/module.config.php';
-$connection = $services->get('Omeka\Connection');
-$entityManager = $services->get('Omeka\EntityManager');
 $plugins = $services->get('ControllerPluginManager');
 $api = $plugins->get('api');
-$space = strtolower(__NAMESPACE__);
+$settings = $services->get('Omeka\Settings');
+$translate = $plugins->get('translate');
+$connection = $services->get('Omeka\Connection');
+$messenger = $plugins->get('messenger');
+$entityManager = $services->get('Omeka\EntityManager');
+
+if (!method_exists($this, 'checkModuleActiveVersion') || !$this->checkModuleActiveVersion('Common', '3.4.53')) {
+    $message = new \Omeka\Stdlib\Message(
+        $translate('The module %1$s should be upgraded to version %2$s or later.'), // @translate
+        'Common', '3.4.53'
+    );
+    throw new \Omeka\Module\Exception\ModuleCannotInstallException((string) $message);
+}
 
 if (version_compare($oldVersion, '3.0.1', '<')) {
     // The media-type is not standard, but application/wkt seems better.
@@ -31,7 +40,7 @@ SET terms = REPLACE(terms, 'text/wkt', 'application/wkt');
 UPDATE value
 SET terms = REPLACE(terms, 'text/wkt', 'application/wkt');
 SQL;
-    $connection->exec($sql);
+    $connection->executeStatement($sql);
 }
 
 if (version_compare($oldVersion, '3.0.3', '<')) {
@@ -41,7 +50,7 @@ UPDATE `custom_vocab`
 SET `label` = 'Annotation oa:motivatedBy'
 WHERE `label` = 'Annotation oa:Motivation';
 SQL;
-    $connection->exec($sql);
+    $connection->executeStatement($sql);
 
     // Complete the annotation custom vocabularies with Omeka resource types.
     $label = 'Annotation Target rdf:type';
@@ -56,7 +65,8 @@ SQL;
             )
         );
     }
-    $terms = array_map('trim', explode(PHP_EOL, $customVocab->terms()));
+    $terms = $customVocab->terms();
+    $terms = is_array($terms) ? $terms : array_map('trim', explode(PHP_EOL, $customVocab->terms()));
     $terms = array_unique(array_merge($terms, [
         'o:Item',
         'o:ItemSet',
@@ -83,7 +93,7 @@ SET property_id = $oaHasBodyId
 WHERE value.property_id = $rdfValueId
 AND value.type = "resource"
 SQL;
-    $connection->exec($sql);
+    $connection->executeStatement($sql);
 
     // Unlike bodies, targets are saved in oa:hasSource (items in Cartography),
     // so there is no need to update them as "oa:hasTarget". Nevertheless,
@@ -98,7 +108,7 @@ SET property_id = $oaHasSelectorId
 WHERE value.property_id = $rdfValueId
 AND value.type = "resource"
 SQL;
-    $connection->exec($sql);
+    $connection->executeStatement($sql);
 }
 
 if (version_compare($oldVersion, '3.0.6', '<')) {
@@ -153,17 +163,16 @@ ALTER TABLE annotation_body ADD CONSTRAINT FK_D819DB36BF396750 FOREIGN KEY (id) 
 ALTER TABLE annotation_target ADD CONSTRAINT FK_9F53A3D6BF396750 FOREIGN KEY (id) REFERENCES resource (id) ON DELETE CASCADE;
 SQL;
     foreach (array_filter(explode(';', $sql)) as $sql) {
-        $connection->exec($sql);
+        $connection->executeStatement($sql);
     }
 }
 
 if (version_compare($oldVersion, '3.3', '<')) {
-    $messenger = new Messenger();
-    $message = new Message(
+    $message = new PsrMessage(
         'This release changed two features, so check your theme.'
     );
     $messenger->addWarning($message);
-    $message = new Message(
+    $message = new PsrMessage(
         'In api, the key "oa:Annotation" is replaced by "o:annotation".'
     );
     $messenger->addWarning($message);
@@ -171,18 +180,17 @@ if (version_compare($oldVersion, '3.3', '<')) {
     $sql = <<<'SQL'
 ALTER TABLE `annotation_part` CHANGE `annotation_id` `annotation_id` INT DEFAULT NULL;
 SQL;
-    $connection->exec($sql);
+    $connection->executeStatement($sql);
 }
 
 if (version_compare($oldVersion, '3.3.3.6', '<')) {
-    $messenger = new Messenger();
     if ($this->isModuleActive('AdvancedSearch')) {
         // No need to update params when BlocksDisposition is present.
-        $message = new Message(
+        $message = new PsrMessage(
             'This release moved the params for public display to module BlocksDisposition, so check your site settings.'
         );
     } else {
-        $message = new Message(
+        $message = new PsrMessage(
             'This release moved the public display to module BlocksDisposition, so install it and check your site settings.'
         );
     }
@@ -195,7 +203,11 @@ WHERE `id` IN (
     "annotate_append_media_show"
 )
 SQL;
-    $connection->exec($sql);
+    $connection->executeStatement($sql);
 
     $messenger->addWarning($message);
+}
+
+if (version_compare($oldVersion, '3.4.3.8', '<')) {
+    require_once __DIR__ . '/upgrade_vocabulary.php';
 }

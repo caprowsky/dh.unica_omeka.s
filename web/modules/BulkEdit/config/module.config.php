@@ -3,35 +3,38 @@
 namespace BulkEdit;
 
 return [
-    'controller_plugins' => [
+    'service_manager' => [
         'factories' => [
-            'cleanLanguageCodes' => Service\ControllerPlugin\CleanLanguageCodesFactory::class,
-            'cleanLanguages' => Service\ControllerPlugin\CleanLanguagesFactory::class,
-            'deduplicateValues' => Service\ControllerPlugin\DeduplicateValuesFactory::class,
-            'specifyDatatypes' => Service\ControllerPlugin\SpecifyDatatypesFactory::class,
-            'trimValues' => Service\ControllerPlugin\TrimValuesFactory::class,
+            'BulkEdit' => Service\Stdlib\BulkEditFactory::class,
         ],
     ],
     'view_helpers' => [
-        'factories' => [
-            // Copy from AdvancedResourceTemplate. Copy in BulkExport and BulkEdit. Used in Contribute.
-            'customVocabBaseType' => Service\ViewHelper\CustomVocabBaseTypeFactory::class,
+        'invokables' => [
+            'formNote' => Form\View\Helper\FormNote::class,
+        ],
+        'delegators' => [
+            'Laminas\Form\View\Helper\FormElement' => [
+                __NAMESPACE__ => Service\Delegator\FormElementDelegatorFactory::class,
+            ],
         ],
     ],
     'form_elements' => [
         'invokables' => [
-            Form\Element\OptionalRadio::class => Form\Element\OptionalRadio::class,
-            Form\Element\OptionalSelect::class => Form\Element\OptionalSelect::class,
+            Form\Element\Note::class => Form\Element\Note::class,
             Form\SettingsFieldset::class => Form\SettingsFieldset::class,
         ],
         'factories' => [
             Form\BulkEditFieldset::class => Service\Form\BulkEditFieldsetFactory::class,
-            Form\Element\OptionalPropertySelect::class => Service\Form\Element\OptionalPropertySelectFactory::class,
-            Form\Element\DataTypeSelect::class => Service\Form\Element\DataTypeSelectFactory::class,
         ],
-        'aliases' => [
-            // Use aliases to keep core keys.
-            'Omeka\Form\Element\DataTypeSelect' => Form\Element\DataTypeSelect::class,
+    ],
+    'controller_plugins' => [
+        'factories' => [
+            'cleanEmptyValues' => Service\ControllerPlugin\CleanEmptyValuesFactory::class,
+            'cleanLanguageCodes' => Service\ControllerPlugin\CleanLanguageCodesFactory::class,
+            'cleanLanguages' => Service\ControllerPlugin\CleanLanguagesFactory::class,
+            'deduplicateValues' => Service\ControllerPlugin\DeduplicateValuesFactory::class,
+            'specifyDataTypeResources' => Service\ControllerPlugin\SpecifyDataTypeResourcesFactory::class,
+            'trimValues' => Service\ControllerPlugin\TrimValuesFactory::class,
         ],
     ],
     'translator' => [
@@ -46,11 +49,12 @@ return [
     ],
     'js_translate_strings' => [
         'Batch edit', // @translate
-        'Advanced bulk edit', // @translate
+        'Advanced', // @translate
         'Expand', // @translate
         'Collapse', // @translate
         'The actions are processed in the order of the form. Be careful when mixing them.', // @translate
-        'Fill a value from remote data can be slow, so it is recommended to process it in background with "batch edit all", not "batch edit selected".', // @translate
+        'To convert values to/from mapping markers, use module DataTypeGeometry.', // @translate
+        'Processes that manage files and remote data can be slow, so it is recommended to process it in background with "batch edit all", not "batch edit selected".', // @translate
     ],
     'bulkedit' => [
         'settings' => [

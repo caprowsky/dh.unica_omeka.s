@@ -14,6 +14,15 @@ class ResourceTemplateAdapter extends AbstractEntityAdapter
         'label' => 'label',
     ];
 
+    protected $scalarFields = [
+        'id' => 'id',
+        'label' => 'label',
+        'owner' => 'owner',
+        'resource_class' => 'resourceClass',
+        'title_property' => 'titleProperty',
+        'description_property' => 'descriptionProperty',
+    ];
+
     public function getResourceName()
     {
         return 'resource_templates';
@@ -175,6 +184,12 @@ class ResourceTemplateAdapter extends AbstractEntityAdapter
                 if (isset($resTemPropData['o:is_private'])) {
                     $isPrivate = (bool) $resTemPropData['o:is_private'];
                 }
+                $defaultLang = null;
+                if (isset($resTemPropData['o:default_lang'])
+                    && '' !== trim($resTemPropData['o:default_lang'])
+                ) {
+                    $defaultLang = $resTemPropData['o:default_lang'];
+                }
 
                 // Check whether a passed property is already assigned to this
                 // resource template.
@@ -194,6 +209,7 @@ class ResourceTemplateAdapter extends AbstractEntityAdapter
                 $resTemProp->setDataType($dataTypes);
                 $resTemProp->setIsRequired($isRequired);
                 $resTemProp->setIsPrivate($isPrivate);
+                $resTemProp->setDefaultLang($defaultLang);
                 // Set the position of the property to its intrinsic order
                 // within the passed array.
                 $resTemProp->setPosition($position++);

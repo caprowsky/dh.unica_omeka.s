@@ -1,4 +1,5 @@
 <?php declare(strict_types=1);
+
 namespace Annotate\Controller\Admin;
 
 use Annotate\Entity\Annotation;
@@ -17,16 +18,26 @@ class AnnotationController extends AbstractActionController
 {
     public function searchAction()
     {
-        $view = new ViewModel;
-        $view->setVariable('query', $this->params()->fromQuery());
-        return $view;
+        return new ViewModel([
+            'query' => $this->params()->fromQuery(),
+        ]);
     }
 
     public function browseAction()
     {
-        $this->setBrowseDefaults('created');
+        $isOldOmeka = version_compare(\Omeka\Module::VERSION, '4', '<');
+
+        $isOldOmeka
+            ? $this->setBrowseDefaults('created')
+            : $this->browse()->setDefaults('annotations');
         $response = $this->api()->search('annotations', $this->params()->fromQuery());
         $this->paginator($response->getTotalResults(), $this->params()->fromQuery('page'));
+
+        // Set the return query for batch actions. Note that we remove the page
+        // from the query because there's no assurance that the page will return
+        // results once changes are made.
+        $returnQuery = $this->params()->fromQuery();
+        unset($returnQuery['page']);
 
         $formSearch = $this->getForm(QuickSearchForm::class);
         $formSearch->setAttribute('action', $this->url()->fromRoute(null, ['action' => 'browse'], true));
@@ -39,36 +50,45 @@ class AnnotationController extends AbstractActionController
             $formSearch->setData($data);
         }
 
+        /** @var \Omeka\Form\ConfirmForm $form */
         $formDeleteSelected = $this->getForm(ConfirmForm::class);
-        $formDeleteSelected->setAttribute('action', $this->url()->fromRoute('admin/annotate/default', ['action' => 'batch-delete'], true));
-        $formDeleteSelected->setButtonLabel('Confirm Delete'); // @translate
-        $formDeleteSelected->setAttribute('id', 'confirm-delete-selected');
+        $formDeleteSelected
+            ->setAttribute('action', $this->url()->fromRoute('admin/annotate/default', ['action' => 'batch-delete'], true))
+            ->setAttribute('id', 'confirm-delete-selected')
+            ->setButtonLabel('Confirm Delete'); // @translate
 
+        /** @var \Omeka\Form\ConfirmForm $form */
         $formDeleteAll = $this->getForm(ConfirmForm::class);
-        $formDeleteAll->setAttribute('action', $this->url()->fromRoute('admin/annotate/default', ['action' => 'batch-delete-all'], true));
-        $formDeleteAll->setButtonLabel('Confirm Delete'); // @translate
-        $formDeleteAll->setAttribute('id', 'confirm-delete-all');
-        $formDeleteAll->get('submit')->setAttribute('disabled', true);
+        $formDeleteAll
+            ->setAttribute('action', $this->url()->fromRoute('admin/annotate/default', ['action' => 'batch-delete-all'], true))
+            ->setAttribute('id', 'confirm-delete-all')
+            ->setButtonLabel('Confirm Delete'); // @translate
+        $formDeleteAll
+            ->get('submit')->setAttribute('disabled', true);
 
-        $view = new ViewModel;
         $resources = $response->getContent();
-        $view->setVariable('resources', $resources);
-        $view->setVariable('annotations', $resources);
-        $view->setVariable('formSearch', $formSearch);
-        $view->setVariable('formDeleteSelected', $formDeleteSelected);
-        $view->setVariable('formDeleteAll', $formDeleteAll);
+        $view = new ViewModel([
+            'resources' => $resources,
+            'annotations' => $resources,
+            'formSearch' => $formSearch,
+            'formDeleteSelected' => $formDeleteSelected,
+            'formDeleteAll' => $formDeleteAll,
+        ]);
+        if ($isOldOmeka) {
+            $view->setTemplate('annotate/admin/annotation/browse-v3');
+        }
         return $view;
     }
 
     public function showAction()
     {
         $response = $this->api()->read('annotations', $this->params('id'));
-
-        $view = new ViewModel;
         $resource = $response->getContent();
-        $view->setVariable('resource', $resource);
-        $view->setVariable('annotation', $resource);
-        return $view;
+
+        return new ViewModel([
+            'resource' => $resource,
+            'annotation' => $resource,
+        ]);
     }
 
     public function showDetailsAction()
@@ -78,12 +98,13 @@ class AnnotationController extends AbstractActionController
         $resource = $response->getContent();
         $values = $resource->valueRepresentation();
 
-        $view = new ViewModel;
-        $view->setTerminal(true);
-        $view->setVariable('linkTitle', $linkTitle);
-        $view->setVariable('resource', $resource);
-        $view->setVariable('values', json_encode($values));
-        return $view;
+        $view = new ViewModel([
+            'linkTitle' => $linkTitle,
+            'resource' => $resource,
+            'values' => json_encode($values),
+        ]);
+        return $view
+            ->setTerminal(true);
     }
 
     // TODO Make possible to add an annotation directly (not only ajax or specialized annotation)?
@@ -92,6 +113,8 @@ class AnnotationController extends AbstractActionController
      * Annotate a resource.
      *
      * Equivalent to action "add", but without specific page (so via ajax).
+     *
+     * @todo Use a form that avoids reformating data.
      */
     public function annotateAction()
     {
@@ -350,9 +373,10 @@ class AnnotationController extends AbstractActionController
         $response = $this->api()->read('annotations', $this->params('id'));
         $resource = $response->getContent();
 
-        $view = new ViewModel;
-        $view->setVariable('form', $form);
-        $view->setVariable('annotation', $resource);
+        $view = new ViewModel([
+            'form' => $form,
+            'annotation' => $resource,
+        ]);
 
         if (!$this->getRequest()->isPost()) {
             return $view;
@@ -389,23 +413,27 @@ class AnnotationController extends AbstractActionController
         $resource = $response->getContent();
         $values = $resource->valueRepresentation();
 
-        $view = new ViewModel;
-        $view->setTerminal(true);
-        $view->setTemplate('common/delete-confirm-details');
-        $view->setVariable('resource', $resource);
-        $view->setVariable('resourceLabel', 'annotation');
-        $view->setVariable('partialPath', 'annotate/admin/annotation/show-details');
-        $view->setVariable('linkTitle', $linkTitle);
-        $view->setVariable('annotation', $resource);
-        $view->setVariable('values', json_encode($values));
+        $view = new ViewModel([
+            'resource' => $resource,
+            'resourceLabel' => 'annotation',
+            'partialPath' => 'annotate/admin/annotation/show-details',
+            'linkTitle' => $linkTitle,
+            'annotation' => $resource,
+            'values' => json_encode($values),
+        ]);
+        $view
+            ->setTemplate('common/delete-confirm-details')
+            ->setTerminal(true);
 
         // With a redirect, the Omeka view helper deleteConfirm cannot be used.
         $redirect = $this->params()->fromQuery('redirect');
         if ($redirect) {
+            /** @var \Omeka\Form\ConfirmForm $form */
             $form = $this->getForm(ConfirmForm::class);
             $form->setAttribute('action', $resource->url('delete') . '?' . http_build_query(['redirect' => $redirect]));
-            $view->setVariable('form', $form);
-            $view->setTemplate('annotate/admin/annotation/delete-confirm-redirect');
+            $view
+                ->setVariable('form', $form)
+                ->setTemplate('annotate/admin/annotation/delete-confirm-redirect');
         }
 
         return $view;
@@ -414,6 +442,7 @@ class AnnotationController extends AbstractActionController
     public function deleteAction()
     {
         if ($this->getRequest()->isPost()) {
+            /** @var \Omeka\Form\ConfirmForm $form */
             $form = $this->getForm(ConfirmForm::class);
             $form->setData($this->getRequest()->getPost());
             if ($form->isValid()) {
@@ -434,17 +463,20 @@ class AnnotationController extends AbstractActionController
 
     public function batchDeleteConfirmAction()
     {
+        /** @var \Omeka\Form\ConfirmForm $form */
         $form = $this->getForm(ConfirmForm::class);
         $routeAction = $this->params()->fromQuery('all') ? 'batch-delete-all' : 'batch-delete';
-        $form->setAttribute('action', $this->url()->fromRoute(null, ['action' => $routeAction], true));
-        $form->setButtonLabel('Confirm delete'); // @translate
-        $form->setAttribute('id', 'batch-delete-confirm');
-        $form->setAttribute('class', $routeAction);
+        $form
+            ->setAttribute('action', $this->url()->fromRoute(null, ['action' => $routeAction], true))
+            ->setAttribute('id', 'batch-delete-confirm')
+            ->setAttribute('class', $routeAction)
+            ->setButtonLabel('Confirm delete'); // @translate
 
-        $view = new ViewModel;
-        $view->setTerminal(true);
-        $view->setVariable('form', $form);
-        return $view;
+        $view = new ViewModel([
+            'form' => $form,
+        ]);
+        return $view
+            ->setTerminal(true);
     }
 
     public function batchDeleteAction()
@@ -459,6 +491,7 @@ class AnnotationController extends AbstractActionController
             return $this->redirect()->toRoute(null, ['action' => 'browse'], true);
         }
 
+        /** @var \Omeka\Form\ConfirmForm $form */
         $form = $this->getForm(ConfirmForm::class);
         $form->setData($this->getRequest()->getPost());
         if ($form->isValid()) {

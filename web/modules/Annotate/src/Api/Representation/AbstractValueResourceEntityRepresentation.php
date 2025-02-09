@@ -1,4 +1,5 @@
 <?php declare(strict_types=1);
+
 namespace Annotate\Api\Representation;
 
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
@@ -103,7 +104,7 @@ abstract class AbstractValueResourceEntityRepresentation extends AbstractResourc
      * {@inheritDoc}
      * @see \Omeka\Api\Representation\AbstractResourceRepresentation::jsonSerialize()
      */
-    public function jsonSerialize()
+    public function jsonSerialize(): array
     {
         $jsonLd = $this->getJsonLd();
         // No filter: use main annotation instead.

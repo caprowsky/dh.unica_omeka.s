@@ -1,4 +1,5 @@
 <?php declare(strict_types=1);
+
 namespace Annotate\Api\Representation;
 
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
@@ -52,7 +53,7 @@ abstract class AbstractAnnotationResourceRepresentation extends AbstractResource
             'dcterms:format' => 'format',
             'rdf:value' => 'value',
             // Manage a specific value for cartography.
-            // TODO Use a trigger to manage the values.
+            // TODO Use a trigger to manage the values and/or move to value annotation.
             'cartography:uncertainty' => 'cartography:uncertainty',
         ];
 
@@ -113,8 +114,7 @@ abstract class AbstractAnnotationResourceRepresentation extends AbstractResource
             'item_sets' => 'o:ItemSet',
             'media' => 'o:Media',
         ];
-        return $mapResourceTypes[$type]
-            ?? null;
+        return $mapResourceTypes[$type] ?? null;
     }
 
     /**
@@ -125,7 +125,7 @@ abstract class AbstractAnnotationResourceRepresentation extends AbstractResource
      * {@inheritDoc}
      * @see \Omeka\Api\Representation\AbstractResourceRepresentation::jsonSerialize()
      */
-    public function jsonSerialize()
+    public function jsonSerialize(): array
     {
         $childJsonLd = $this->getJsonLd();
         // $type = $this->getJsonLdType();
@@ -156,7 +156,8 @@ abstract class AbstractAnnotationResourceRepresentation extends AbstractResource
      * Renormalize values as json-ld rdf Annotation resource.
      *
      * @see https://www.w3.org/TR/annotation-model/
-     * @todo Factorize with AnnotationRepresentation::valuesOnly().
+œ     *
+     * @todo Check why to output always an array of resources.
      *
      * @param \Omeka\Api\Representation\ValueRepresentation[] $values
      * @return array|string
@@ -166,17 +167,12 @@ abstract class AbstractAnnotationResourceRepresentation extends AbstractResource
         $result = [];
 
         foreach ($values as $value) {
-            switch ($value->type()) {
-                case 'resource':
-                    $result[] = $value->valueResource()->apiUrl();
-                    break;
-                case 'uri':
-                    $result[] = $value->uri();
-                    break;
-                case 'literal':
-                default:
-                    $result[] = $value->value();
-                    break;
+            if ($vr = $value->valueResource()) {
+                $result[] = $vr->apiUrl();
+            } elseif ($uri = $value->uri()) {
+                $result[] = $uri;
+            } else {
+                $result[] = $value->value();
             }
         }
 

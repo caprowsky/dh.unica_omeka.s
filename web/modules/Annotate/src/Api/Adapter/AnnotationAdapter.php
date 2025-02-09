@@ -6,14 +6,12 @@ use Annotate\Entity\Annotation;
 use Annotate\Entity\AnnotationTarget;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\QueryBuilder;
-use Doctrine\ORM\Tools\Pagination\Paginator;
-use Laminas\EventManager\Event;
 use Omeka\Api\Adapter\AbstractResourceEntityAdapter;
 use Omeka\Api\Exception;
 use Omeka\Api\Request;
 use Omeka\Api\ResourceInterface;
-use Omeka\Api\Response;
 use Omeka\Entity\EntityInterface;
+use Omeka\Entity\Resource;
 use Omeka\Stdlib\ErrorStore;
 
 /**
@@ -24,6 +22,7 @@ use Omeka\Stdlib\ErrorStore;
 class AnnotationAdapter extends AbstractResourceEntityAdapter
 {
     use QueryDateTimeTrait;
+    use QueryPropertiesTrait;
 
     protected $annotables = [
         \Omeka\Entity\Item::class,
@@ -33,6 +32,13 @@ class AnnotationAdapter extends AbstractResourceEntityAdapter
     ];
 
     protected $sortFields = [
+        'id' => 'id',
+        'is_public' => 'isPublic',
+        'created' => 'created',
+        'modified' => 'modified',
+    ];
+
+    protected $scalarFields = [
         'id' => 'id',
         'is_public' => 'isPublic',
         'created' => 'created',
@@ -63,206 +69,6 @@ class AnnotationAdapter extends AbstractResourceEntityAdapter
     }
 
     /**
-     * The process should be able to search in values of the properties of the
-     * annotation, the body and the target, but outputing only annotations.
-     * So it searches in annotation parts and filters only annotations with a
-     * "group by".
-     *
-     * Nevertheless, the "group by" fails with sql mode "only_full_group_by"
-     * (default on mysql), so a subquery is used, that should fix most of the
-     * cases.
-     *
-     * {@inheritDoc}
-     * @see \Omeka\Api\Adapter\AbstractEntityAdapter::search()
-     */
-    public function search(Request $request)
-    {
-        $query = $request->getContent();
-
-        // Set default query parameters
-        $defaultQuery = [
-            'page' => null,
-            'per_page' => null,
-            'limit' => null,
-            'offset' => null,
-            'sort_by' => null,
-            'sort_order' => null,
-        ];
-        $query += $defaultQuery;
-        $query['sort_order'] = strtoupper((string) $query['sort_order']) === 'DESC' ? 'DESC' : 'ASC';
-
-        // Begin building the search query.
-        $entityClass = $this->getEntityClass();
-
-        $this->index = 0;
-        // Join all related bodies and targets to get their properties too.
-        // Idealy, the request should be done on resource with a join or where
-        // condition on resource_type (in annotation, body and target), but the
-        // resource_type is not available in the ORM query builder, unlike the
-        // DBAL query builder, because it is the discriminator map.
-        // Nevertheless, Doctrine allows to use a special function in that case.
-        // @see https://www.doctrine-project.org/projects/doctrine-orm/en/2.6/reference/inheritance-mapping.html#query-the-type
-        // This special function is not so simple, so use AnnotationPart: all
-        // annotations, bodies and targets are subparts of AnnotationPart. The
-        // method getRepresentation() checks the part to return always the
-        // annotation one. It avoids a "select from select unions" too.
-        $entityManager = $this->getEntityManager();
-        $qb = $entityManager
-            ->createQueryBuilder()
-            ->select('omeka_root')
-            // ->from($entityClass, $alias);
-            ->from(
-                // The annotation part allows to get values of all sub-parts
-                // in properties or via modules.
-                \Annotate\Entity\AnnotationPart::class,
-                // The alias is this class, like in the normal queries. It
-                // allows to manage derivated queries easily.
-                'omeka_root'
-            );
-        $this->buildBaseQuery($qb, $query);
-        $this->buildQuery($qb, $query);
-        // The group is done on the annotation, not the id, so only annotations
-        // are returned. It works fine with mariadb (see previous version).
-        // Nevertheless, sql mode "only_full_group_by" requires group on an id.
-        // $qb->groupBy('omeka_root.annotation');
-        // Useless, but avoid an issue on mysql with group by clause.
-        // $qb->addSelect('omeka_root.id HIDDEN rid');
-        $qb->groupBy('omeka_root.id');
-
-        // Trigger the search.query event.
-        $event = new Event('api.search.query', $this, [
-            'queryBuilder' => $qb,
-            'request' => $request,
-        ]);
-        $this->getEventManager()->triggerEvent($event);
-
-        // To avoid issue with "only_full_group_by", a sub query is used.
-        // The main query needs only the id.
-        $expr = $qb->expr();
-        $qbSub = $qb;
-        $qbSub->select('omeka_root.id');
-        $parameters = $qbSub->getParameters();
-
-        /*
-        // In pure sql: "select annotation from annotation inner join annotation_part on annotation_part.annotation_id in ($query) limit x;"
-        // But dql adds related joins, and the join is not possible with a
-        // discriminator, so a sub-sub-query is needed for current version.
-        $qb = $entityManager
-            ->createQueryBuilder()
-            ->select('_omeka_root')
-            ->from(
-                \Annotate\Entity\Annotation::class,
-                '_omeka_root'
-            )
-            ->innerJoin(
-                \Annotate\Entity\AnnotationPart::class,
-                '_annotation_parts',
-                \Doctrine\ORM\Query\Expr\Join::ON,
-                $expr->in(
-                    'IDENTITY(_annotation_parts.annotation)',
-                    $qbSub->getDQL()
-                )
-            )
-            ->setParameters($parameters);
-        */
-
-        $qb = $entityManager
-            ->createQueryBuilder()
-            ->select('_omeka_root')
-            ->from(
-                \Annotate\Entity\Annotation::class,
-                '_omeka_root'
-            )
-            ->where($expr->in(
-                '_omeka_root.id',
-                $entityManager
-                    ->createQueryBuilder()
-                    ->select('DISTINCT IDENTITY(_annotation_parts.annotation)')
-                    ->from(
-                        \Annotate\Entity\AnnotationPart::class,
-                        '_annotation_parts'
-                    )
-                    ->where($expr->in('_annotation_parts.id', $qbSub->getDQL()))
-                    ->getDQL()
-            ))
-            ->setParameters($parameters)
-        ;
-
-        // Add the LIMIT clause.
-        $this->limitQuery($qb, $query);
-
-        // Before adding the ORDER BY clause, set a paginator responsible for
-        // getting the total count. This optimization excludes the ORDER BY
-        // clause from the count query, greatly speeding up response time.
-        $countQb = clone $qb;
-        // $countQb->select('1')->resetDQLPart('orderBy');
-        $countQb->resetDQLPart('orderBy');
-        $countPaginator = new Paginator($countQb, false);
-
-        // Add the ORDER BY clause. Always sort by entity ID in addition to any
-        // sorting the adapters add.
-        $this->sortQuery($qbSub, $query);
-        $qbSub->addOrderBy('omeka_root.annotation', $query['sort_order']);
-        $parameters = $qbSub->getParameters();
-        $qb
-            ->where($expr->in(
-                '_omeka_root.id',
-                $entityManager
-                    ->createQueryBuilder()
-                    ->select('DISTINCT IDENTITY(_annotation_parts.annotation)')
-                    ->from(
-                        \Annotate\Entity\AnnotationPart::class,
-                        '_annotation_parts'
-                    )
-                    ->where($expr->in('_annotation_parts.id', $qbSub->getDQL()))
-                    ->getDQL()
-            ))
-            ->setParameters($parameters);
-
-        $scalarField = $request->getOption('returnScalar');
-        if ($scalarField) {
-            $classMetadata = $this->getEntityManager()->getClassMetadata($entityClass);
-            $fieldNames = $classMetadata->getFieldNames();
-            if (!in_array($scalarField, $fieldNames)) {
-                $associationNames = $classMetadata->getAssociationNames();
-                if (!in_array($scalarField, $associationNames)) {
-                    throw new Exception\BadRequestException(sprintf(
-                        $this->getTranslator()->translate('The "%1$s" field is not available in the %2$s entity class.'),
-                        $scalarField, $entityClass
-                    ));
-                }
-                $qb->select(['_omeka_root.id', "IDENTITY(_omeka_root.$scalarField) AS $scalarField"]);
-            } else {
-                $qb->select(['_omeka_root.id', '_omeka_root.' . $scalarField]);
-            }
-
-            $content = array_column($qb->getQuery()->getScalarResult(), $scalarField, 'id');
-            $response = new Response($content);
-            $response->setTotalResults(count($content));
-            return $response;
-        }
-
-        $paginator = new Paginator($qb, false);
-        $entities = [];
-        // Don't make the request if the LIMIT is set to zero. Useful if the
-        // only information needed is total results.
-        if ($qb->getMaxResults() || null === $qb->getMaxResults()) {
-            foreach ($paginator as $entity) {
-                if (is_array($entity)) {
-                    // Remove non-entity columns added to the SELECT. You can use
-                    // "AS HIDDEN {alias}" to avoid this condition.
-                    $entity = $entity[0];
-                }
-                $entities[] = $entity;
-            }
-        }
-
-        $response = new Response($entities);
-        $response->setTotalResults($countPaginator->count());
-        return $response;
-    }
-
-    /**
      * The search is done on annotation bodies and targets too.
      *
      * {@inheritDoc}
@@ -288,19 +94,47 @@ class AnnotationAdapter extends AbstractResourceEntityAdapter
                     $userAlias
                 );
                 $qb->andWhere($expr->isNull($userAlias . '.id'));
-            } else {
+            } elseif ($query['annotator'] !== '' && $query['annotator'] !== []) {
+                if (is_array($query['annotator']) && count($query['annotator']) === 1) {
+                    $query['annotator'] = reset($query['annotator']);
+                }
                 $query['property'][] = [
                     'joiner' => 'and',
                     'property' => 'dcterms:creator',
-                    'type' => 'eq',
+                    'type' => is_array($query['annotator']) ? 'list' : 'eq',
                     'text' => $query['annotator'],
                 ];
             }
         }
 
+        if (isset($query['owner_id']) && $query['owner_id'] !== '' && $query['owner_id'] !== []) {
+            if (is_array($query['owner_id']) && count($query['owner_id']) === 1) {
+                $query['owner_id'] = reset($query['owner_id']);
+            }
+            $userAlias = $this->createAlias();
+            $qb->innerJoin(
+                'omeka_root.owner',
+                $userAlias
+            );
+            if (is_array($query['owner_id'])) {
+                $qb->andWhere($expr->in(
+                    "$userAlias.id",
+                    $this->createNamedParameter($qb, $query['owner_id']))
+                );
+            } else {
+                $qb->andWhere($expr->eq(
+                    "$userAlias.id",
+                    $this->createNamedParameter($qb, $query['owner_id']))
+                );
+            }
+        }
+
         // Added before parent buildQuery because a property is added.
         // FIXME: oa:hasSource is used to get the target, but in very rare cases, it can be attached to the body. Require to search a property on a subpart.
-        if (isset($query['resource_id'])) {
+        if (isset($query['resource_id']) && $query['resource_id'] !== '' && $query['resource_id'] !== []) {
+            if (is_array($query['resource_id']) && count($query['resource_id']) === 1) {
+                $query['resource_id'] = reset($query['resource_id']);
+            }
             $query['property'][] = [
                 'joiner' => 'and',
                 'property' => 'oa:hasSource',
@@ -309,26 +143,20 @@ class AnnotationAdapter extends AbstractResourceEntityAdapter
             ];
         }
 
-        // Parent buildQuery() uses "id" when "id" is queried, but it should be
-        // "annotation_id".
-        // So either copy all the parent method, either unset it before and
-        // check it after. Else, change the data model to set "id" for "root".
-        // TODO Check for Omeka 3.
-        $hasQueryId = isset($query['id']) && is_numeric($query['id']);
-        if ($hasQueryId) {
-            $id = $query['id'];
-            $qb->andWhere($expr->eq(
-                'omeka_root.annotation',
-                $this->createNamedParameter($qb, $query['id'])
-            ));
-            unset($query['id']);
+        // Added before parent buildQuery because a property is added.
+        if (isset($query['motivation']) && $query['motivation'] !== '' && $query['motivation'] !== []) {
+            if (is_array($query['motivation']) && count($query['motivation']) === 1) {
+                $query['motivation'] = reset($query['motivation']);
+            }
+            $query['property'][] = [
+                'joiner' => 'and',
+                'property' => 'oa:motivatedBy',
+                'type' => is_array($query['motivation']) ? 'list' : 'eq',
+                'text' => $query['motivation'],
+            ];
         }
 
         parent::buildQuery($qb, $query);
-
-        if ($hasQueryId) {
-            $query['id'] = $id;
-        }
 
         // TODO Check the query of annotations by site.
         // TODO Make the limit to a site working for item sets and media too.
@@ -413,232 +241,6 @@ class AnnotationAdapter extends AbstractResourceEntityAdapter
     }
 
     /**
-     * Build query on value.
-     *
-     * Similar than parent method with more query types.
-     *
-     * @see \Omeka\Api\Adapter\AbstractResourceEntityAdapter::buildPropertyQuery()
-     * @see \AdvancedSearchPlus\Module::buildPropertyQuery()
-     *
-     * Query format:
-     *
-     * - property[{index}][joiner]: "and" OR "or" joiner with previous query
-     * - property[{index}][property]: property ID
-     * - property[{index}][text]: search text
-     * - property[{index}][type]: search type
-     *   - eq: is exactly (core)
-     *   - neq: is not exactly (core)
-     *   - in: contains (core)
-     *   - nin: does not contain (core)
-     *   - ex: has any value (core)
-     *   - nex: has no value (core)
-     *   - list: is in list
-     *   - nlist: is not in list
-     *   - sw: starts with
-     *   - nsw: does not start with
-     *   - ew: ends with
-     *   - new: does not end with
-     *   - res: has resource
-     *   - nres: has no resource
-     *
-     * @param QueryBuilder $qb
-     * @param array $query
-     */
-    protected function buildPropertyQuery(QueryBuilder $qb, array $query): void
-    {
-        if (!isset($query['property']) || !is_array($query['property'])) {
-            return;
-        }
-
-        $valuesJoin = 'omeka_root.values';
-        $where = '';
-        $expr = $qb->expr();
-
-        $escape = function ($string) {
-            return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], (string) $string);
-        };
-
-        foreach ($query['property'] as $queryRow) {
-            if (!(
-                is_array($queryRow)
-                && array_key_exists('property', $queryRow)
-                && array_key_exists('type', $queryRow)
-            )) {
-                continue;
-            }
-            $propertyId = $queryRow['property'];
-            $queryType = $queryRow['type'];
-            $joiner = $queryRow['joiner'] ?? '';
-            $value = $queryRow['text'] ?? '';
-
-            if (!strlen((string) $value) && $queryType !== 'nex' && $queryType !== 'ex') {
-                continue;
-            }
-
-            $valuesAlias = $this->createAlias();
-            $positive = true;
-
-            switch ($queryType) {
-                case 'neq':
-                    $positive = false;
-                    // no break.
-                case 'eq':
-                    $param = $this->createNamedParameter($qb, $value);
-                    $subqueryAlias = $this->createAlias();
-                    $subquery = $this->getEntityManager()
-                        ->createQueryBuilder()
-                        ->select("$subqueryAlias.id")
-                        ->from('Omeka\Entity\Resource', $subqueryAlias)
-                        ->where($expr->eq("$subqueryAlias.title", $param));
-                    $predicateExpr = $expr->orX(
-                        $expr->in("$valuesAlias.valueResource", $subquery->getDQL()),
-                        $expr->eq("$valuesAlias.value", $param),
-                        $expr->eq("$valuesAlias.uri", $param)
-                    );
-                    break;
-
-                case 'nin':
-                    $positive = false;
-                    // no break.
-                case 'in':
-                    $param = $this->createNamedParameter($qb, '%' . $escape($value) . '%');
-                    $subqueryAlias = $this->createAlias();
-                    $subquery = $this->getEntityManager()
-                        ->createQueryBuilder()
-                        ->select("$subqueryAlias.id")
-                        ->from('Omeka\Entity\Resource', $subqueryAlias)
-                        ->where($expr->like("$subqueryAlias.title", $param));
-                    $predicateExpr = $expr->orX(
-                        $expr->in("$valuesAlias.valueResource", $subquery->getDQL()),
-                        $expr->like("$valuesAlias.value", $param),
-                        $expr->like("$valuesAlias.uri", $param)
-                    );
-                    break;
-
-                case 'nlist':
-                    $positive = false;
-                    // no break.
-                case 'list':
-                    $list = is_array($value) ? $value : explode("\n", $value);
-                    $list = array_filter(array_map('trim', array_map('strval', $list)), 'strlen');
-                    if (empty($list)) {
-                        continue 2;
-                    }
-                    $param = $this->createNamedParameter($qb, $list);
-                    $subqueryAlias = $this->createAlias();
-                    $subquery = $this->getEntityManager()
-                        ->createQueryBuilder()
-                        ->select("$subqueryAlias.id")
-                        ->from('Omeka\Entity\Resource', $subqueryAlias)
-                        ->where($expr->eq("$subqueryAlias.title", $param));
-                    $predicateExpr = $expr->orX(
-                        $expr->in("$valuesAlias.valueResource", $subquery->getDQL()),
-                        $expr->in("$valuesAlias.value", $param),
-                        $expr->in("$valuesAlias.uri", $param)
-                    );
-                    break;
-
-                case 'nsw':
-                    $positive = false;
-                    // no break.
-                case 'sw':
-                    $param = $this->createNamedParameter($qb, $escape($value) . '%');
-                    $subqueryAlias = $this->createAlias();
-                    $subquery = $this->getEntityManager()
-                        ->createQueryBuilder()
-                        ->select("$subqueryAlias.id")
-                        ->from('Omeka\Entity\Resource', $subqueryAlias)
-                        ->where($expr->like("$subqueryAlias.title", $param));
-                    $predicateExpr = $expr->orX(
-                        $expr->in("$valuesAlias.valueResource", $subquery->getDQL()),
-                        $expr->like("$valuesAlias.value", $param),
-                        $expr->like("$valuesAlias.uri", $param)
-                    );
-                    break;
-
-                case 'new':
-                    $positive = false;
-                    // no break.
-                case 'ew':
-                    $param = $this->createNamedParameter($qb, '%' . $escape($value));
-                    $subqueryAlias = $this->createAlias();
-                    $subquery = $this->getEntityManager()
-                        ->createQueryBuilder()
-                        ->select("$subqueryAlias.id")
-                        ->from('Omeka\Entity\Resource', $subqueryAlias)
-                        ->where($expr->like("$subqueryAlias.title", $param));
-                    $predicateExpr = $expr->orX(
-                        $expr->in("$valuesAlias.valueResource", $subquery->getDQL()),
-                        $expr->like("$valuesAlias.value", $param),
-                        $expr->like("$valuesAlias.uri", $param)
-                    );
-                    break;
-
-                case 'nres':
-                    $positive = false;
-                    // no break.
-                case 'res':
-                    $predicateExpr = $expr->eq(
-                        "$valuesAlias.valueResource",
-                        $this->createNamedParameter($qb, $value)
-                    );
-                    break;
-
-                case 'nex':
-                    $positive = false;
-                    // no break.
-                case 'ex':
-                    $predicateExpr = $expr->isNotNull("$valuesAlias.id");
-                    break;
-
-                default:
-                    continue 2;
-            }
-
-            $joinConditions = [];
-            // Narrow to specific property, if one is selected
-            if ($propertyId) {
-                if (is_numeric($propertyId)) {
-                    $propertyId = (int) $propertyId;
-                } else {
-                    $property = $this->getPropertyByTerm($propertyId);
-                    if ($property) {
-                        $propertyId = $property->getId();
-                    } else {
-                        $propertyId = 0;
-                    }
-                }
-                $joinConditions[] = $expr->eq("$valuesAlias.property", (int) $propertyId);
-            }
-
-            if ($positive) {
-                $whereClause = '(' . $predicateExpr . ')';
-            } else {
-                $joinConditions[] = $predicateExpr;
-                $whereClause = $expr->isNull("$valuesAlias.id");
-            }
-
-            if ($joinConditions) {
-                $qb->leftJoin($valuesJoin, $valuesAlias, 'WITH', $expr->andX(...$joinConditions));
-            } else {
-                $qb->leftJoin($valuesJoin, $valuesAlias);
-            }
-
-            if ($where == '') {
-                $where = $whereClause;
-            } elseif ($joiner == 'or') {
-                $where .= " OR $whereClause";
-            } else {
-                $where .= " AND $whereClause";
-            }
-        }
-
-        if ($where) {
-            $qb->andWhere($where);
-        }
-    }
-
-    /**
      * Search a resource class.
      *
      * @param QueryBuilder $qb
@@ -650,21 +252,33 @@ class AnnotationAdapter extends AbstractResourceEntityAdapter
             $expr = $qb->expr();
 
             if (is_numeric($query['resource_class'])) {
-                $resourceClass = (int) $query['resource_class'];
+                $resourceClassIds = array_filter([(int) $query['resource_class']]);
             } else {
-                $resourceClass = $this->resourceClassId($query['resource_class']);
+                /** @var \Common\Stdlib\EasyMeta $easyMeta */
+                $easyMeta = $this->getServiceLocator()->get('EasyMeta');
+                $resourceClassIds = $easyMeta->resourceClassIds($query['resource_class']);
             }
+
             $resourceClassAlias = $this->createAlias();
             $qb->innerJoin(
                 'omeka_root.resourceClass',
                 $resourceClassAlias
             );
-            $qb->andWhere(
-                $expr->eq(
-                    $resourceClassAlias . '.id',
-                    $this->createNamedParameter($qb, $resourceClass)
-                )
-            );
+            if (count($resourceClassIds) <= 1) {
+                $qb->andWhere(
+                    $expr->eq(
+                        $resourceClassAlias . '.id',
+                        $this->createNamedParameter($qb, reset($resourceClassIds) ?: 0)
+                    )
+                );
+            } else {
+                $qb->andWhere(
+                    $expr->in(
+                        $resourceClassAlias . '.id',
+                        $this->createNamedParameter($qb, $resourceClassIds)
+                    )
+                );
+            }
         }
     }
 
@@ -673,7 +287,31 @@ class AnnotationAdapter extends AbstractResourceEntityAdapter
         EntityInterface $entity,
         ErrorStore $errorStore
     ): void {
-        $this->normalizeRequest($request, $entity, $errorStore);
+        // Notes about format of data.
+
+        // Since 3.3.3.6, the form or source must send well formed annotations:
+        // no move, only basic default completion (property id, type, etc.).
+
+        // Before 3.3.3.6, the annotation request was normalized and some
+        // properties where moved from annotation into bodies and targets:
+        // - oa:hasSource[] into oa:hasTarget[][oa:hasSource][]
+        // - dcterms:format[] into oa:hasTarget[][dcterms:format][]
+        // - oa:hasPurpose[] into oa:hasBody[]oa:hasPurpose[]
+        // - oa:styleClass for cartography
+        // - rdf:value for multiple target or one body
+        //
+        // The process allowed to use standard Omeka resource methods and
+        // default form, that is not multi-level. Some heuristic was needed for
+        // the value "rdf:value", according to motivation/purpose, type and
+        // format.
+        //
+        // It managed too multiple targets and body. In most of the cases, an
+        // annotation has only one target and a target has only one source and
+        // an annotation with multiple targets has not an intuitive meaning: it
+        // means that the bodies apply independantly on each target.
+        // @see https://www.w3.org/TR/annotation-model/#sets-of-bodies-and-targets
+
+        $this->completeRequest($request, $entity, $errorStore);
 
         // Skip the bodies and the targets that are hydrated separately below.
         // It avoids the value hydrator to try to hydrate values from them: they
@@ -695,7 +333,10 @@ class AnnotationAdapter extends AbstractResourceEntityAdapter
             unset($data[$jsonName]);
         }
         $request->setContent($data);
+
+        // Validate request, hydrate and validate entity for main annotation.
         parent::hydrate($request, $entity, $errorStore);
+
         // Reset the bodies and the targets that were skipped above.
         foreach ($childEntities as $jsonName => $resourceName) {
             $data[$jsonName] = $children[$jsonName];
@@ -795,173 +436,32 @@ class AnnotationAdapter extends AbstractResourceEntityAdapter
             $errorStore->addError('oa:hasBody', 'Annotation body must be an array.'); // @translate
         }
 
-        if (array_key_exists('oa:hasTarget', $data)) {
-            if (!is_array($data['oa:hasTarget'])) {
-                $errorStore->addError('oa:hasTarget', 'Annotation target must be an array.'); // @translate
-            } elseif (count($data['oa:hasTarget']) < 1) {
-                $errorStore->addError('oa:hasTarget', 'There must be one annotation target at least.'); // @translate
-            }
+        if (empty($data['oa:hasTarget'])) {
+            $errorStore->addError('oa:hasTarget', 'There must be one annotation target at least.'); // @translate
+        } elseif (!is_array($data['oa:hasTarget'])) {
+            $errorStore->addError('oa:hasTarget', 'Annotation target must be an array.'); // @translate
         }
     }
 
     /**
-     * Normalize an annotation request (move properties in bodies and targets).
+     * @todo Support reverse subject values for annotation.
      *
-     * So, move:
-     * - oa:hasSource[] into oa:hasTarget[][oa:hasSource][]
-     * - dcterms:format[] into oa:hasTarget[][dcterms:format][]
-     * - oa:hasPurpose[] into oa:hasBody[]oa:hasPurpose[]
-     * - oa:styleClass for cartography
-     * - rdf:value for multiple target or one body
-     *
-     * When there are multiple sources, the key is used.
-     *
-     * This process is required as long as the standard Omeka resource methods
-     * are used and the default form, that is not multi-level.
-     * Anyway, this is not a full implementation, but a quick tool for common
-     * tasks (cartography, folksonomy, commenting, rating, quiz…).
-     * Some heuristic is needed for the value "rdf:value", according to
-     * motivation/purpose, type and format.
-     *
-     * @deprecated Since 3.3.3.6. The form or source must send well formed annotations (no move, only basic default completion).
-     *
-     * @param Request $request
-     * @param EntityInterface $entity
-     * @param ErrorStore $errorStore
+     * {@inheritDoc}
+     * @see \Omeka\Api\Adapter\AbstractResourceEntityAdapter::getSubjectValuesSimple()
      */
-    protected function normalizeRequest(
-        Request $request,
-        EntityInterface $entity,
-        ErrorStore $errorStore
-    ): void {
-        $data = $request->getContent();
-
-        // TODO Remove any language, since data model require to use a property.
-
-        // Check if the data are already normalized.
-        if (isset($data['oa:hasTarget'])
-            || isset($data['oa:hasBody'])
-        ) {
-            $this->completeRequest($request, $entity, $errorStore);
-            return;
-        }
-
-        // TODO Manage the normalization of an annotation update.
-        if (Request::UPDATE === $request->getOperation()) {
-            return;
-        }
-
-        $mainValueIsTargets = [];
-
-        // Targets (single or multiple).
-
-        // Normally, an annotation has only one target and a target has only one
-        // source. An annotation with multiple targets has not an intuitive
-        // meaning: it means that the bodies apply independantly on each target.
-        // @see https://www.w3.org/TR/annotation-model/#sets-of-bodies-and-targets
-
-        // Anyway, multiple targets are created here, with one source by target.
-        // No check is done on the type of the source, so it is possible to
-        // create annotation from an external party.
-        $data['oa:hasTarget'] = [];
-        foreach ($data['oa:hasSource'] ?? [] as $value) {
-            $data['oa:hasTarget'][] = [
-                'oa:hasSource' => [$value],
-            ];
-        }
-        unset($data['oa:hasSource']);
-
-        // FIXME Manage cartography in module Cartography.
-        $index = 0;
-        foreach ($data['dcterms:format'] ?? [] as $key => $value) {
-            $valueValue = $value['@value'];
-            switch ($valueValue) {
-                case 'application/wkt':
-                    $data['oa:hasTarget'][$index]['rdf:type'][] = [
-                        'property_id' => $this->propertyId('rdf:type'),
-                        'type' => 'customvocab:' . $this->customVocabId('Annotation Target rdf:type'),
-                        '@value' => 'oa:Selector',
-                    ];
-                    $value['@language'] = null;
-                    $data['oa:hasTarget'][$index]['dcterms:format'][] = $value;
-                    unset($data['dcterms:format'][$key]);
-                    $mainValueIsTargets[$key] = $index;
-                    ++$index;
-                    break;
-            }
-        }
-        if (empty($data['dcterms:format'])) {
-            unset($data['dcterms:format']);
-        }
-
-        foreach ($data['oa:styleClass'] ?? [] as $key => $value) {
-            if (isset($mainValueIsTargets[$key])) {
-                $value['@language'] = null;
-                $data['oa:hasTarget'][$mainValueIsTargets[$key]]['oa:styleClass'][] = $value;
-                unset($data['oa:styleClass'][$key]);
-            }
-        }
-        if (empty($data['oa:styleClass'])) {
-            unset($data['oa:styleClass']);
-        }
-
-        foreach ($data['rdf:value'] ?? [] as $key => $value) {
-            // A rdf value can be a target or a body in the old process.
-            if (isset($mainValueIsTargets[$key])) {
-                $value['@language'] = null;
-                $data['oa:hasTarget'][$mainValueIsTargets[$key]]['rdf:value'][] = $value;
-                unset($data['rdf:value'][$key]);
-            }
-        }
-        if (empty($data['rdf:value'])) {
-            unset($data['rdf:value']);
-        }
-
-        // Bodies (single).
-
-        if (!empty($data['oa:hasPurpose'])) {
-            $data['oa:hasBody'][0]['oa:hasPurpose'] = $data['oa:hasPurpose'];
-        }
-        unset($data['oa:hasPurpose']);
-
-        $index = 0;
-        foreach ($data['rdf:value'] ?? [] as $key => $value) {
-            // A rdf value can be a target or a body in the old process.
-            // In the case of a body, there is only one body.
-            if (!isset($mainValueIsTargets[$key])) {
-                $value['@language'] = null;
-                $data['oa:hasBody'][0]['rdf:value'][] = $value;
-                unset($data['rdf:value'][$key]);
-                $format = $this->isHtml($value['@value'] ?? '') ? 'text/html' : null;
-                if ($format) {
-                    $data['oa:hasBody'][0]['dcterms:format'][] = [
-                        'property_id' => $this->propertyId('dcterms:format'),
-                        'type' => 'customvocab:' . $this->customVocabId('Annotation Body dcterms:format'),
-                        '@value' => $format,
-                    ];
-                }
-            }
-        }
-        if (empty($data['rdf:value'])) {
-            unset($data['rdf:value']);
-        }
-
-        $request->setContent($data);
+    public function getSubjectValuesSimple(Resource $resource, $propertyId = null, $resourceType = null, $siteId = null)
+    {
+        return [];
     }
 
     /**
      * To simplify sub-modules or third-party clients, the annotations can be
-     * created simpler.
+     * created partial, without property ids, language and type, so only value,
+     * uri or value_resource_id can be passed. The main structure with a
+     * oa:motivatedBy, a oa:hasBody and a oa:hasTarget should be kept
+     * nevertheless.
      *
-     * Currently, the fields that are checked are adapted to a comment:
-     * - oa:motivatedBy: when it contains only one value, it is a simple
-     *   annotation.
-     * - oa:hasBody for each each rdf:value,
-     * - oa:hasTarget for each each rdf:hasSource,
-     *
-     * @param \Omeka\Api\Request $request
-     * @param \Omeka\Entity\EntityInterface $entity
-     * @param \Omeka\Stdlib\ErrorStore $errorStore
+     * The process does not check consistency.
      */
     protected function completeRequest(
         Request $request,
@@ -970,115 +470,107 @@ class AnnotationAdapter extends AbstractResourceEntityAdapter
     ): void {
         $data = $request->getContent();
 
-        $mapSimples = [
-            'commenting',
-        ];
+        /** @var \Common\Stdlib\EasyMeta $easyMeta */
+        $easyMeta = $this->getServiceLocator()->get('EasyMeta');
 
-        $isSimple = !empty($data['oa:motivatedBy'])
-            && count($data['oa:motivatedBy']) === 1
-            && count($data['oa:motivatedBy'][0]) === 1
-            && !empty($data['oa:motivatedBy'][0]['@value'])
-            && in_array($data['oa:motivatedBy'][0]['@value'], $mapSimples)
-            && !empty($data['oa:hasBody'][0]['rdf:value'])
-            && !empty($data['oa:hasTarget'][0]['oa:hasSource'])
-        ;
-        if (!$isSimple) {
-            return;
-        }
-
-        $resourceTemplateId = $this->resourceTemplateId('Annotation');
-        $resourceClassId = $this->resourceClassId('oa:Annotation');
+        $resourceTemplateId = $easyMeta->resourceTemplateId('Annotation');
+        $resourceClassId = $easyMeta->resourceClassId('oa:Annotation');
         $data['o:resource_template'] = $resourceTemplateId ? ['o:id' => $resourceTemplateId] : null;
         $data['o:resource_class'] = $resourceClassId ? ['o:id' => $resourceClassId] : null;
 
-        $customVocabMotivatedById = $this->customVocabId('Annotation oa:motivatedBy');
-        $customVocabHasPurposeId = $this->customVocabId('Annotation Body oa:hasPurpose');
-        $oaMotivatedById = $this->propertyId('oa:motivatedBy');
-        $oaHasPurposeId = $this->propertyId('oa:hasPurpose');
-        $oaHasSourceId = $this->propertyId('oa:hasSource');
-        $rdfValueId = $this->propertyId('rdf:value');
+        $dataTypeCustomVocabMotivatedBy = $easyMeta->dataTypeName('Annotation oa:motivatedBy');
+        $dataTypeCustomVocabHasPurpose = $easyMeta->dataTypeName('Annotation Body oa:hasPurpose');
+        $hasNumericDataTypes = $easyMeta->dataTypeName('numeric:integer') ? true : false;
 
-        switch ($data['oa:motivatedBy'][0]['@value']) {
-            case 'commenting':
-                $data['oa:motivatedBy'] = [[
-                    '@value' => 'commenting',
-                    'property_id' => $oaMotivatedById,
-                    'type' => $customVocabMotivatedById ? 'customvocab:' . $customVocabMotivatedById : 'literal',
-                    // No language, no visibility.
-                ]];
-                foreach ($data['oa:hasBody'] as &$hasBody) {
-                    foreach ($hasBody['rdf:value'] as &$value) {
-                        $value = [
-                            '@value' => $value['@value'],
-                            'property_id' => $rdfValueId,
-                            'type' => 'literal',
-                            // No language, no visibility.
-                        ];
-                    }
-                    unset($value);
-                    // At least one purpose.
-                    $hasBody['oa:hasPurpose'] = [[
-                        '@value' => 'commenting',
-                        'property_id' => $oaHasPurposeId,
-                        'type' => $customVocabHasPurposeId ? 'customvocab:' . $customVocabHasPurposeId : 'literal',
-                        // No language, no visibility.
-                    ]];
+        $motivation = $data['oa:motivatedBy'][0]['@value'] ?? 'undefined';
+        $data['oa:motivatedBy'] = [[
+            '@value' => $motivation,
+            'property_id' => $easyMeta->propertyId('oa:motivatedBy'),
+            'type' => $dataTypeCustomVocabMotivatedBy ?: 'literal',
+        ]];
+
+        $entityManager = $this->getEntityManager();
+        $completeProperties = function (array &$propertyValues) use ($easyMeta, $entityManager): array {
+            foreach ($propertyValues as $term => &$values) {
+                if (!$values) {
+                    unset($propertyValues[$term]);
+                    continue;
                 }
-                foreach ($data['oa:hasTarget'] as &$hasTarget) {
-                    foreach ($hasTarget['oa:hasSource'] as &$value) {
-                        $resource = $this->getEntityManager()->getRepository(\Omeka\Entity\Resource::class)->find($value['value_resource_id']);
+                $propertyId = $easyMeta->propertyId($term);
+                if (!$propertyId) {
+                    unset($propertyValues[$term]);
+                    continue;
+                }
+                foreach ($values as $key => &$value) {
+                    $hasResource = !empty($value['value_resource_id']);
+                    if ($hasResource) {
+                        /** @var \Omeka\Entity\Resource $resource */
+                        $resource = $entityManager->find(\Omeka\Entity\Resource::class, $value['value_resource_id']);
                         if (!$resource) {
+                            unset($values[$key]);
                             continue;
                         }
+                        $resourceTypes = [
+                            'items' => 'resource:item',
+                            'item_sets' => 'resource:itemset',
+                            'media' => 'resource:media',
+                        ];
+                    }
+                    $hasUri = !empty($value['@id']);
+                    $value['property_id'] = $propertyId;
+                    $value['type'] = $value['type']
+                        ?? ($hasResource
+                            ? ($resourceTypes[$resource->getResourceName()] ?? 'resource')
+                            : ($hasUri ? 'uri' : 'literal'));
+                }
+                unset($value);
+            }
+            unset($values);
+            return $propertyValues;
+        };
+
+        if (!empty($data['oa:hasBody'])) {
+            foreach ($data['oa:hasBody'] as &$hasBody) {
+                // Manage exceptions for rdf:value (integer) and oa:hasPurpose
+                // (customvocab).
+                if (!empty($hasBody['rdf:value'])) {
+                    foreach ($hasBody['rdf:value'] as &$value) {
+                        if ($motivation === 'assessing'
+                            && $hasNumericDataTypes
+                            && is_numeric($value['@value'])
+                            && ctype_digit((string) $value['@value'])
+                            && !empty($hasBody['dcterms:format'][0]['@value'])
+                            && stripos($hasBody['dcterms:format'][0]['@value'], 'integer') !== false
+                        ) {
+                            // Even number, the value should always be a string.
+                            $value = [
+                                '@value' => (string) $value['@value'],
+                                'type' => $value['type'] ?? 'numeric:integer',
+                            ];
+                        }
+                    }
+                    unset($value);
+                }
+                if (!empty($hasBody['oa:hasPurpose'])) {
+                    foreach ($hasBody['oa:hasPurpose'] as &$value) {
                         $value = [
-                            'value_resource_id' => $value['value_resource_id'],
-                            'property_id' => $oaHasSourceId,
-                            'type' => 'resource:' . mb_strtolower(mb_substr(mb_strrchr(get_class($resource), '\\'), 1)),
-                            // No language, no visibility.
+                            '@value' => (string) $value['@value'],
+                            'type' => $dataTypeCustomVocabHasPurpose ?: 'literal',
                         ];
                     }
                     unset($value);
-                    // No subpart.
-                    unset($hasTarget['rdf:type']);
-                    unset($hasTarget['rdf:value']);
                 }
-                break;
-            default:
-                break;
+                $completeProperties($hasBody);
+            }
+            unset($hasBody);
         }
+
+        foreach ($data['oa:hasTarget'] as &$hasTarget) {
+            $completeProperties($hasTarget);
+        }
+        unset($hasTarget);
 
         $request->setContent($data);
-    }
-
-    protected function propertyId($term): ?int
-    {
-        $api = $this->getServiceLocator()->get('ControllerPluginManager')->get('api');
-        $result = $api->searchOne('properties', ['term' => $term], ['initialize' => false, 'finalize' => false])->getContent();
-        return $result ? $result->getId() : null;
-    }
-
-    protected function resourceClassId($term): ?int
-    {
-        $api = $this->getServiceLocator()->get('ControllerPluginManager')->get('api');
-        $result = $api->searchOne('resource_classes', ['term' => $term], ['initialize' => false, 'finalize' => false])->getContent();
-        return $result ? $result->getId() : null;
-    }
-
-    protected function resourceTemplateId($label): ?int
-    {
-        $api = $this->getServiceLocator()->get('ControllerPluginManager')->get('api');
-        $result = $api->searchOne('resource_templates', ['label' => $label], ['initialize' => false, 'finalize' => false])->getContent();
-        return $result ? $result->getId() : null;
-    }
-
-    protected function customVocabId($label): ?int
-    {
-        $api = $this->getServiceLocator()->get('ControllerPluginManager')->get('api');
-        try {
-            return $api->read('custom_vocabs', ['label' => $label], [], ['responseContent' => 'resource'])->getContent()->getId();
-        } catch (Exception $e) {
-            return null;
-        }
     }
 
     /**
@@ -1086,6 +578,7 @@ class AnnotationAdapter extends AbstractResourceEntityAdapter
      */
     protected function isHtml($string): bool
     {
-        return (string) $string !== strip_tags((string) $string);
+        $string = trim((string) $string);
+        return $string !== strip_tags($string);
     }
 }

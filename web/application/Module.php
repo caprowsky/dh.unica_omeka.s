@@ -1,12 +1,17 @@
 <?php
 namespace Omeka;
 
+use EasyRdf\Graph;
 use Omeka\Api\Adapter\FulltextSearchableInterface;
 use Omeka\Api\Representation\AbstractResourceEntityRepresentation;
+use Omeka\Api\Representation\RepresentationInterface;
+use Omeka\Entity\Item;
 use Omeka\Entity\Media;
 use Omeka\Module\AbstractModule;
 use Laminas\EventManager\Event as ZendEvent;
 use Laminas\EventManager\SharedEventManagerInterface;
+use Laminas\Form\Element;
+use Laminas\Json\Json;
 use Laminas\View\Renderer\PhpRenderer;
 
 /**
@@ -17,7 +22,7 @@ class Module extends AbstractModule
     /**
      * This Omeka version.
      */
-    const VERSION = '3.2.3';
+    const VERSION = '4.1.1';
 
     /**
      * The vocabulary IRI used to define Omeka application data.
@@ -120,20 +125,14 @@ class Module extends AbstractModule
 
         $sharedEventManager->attach(
             'Omeka\Entity\Media',
-            'entity.persist.post',
-            [$this, 'saveFulltextOnMediaSave']
-        );
-
-        $sharedEventManager->attach(
-            'Omeka\Entity\Media',
-            'entity.update.post',
-            [$this, 'saveFulltextOnMediaSave']
+            'entity.remove.pre',
+            [$this, 'deleteFulltextMedia']
         );
 
         $sharedEventManager->attach(
             'Omeka\Api\Adapter\SitePageAdapter',
             'api.delete.pre',
-            [$this, 'deleteFulltextPre']
+            [$this, 'deleteFulltextPreSitePage']
         );
 
         $sharedEventManager->attach(
@@ -147,11 +146,16 @@ class Module extends AbstractModule
             'api.search.query',
             [$this, 'searchFulltext']
         );
+        $sharedEventManager->attach(
+            '*',
+            'api.search.query.finalize',
+            [$this, 'searchFulltext']
+        );
 
         $sharedEventManager->attach(
             'Omeka\Controller\Admin\Media',
             'view.edit.form.advanced',
-            [$this, 'addMediaAltTextInput']
+            [$this, 'addMediaAdvancedForm']
         );
 
         $sharedEventManager->attach(
@@ -170,6 +174,44 @@ class Module extends AbstractModule
             'Omeka\Controller\Site\Item',
             'view.browse.after',
             [$this, 'noindexItemSet']
+        );
+
+        // Add favicon to layouts.
+        $sharedEventManager->attach(
+            '*',
+            'view.layout',
+            function (ZendEvent $event) {
+                $view = $event->getTarget();
+                // Get the favicon asset ID.
+                if ($view->status()->isSiteRequest()) {
+                    $faviconAssetId = $view->siteSetting('favicon');
+                    if (!is_numeric($faviconAssetId)) {
+                        $faviconAssetId = $view->setting('favicon');
+                    }
+                } else {
+                    $faviconAssetId = $view->setting('favicon');
+                }
+                // Get the favicon href.
+                if (is_numeric($faviconAssetId)) {
+                    $faviconAsset = $view->api()->searchOne('assets', ['id' => $faviconAssetId])->getContent();
+                    $href = $faviconAsset ? $faviconAsset->assetUrl() : null;
+                } else {
+                    $href = null; // Passing null clears the favicon.
+                }
+                $view->headLink(['rel' => 'icon', 'href' => $href], 'PREPEND');
+            }
+        );
+
+        $sharedEventManager->attach(
+            '*',
+            'api.output.serialize',
+            [$this, 'serializeApiOutputJsonLd']
+        );
+
+        $sharedEventManager->attach(
+            '*',
+            'api.output.serialize',
+            [$this, 'serializeApiOutputRdf']
         );
 
         $sharedEventManager->attach(
@@ -558,34 +600,42 @@ class Module extends AbstractModule
     {
         $adapter = $event->getTarget();
         $entity = $event->getParam('response')->getContent();
-        if ($entity instanceof Media) {
-            // Media get special handling during entity.persist.post and
-            // entity.update.post in self::saveFulltextOnMediaSave(). There's no
-            // need to process them here.
-            return;
+        $fulltextSearch = $this->getServiceLocator()->get('Omeka\FulltextSearch');
+        $fulltextSearch->save($entity, $adapter);
+
+        // Item create needs special handling. We must save media fulltext here
+        // because media is created via cascade persist (during item create/update),
+        // which is invisible to normal API events.
+        if ($entity instanceof Item) {
+            $mediaAdapter = $adapter->getAdapter('media');
+            foreach ($entity->getMedia() as $mediaEntity) {
+                $fulltextSearch->save($mediaEntity, $mediaAdapter);
+            }
         }
-        $fulltext = $this->getServiceLocator()->get('Omeka\FulltextSearch');
-        $fulltext->save($entity, $adapter);
+        // Item media needs special handling. We must update the item's fulltext
+        // to append updated media data.
+        if ($entity instanceof Media) {
+            $itemEntity = $entity->getItem();
+            $itemAdapter = $adapter->getAdapter('items');
+            $fulltextSearch->save($itemEntity, $itemAdapter);
+        }
     }
 
     /**
-     * Save fulltext on media save.
+     * Delete the fulltext of a media.
      *
-     * This method does two things. First, it updates the parent item's fulltext
-     * to contain any new text introduced by this media. Second it ensures that
-     * the fulltext of newly created media is saved. Otherwise, media created
-     * in the item context (via cascade persist) will not have fulltext.
+     * We must delete media fulltext here because media may be deleted via cascade
+     * remove (during item update), which is invisible to normal API events.
      *
      * @param ZendEvent $event
      */
-    public function saveFulltextOnMediaSave(ZendEvent $event)
+    public function deleteFulltextMedia(ZendEvent $event)
     {
         $fulltextSearch = $this->getServiceLocator()->get('Omeka\FulltextSearch');
         $adapterManager = $this->getServiceLocator()->get('Omeka\ApiAdapterManager');
         $mediaEntity = $event->getTarget();
-        $itemEntity = $mediaEntity->getItem();
-        $fulltextSearch->save($mediaEntity, $adapterManager->get('media'));
-        $fulltextSearch->save($itemEntity, $adapterManager->get('items'));
+        $mediaAdapter = $adapterManager->get('media');
+        $fulltextSearch->delete($mediaEntity->getId(), $mediaAdapter);
     }
 
     /**
@@ -597,11 +647,15 @@ class Module extends AbstractModule
      *
      * @param ZendEvent $event
      */
-    public function deleteFulltextPre(ZendEvent $event)
+    public function deleteFulltextPreSitePage(ZendEvent $event)
     {
         $request = $event->getParam('request');
+        $conditions = $request->getId();
+        if (!is_array($conditions)) {
+            $conditions = ['id' => $conditions];
+        }
         $em = $this->getServiceLocator()->get('Omeka\EntityManager');
-        $sitePage = $em->getRepository('Omeka\Entity\SitePage')->findOneBy($request->getId());
+        $sitePage = $em->getRepository('Omeka\Entity\SitePage')->findOneBy($conditions);
         $request->setOption('deleted_entity_id', $sitePage->getId());
     }
 
@@ -618,10 +672,24 @@ class Module extends AbstractModule
      */
     public function deleteFulltext(ZendEvent $event)
     {
-        $fulltext = $this->getServiceLocator()->get('Omeka\FulltextSearch');
+        $adapter = $event->getTarget();
+        $entity = $event->getParam('response')->getContent();
         $request = $event->getParam('request');
-        $fulltext->delete(
-            // Note that the resource may not have an ID after being deleted.
+        $fulltextSearch = $this->getServiceLocator()->get('Omeka\FulltextSearch');
+
+        // Media delete needs special handling. We must update the item's fulltext
+        // to remove the appended media data. We return here because deleting media
+        // fulltext is handled by self::deleteFulltextMedia().
+        if ($entity instanceof Media) {
+            $itemEntity = $entity->getItem();
+            $itemAdapter = $adapter->getAdapter('items');
+            $fulltextSearch->save($itemEntity, $itemAdapter);
+            return;
+        }
+
+        // Note that the resource may not have an ID after being deleted. This
+        // is why we must use $request->getId() rather than $entity->getId().
+        $fulltextSearch->delete(
             $request->getOption('deleted_entity_id') ?? $request->getId(),
             $event->getTarget()
         );
@@ -646,60 +714,80 @@ class Module extends AbstractModule
         }
         $qb = $event->getParam('queryBuilder');
 
-        $searchAlias = $adapter->createAlias();
+        $match = 'MATCH(omeka_fulltext_search.title, omeka_fulltext_search.text) AGAINST (:omeka_fulltext_search)';
 
-        $match = sprintf(
-            'MATCH(%s.title, %s.text) AGAINST (%s)',
-            $searchAlias,
-            $searchAlias,
-            $adapter->createNamedParameter($qb, $query['fulltext_search'])
-        );
-        $joinConditions = sprintf(
-            '%s.id = omeka_root.id AND %s.resource = %s',
-            $searchAlias,
-            $searchAlias,
-            $adapter->createNamedParameter($qb, $adapter->getResourceName())
-        );
+        if ('api.search.query' === $event->getName()) {
 
-        $qb->innerJoin('Omeka\Entity\FulltextSearch', $searchAlias, 'WITH', $joinConditions)
-            // Filter out resources with no similarity.
-            ->andWhere(sprintf('%s > 0', $match))
-            // Order by the relevance. Note the use of orderBy() and not
-            // addOrderBy(). This should ensure that ordering by relevance
-            // is the first thing being ordered.
-            ->orderBy($match, 'DESC');
+            // Join the fulltext search table and filter items. This must happen
+            // during "api.search.query" because "api.search.query.finalize"
+            // happens after we've already gotten the total count.
 
-        // Set visibility constraints.
-        $acl = $this->getServiceLocator()->get('Omeka\Acl');
-        if ($acl->userIsAllowed('Omeka\Entity\Resource', 'view-all')) {
-            // Users with the "view-all" privilege can view all resources.
-            return;
-        }
-        // Users can view public resources they do not own.
-        $constraints = $qb->expr()->eq(sprintf('%s.isPublic', $searchAlias), true);
-        $identity = $this->getServiceLocator()->get('Omeka\AuthenticationService')->getIdentity();
-        if ($identity) {
-            // Users can view all resources they own.
-            $constraints = $qb->expr()->orX(
-                $constraints,
-                $qb->expr()->eq(sprintf('%s.owner', $searchAlias), $identity->getId())
+            $qb->setParameter('omeka_fulltext_search', $query['fulltext_search']);
+
+            $joinConditions = sprintf(
+                'omeka_fulltext_search.id = omeka_root.id AND omeka_fulltext_search.resource = %s',
+                $adapter->createNamedParameter($qb, $adapter->getResourceName())
             );
+            $qb->innerJoin('Omeka\Entity\FulltextSearch', 'omeka_fulltext_search', 'WITH', $joinConditions);
+
+            // Filter out resources with no similarity.
+            $qb->andWhere(sprintf('%s > 0', $match));
+
+            // Set visibility constraints.
+            $acl = $this->getServiceLocator()->get('Omeka\Acl');
+            if ($acl->userIsAllowed('Omeka\Entity\Resource', 'view-all')) {
+                // Users with the "view-all" privilege can view all resources.
+                return;
+            }
+            // Users can view public resources they do not own.
+            $constraints = $qb->expr()->eq('omeka_fulltext_search.isPublic', true);
+            $identity = $this->getServiceLocator()->get('Omeka\AuthenticationService')->getIdentity();
+            if ($identity) {
+                // Users can view all resources they own.
+                $constraints = $qb->expr()->orX(
+                    $constraints,
+                    $qb->expr()->eq('omeka_fulltext_search.owner', $identity->getId())
+                );
+            }
+            $qb->andWhere($constraints);
+        } elseif ('api.search.query.finalize' === $event->getName()) {
+
+            // Order by relevance if this is a default sort. This must happen
+            // during "api.search.query.finalize" because "api.search.query"
+            // happens before we apply orderBys.
+
+            if (isset($query['sort_by_default']) || !$qb->getDQLPart('orderBy')) {
+                $sortOrder = 'asc' === $query['sort_order'] ? 'ASC' : 'DESC';
+                if (isset($query['sort_order_default']) && isset($query['fulltext_search'])) {
+                    // The default sort order for fulltext searches must be
+                    // descending to account for the natural order of relevance
+                    // scores.
+                    $sortOrder = 'DESC';
+                }
+                $qb->orderBy($match, $sortOrder);
+            }
         }
-        $qb->andWhere($constraints);
     }
 
-    public function addMediaAltTextInput(ZendEvent $event)
+    public function addMediaAdvancedForm(ZendEvent $event)
     {
         $view = $event->getTarget();
-        $altText = $view->resource->altText() ?? null;
-        $textarea = new \Laminas\Form\Element\Textarea('o:alt_text');
-        $textarea->setLabel('Alt text'); // @translate
-        $textarea->setAttributes([
-            'value' => $altText,
-            'rows' => 4,
-            'id' => 'alt_text',
-        ]);
-        echo $view->formRow($textarea);
+        $altTextInput = new Element\Textarea('o:alt_text');
+        $altTextInput->setLabel('Alt text') // @translate
+            ->setAttributes([
+                'value' => $view->resource->altText() ?? null,
+                'rows' => 4,
+                'id' => 'alt_text',
+            ]);
+        $langInput = new Element\Text('o:lang');
+        $langInput->setLabel('Language') // @translate
+            ->setAttributes([
+                'value' => $view->resource->lang() ?? null,
+                'id' => 'lang',
+                'class' => 'validate-language',
+            ]);
+        echo $view->formRow($altTextInput);
+        echo $view->formRow($langInput);
     }
 
     public function noindexItem(ZendEvent $event)
@@ -721,6 +809,99 @@ class Module extends AbstractModule
             return;
         }
         $this->noindexResourceShow($view, $view->itemSet);
+    }
+
+    /**
+     * Serialize the API output to JSON-LD.
+     */
+    public function serializeApiOutputJsonLd(ZendEvent $event)
+    {
+        $renderer = $event->getTarget();
+        $model = $event->getParam('model');
+        $format = $event->getParam('format');
+        $payload = $event->getParam('payload');
+        $output = $event->getParam('output');
+
+        if ('jsonld' !== $format) {
+            return;
+        }
+
+        $eventManager = $this->getServiceLocator()->get('EventManager');
+
+        if ($payload instanceof RepresentationInterface) {
+            $args = $eventManager->prepareArgs(['jsonLd' => $output]);
+            $eventManager->trigger('rep.resource.json_output', $payload, $args);
+            $output = $args['jsonLd'];
+        }
+
+        if (null !== $model->getOption('pretty_print')) {
+            // Pretty print the JSON.
+            $output = Json::prettyPrint($output);
+        }
+
+        $jsonpCallback = (string) $model->getOption('callback');
+        if (!empty($jsonpCallback)) {
+            // Wrap the JSON in a JSONP callback. Normally this would be done
+            // via `$this->setJsonpCallback()` but we don't want to pass the
+            // wrapped string to `rep.resource.json_output` handlers.
+            $output = sprintf('%s(%s);', $jsonpCallback, $output);
+            $renderer->setHasJsonpCallback(true);
+        }
+
+        $event->setParam('output', $output);
+    }
+
+    /**
+     * Serialize the API output to RDF formats (rdfxml, n3, turtle, ntriples).
+     */
+    public function serializeApiOutputRdf(ZendEvent $event)
+    {
+        $renderer = $event->getTarget();
+        $model = $event->getParam('model');
+        $format = $event->getParam('format');
+        $payload = $event->getParam('payload');
+        $output = $event->getParam('output');
+
+        if (!in_array($format, ['rdfxml', 'n3', 'turtle', 'ntriples'])) {
+            return;
+        }
+
+        $eventManager = $this->getServiceLocator()->get('EventManager');
+
+        $serializeRdf = function ($jsonLd) use ($format) {
+            $graph = new Graph;
+            $graph->parse(Json::encode($jsonLd), 'jsonld');
+            return $graph->serialise($format);
+        };
+
+        $getJsonLdWithContext = function (RepresentationInterface $representation) use ($eventManager) {
+            // Add the @context by encoding the output as JSON, then decoding to an array.
+            static $context;
+            if (!$context) {
+                // Get the JSON-LD @context
+                $args = $eventManager->prepareArgs(['context' => []]);
+                $eventManager->trigger('api.context', null, $args);
+                $context = $args['context'];
+            }
+            $jsonLd = Json::decode(Json::encode($representation), true);
+            $jsonLd['@context'] = $context;
+            return $jsonLd;
+        };
+
+        // Render a single representation (get).
+        if ($payload instanceof RepresentationInterface) {
+            $jsonLd = $getJsonLdWithContext($payload);
+            $output = $serializeRdf($jsonLd);
+        // Render multiple representations (getList);
+        } elseif (is_array($payload) && array_filter($payload, fn ($object) => ($object instanceof RepresentationInterface))) {
+            $jsonLd = [];
+            foreach ($payload as $representation) {
+                $jsonLd[] = $getJsonLdWithContext($representation);
+            }
+            $output = $serializeRdf($jsonLd);
+        }
+
+        $event->setParam('output', $output);
     }
 
     /**

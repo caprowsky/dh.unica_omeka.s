@@ -1,8 +1,8 @@
 <?php declare(strict_types=1);
+
 namespace Annotate\Api\Adapter;
 
 use Annotate\Entity\Annotation;
-use Doctrine\ORM\QueryBuilder;
 use Omeka\Api\Adapter\AbstractResourceEntityAdapter;
 use Omeka\Api\Request;
 use Omeka\Entity\EntityInterface;
@@ -83,20 +83,5 @@ class AnnotationTargetHydrator extends AbstractResourceEntityAdapter
             $errorStore->addError('oa:Annotation', 'An annotation target must be attached to an Annotation.'); // @translate
         }
         parent::validateEntity($entity, $errorStore);
-    }
-
-    /**
-     * @deprecated Will be removed in a next version and replaced by args of "annotations".
-     *
-     * {@inheritDoc}
-     * @see \Omeka\Api\Adapter\AbstractResourceEntityAdapter::buildQuery()
-     */
-    public function buildQuery(QueryBuilder $qb, array $query): void
-    {
-        parent::buildQuery($qb, $query);
-
-        if (isset($query['annotation_id'])) {
-            $qb->andWhere($qb->expr()->eq('omeka_root.annotation', $query['annotation_id']));
-        }
     }
 }

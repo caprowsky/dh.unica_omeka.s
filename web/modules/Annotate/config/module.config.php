@@ -1,4 +1,5 @@
 <?php declare(strict_types=1);
+
 namespace Annotate;
 
 return [
@@ -61,11 +62,11 @@ return [
     ],
     'view_helpers' => [
         'invokables' => [
+            'annotations' => View\Helper\Annotations::class,
             'normalizeDateTimeQuery' => View\Helper\NormalizeDateTimeQuery::class,
         ],
         'factories' => [
             'showAnnotateForm' => Service\ViewHelper\ShowAnnotateFormFactory::class,
-            'annotations' => Service\ViewHelper\AnnotationsFactory::class,
         ],
     ],
     'form_elements' => [
@@ -82,22 +83,95 @@ return [
         ],
     ],
     'controller_plugins' => [
-        'invokables' => [
-            'isAnnotable' => Mvc\Controller\Plugin\IsAnnotable::class,
-            'resourceAnnotations' => Mvc\Controller\Plugin\ResourceAnnotations::class,
-            'totalResourceAnnotations' => Mvc\Controller\Plugin\TotalResourceAnnotations::class,
-        ],
         'factories' => [
             'annotationPartMapper' => Service\ControllerPlugin\AnnotationPartMapperFactory::class,
+            /** @deprecated Use right form to get values instead using plugin divideMergedValues. */
             'divideMergedValues' => Service\ControllerPlugin\DivideMergedValuesFactory::class,
             'resourceTemplateAnnotationPartMap' => Service\ControllerPlugin\ResourceTemplateAnnotationPartMapFactory::class,
+        ],
+    ],
+    'column_types' => [
+        'invokables' => [
+            'annotation_id' => ColumnType\Id::class,
+            'annotated_resource' => ColumnType\AnnotatedResource::class,
+        ],
+    ],
+    'column_defaults' => [
+        'admin' => [
+            'annotations' => [
+                [
+                    'type' => 'value',
+                    'header' => 'Motivation',
+                    'default' => '',
+                    'property_term' => 'oa:motivatedBy',
+                    'max_values' => 1,
+                ],
+                [
+                    'type' => 'annotated_resource',
+                    'header' => 'Targets',
+                    'default' => '',
+                    'max_values' => null,
+                ],
+                ['type' => 'owner'],
+                ['type' => 'created'],
+            ],
+        ],
+        'public' => [
+            'annotations' => [
+                [
+                    'type' => 'value',
+                    'header' => 'Motivation',
+                    'default' => '',
+                    'property_term' => 'oa:motivatedBy',
+                    'max_values' => 1,
+                ],
+                [
+                    'type' => 'annotated_resource',
+                    'header' => 'Targets',
+                    'default' => '',
+                    'max_values' => null,
+                ],
+                ['type' => 'owner'],
+                ['type' => 'created'],
+            ],
+        ],
+    ],
+    'browse_defaults' => [
+        'admin' => [
+            'annotations' => [
+                'sort_by' => 'created',
+                'sort_order' => 'desc',
+            ],
+        ],
+        'public' => [
+            'annotations' => [
+                'sort_by' => 'created',
+                'sort_order' => 'desc',
+            ],
+        ],
+    ],
+    'sort_defaults' => [
+        'admin' => [
+            'annotations' => [
+                'title' => 'Title', // @translate
+                'resource_class_label' => 'Resource class', // @translate
+                'owner_name' => 'Owner', // @translate
+                'created' => 'Created', // @translate
+            ],
+        ],
+        'public' => [
+            'annotations' => [
+                'title' => 'Title', // @translate
+                'resource_class_label' => 'Resource class', // @translate
+                'created' => 'Created', // @translate
+            ],
         ],
     ],
     'navigation' => [
         'AdminResource' => [
             'annotate' => [
                 'label' => 'Annotations', // @translate
-                'class' => 'annotations far fa-hand-o-up',
+                'class' => 'o-icon- annotations o-icon- fa-hand-point-up fa-hand-o-up',
                 'route' => 'admin/annotate/default',
                 'resource' => Controller\Admin\AnnotationController::class,
                 'privilege' => 'browse',
