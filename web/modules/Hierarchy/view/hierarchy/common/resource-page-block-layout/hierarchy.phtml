@@ -29,13 +29,17 @@ foreach ($itemSets as $itemSet) {
     }
     $groupings = $api->search('hierarchy_grouping', ['item_set' => $itemSet->id(), 'sort_by' => 'position'])->getContent();
     // Only show groupings/hierarchies assigned by Hierarchy option in site's context menu
-    foreach ($siteHierarchiesArray as $siteHierarchy) {
-        foreach ($groupings as $grouping) {
-            if ($grouping->getHierarchy()->getId() == $siteHierarchy['id']) {
-                if (!in_array($grouping->getHierarchy()->getId(), $printedHierarchies)) {
-                    // Only print hierarchies with multiple item set groupings once
-                    $siteGroupings[][] = $grouping;
-                    $printedHierarchies[] = $grouping->getHierarchy()->getId();
+    if (is_array($siteHierarchiesArray)) {
+        foreach ($siteHierarchiesArray as $siteHierarchy) {
+            if (is_array($groupings)) {
+                foreach ($groupings as $grouping) {
+                    if ($grouping->getHierarchy()->getId() == $siteHierarchy['id']) {
+                        if (!in_array($grouping->getHierarchy()->getId(), $printedHierarchies)) {
+                            // Only print hierarchies with multiple item set groupings once
+                            $siteGroupings[][] = $grouping;
+                            $printedHierarchies[] = $grouping->getHierarchy()->getId();
+                        }
+                    }
                 }
             }
         }
@@ -43,7 +47,7 @@ foreach ($itemSets as $itemSet) {
 }
 
 // Return if no groupings/hierarchies found
-if (!$siteGroupings) {
+if (empty($siteGroupings)) {
     return;
 }
 ?>
@@ -52,9 +56,15 @@ if (!$siteGroupings) {
     <div class="property">
         <dt><?php echo $this->translate('Hierarchies'); ?></dt>
         <dd class="value">
-            <?php foreach ($siteGroupings as $groupings): ?>
-            <?php echo $this->hierarchyHelper()->buildNestedList($groupings, $itemSet, $item, true); ?>
-            <?php endforeach; ?>
+            <?php if (!empty($siteGroupings) && is_array($siteGroupings)): ?>
+                <?php foreach ($siteGroupings as $groupings): ?>
+                    <?php if (is_array($groupings)): ?>
+                        <?php echo $this->hierarchyHelper()->buildNestedList($groupings, $itemSet, $item, true); ?>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <?php echo $this->translate('No hierarchies to display.'); ?>
+            <?php endif; ?>
         </dd>
     </div>
 </dl>
